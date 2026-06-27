@@ -1,7 +1,7 @@
 {
   "name": "@petrpus/legal-docs",
   "version": "0.0.0",
-  "description": "A universal, declarative library for generating legal documents (PDF / HTML / DOCX) from typed payloads and a file-based catalog of blocks, snippets, clauses and templates.",
+  "description": "A universal, declarative library for generating legal documents (PDF / HTML / DOCX) from typed payloads and a file-based catalog of blocks, clauses and templates.",
   "license": "MIT",
   "author": "Petr Puš",
   "type": "module",
@@ -17,10 +17,41 @@
     "react-pdf",
     "document-generation"
   ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
   "scripts": {
-    "build": "echo \"TODO: configure build (tsup) — see docs/PLAN.md\" && exit 0",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"TODO: configure test runner (vitest) — see docs/PLAN.md\" && exit 0",
-    "lint": "echo \"TODO: configure eslint — see docs/PLAN.md\" && exit 0"
+    "lint": "eslint .",
+    "test": "vitest run",
+    "build": "tsup",
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run build"
+  },
+  "dependencies": {
+    "@react-pdf/renderer": "^4.5.1",
+    "react": "^19.2.7",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.0.1",
+    "@types/react": "^19.2.17",
+    "eslint": "^10.6.0",
+    "pdf-parse": "^2.4.5",
+    "prettier": "^3.9.0",
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.62.0",
+    "vitest": "^4.1.9"
   }
 }
