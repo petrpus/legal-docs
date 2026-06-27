@@ -127,6 +127,29 @@ function nodeToElement(node: DocumentNode, key: number, theme: Theme): ReactElem
           ))}
         </View>
       );
+    case "signatures":
+      return (
+        <View key={key} style={{ flexDirection: "row", marginTop: theme.signatures.gap }}>
+          {node.places.map((place, i) => (
+            <View key={i} style={{ flex: 1, marginRight: theme.signatures.columnGap }}>
+              <View
+                style={{
+                  marginTop: theme.signatures.lineSpace,
+                  borderTopWidth: theme.signatures.lineWidth,
+                  borderColor: theme.signatures.lineColor,
+                  marginBottom: 4,
+                }}
+              />
+              <Text style={{ fontSize: theme.signatures.fontSize }}>{place.name}</Text>
+              {place.role !== undefined ? (
+                <Text style={{ fontSize: theme.signatures.fontSize, color: theme.signatures.roleColor }}>
+                  {place.role}
+                </Text>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      );
     default: {
       // Exhaustive over the Core node set: a new kind makes this assignment a compile error,
       // and this also guards untyped JS callers at runtime.

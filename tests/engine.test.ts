@@ -298,4 +298,70 @@ describe("assembleTree", () => {
       assembleTree(missingValue, { helpers: { rows: () => [{ label: "x" }] } }),
     ).rejects.toThrow(/"value" must be a string or number/);
   });
+
+  it("assembles signature places from a party path and an interpolated name", async () => {
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [
+        {
+          signatures: {
+            places: [
+              { party: "$lender", role: "Lender" },
+              { name: "{{ $witness }}", role: "Witness" },
+            ],
+          },
+        },
+      ],
+    };
+    const scope = { lender: { name: "Acme Bank" }, witness: "John Watson" };
+
+    expect(await assembleTree(template, { scope })).toEqual([
+      {
+        kind: "signatures",
+        places: [
+          { name: "Acme Bank", role: "Lender" },
+          { name: "John Watson", role: "Witness" },
+        ],
+      },
+    ]);
+  });
+
+  it("omits role for a place without one", async () => {
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ signatures: { places: [{ name: "Solo" }] } }],
+    };
+
+    expect(await assembleTree(template)).toEqual([
+      { kind: "signatures", places: [{ name: "Solo" }] },
+    ]);
+  });
+
+  it("rejects a signature place with neither party nor name", async () => {
+    const template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ signatures: { places: [{ role: "Nobody" }] } }],
+    } as Template;
+
+    await expect(assembleTree(template)).rejects.toThrow(/needs either `party` or `name`/);
+  });
+
+  it("rejects a signature place whose party path is malformed", async () => {
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ signatures: { places: [{ party: "$lender", role: "Lender" }] } }],
+    };
+
+    await expect(assembleTree(template, { scope: { lender: { role: "x" } } })).rejects.toThrow(
+      /name/,
+    );
+  });
 });

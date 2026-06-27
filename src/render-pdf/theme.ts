@@ -16,6 +16,15 @@ export interface Theme {
   list: { indent: number; markerGap: number; gap: number };
   partyHeader: { roleFontSize: number; gap: number };
   table: { borderColor: string; cellPadding: number; labelWidth: number; fontSize: number };
+  signatures: {
+    lineWidth: number;
+    lineColor: string;
+    lineSpace: number;
+    columnGap: number;
+    gap: number;
+    fontSize: number;
+    roleColor: string;
+  };
 }
 
 export const defaultTheme: Theme = {
@@ -27,4 +36,13 @@ export const defaultTheme: Theme = {
   list: { indent: 14, markerGap: 6, gap: 4 },
   partyHeader: { roleFontSize: 11, gap: 8 },
   table: { borderColor: "#999999", cellPadding: 4, labelWidth: 140, fontSize: 10 },
+  signatures: {
+    lineWidth: 1,
+    lineColor: "#111111",
+    lineSpace: 28,
+    columnGap: 24,
+    gap: 16,
+    fontSize: 10,
+    roleColor: "#555555",
+  },
 };

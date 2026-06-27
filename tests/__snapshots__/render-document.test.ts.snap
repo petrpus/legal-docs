@@ -165,4 +165,26 @@ exports[`renderDocument (walking skeleton) > assembles the party-header / key-va
 ]
 `;
 
+exports[`renderDocument (walking skeleton) > assembles the signatures document tree (golden) 1`] = `
+[
+  {
+    "kind": "title",
+    "text": "SIGNATURES",
+  },
+  {
+    "kind": "signatures",
+    "places": [
+      {
+        "name": "Acme Bank",
+        "role": "Lender",
+      },
+      {
+        "name": "John Watson",
+        "role": "Witness",
+      },
+    ],
+  },
+]
+`;
+
 exports[`renderDocument (walking skeleton) > loads a YAML template and renders a PDF containing its text > pdf-text-layer 1`] = `"DECLARATION AND CONFIRMATION This document is rendered from a declarative YAML template through the renderer-agnostic document tree. -- 1 of 1 --"`;

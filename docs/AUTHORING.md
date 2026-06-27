@@ -66,7 +66,7 @@ body:
   - if: $borrowerType == "SOLE_TRADER"      # condition — direct field read only
       then:
         - article: { no: "3.", clause: sole.warranties.lead@v1 }
-  - block: signatures   places: [$borrower]
+  - signatures: { places: [{ party: $borrower, role: "Borrower" }] }
 
   # Special-layout document: drop into a renderer-native component
   # - custom: { component: "landscape-grid-note", props: $note }
