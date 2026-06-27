@@ -1,10 +1,12 @@
-import type { ArticleItem, BodyItem, Template } from "./template";
-import type { DocumentNode, DocumentTree } from "./document-tree";
+import type { ArticleItem, BodyItem, KeyValueRows, Template } from "./template";
+import type { DocumentNode, DocumentTree, KeyValueRow } from "./document-tree";
 import type { Clause } from "./clause";
 import { evaluate, type EvalContext } from "./expression";
 import { interpolate } from "./interpolate";
 import { parseRichText } from "./rich-text";
 import { validateVars } from "./vars-schema";
+import { validatePayload } from "./payload";
+import { party } from "./schema-fragments";
 import { defaultHelpers, type HelperRegistry } from "./helpers";
 
 /** Resolves a Clause reference (`id@vN` | `id@latest`) to a concrete Clause for a locale. */
@@ -67,7 +69,70 @@ async function toNode(item: BodyItem, frame: Frame, level: number): Promise<Docu
   if ("alphaList" in item) {
     return { kind: "alphaList", items: await assembleListItems(item.alphaList, frame, level) };
   }
+  if ("partyHeader" in item) return partyHeaderNode(item.partyHeader, frame);
+  if ("keyValueTable" in item) return keyValueTableNode(item.keyValueTable, frame);
   throw new Error(`Unsupported body item: ${JSON.stringify(item)}`);
+}
+
+function partyHeaderNode(
+  spec: { party: string; roleLabel: string },
+  frame: Frame,
+): DocumentNode {
+  const resolved = evaluate(spec.party, frame.evalCtx);
+  if (resolved === undefined || resolved === null) {
+    throw new Error(`partyHeader: "${spec.party}" resolved to no party`);
+  }
+  const identification = validatePayload(party, resolved);
+  return {
+    kind: "partyHeader",
+    party: identification,
+    roleLabel: interpolate(spec.roleLabel, frame.evalCtx),
+  };
+}
+
+function keyValueTableNode(spec: { rows: KeyValueRows }, frame: Frame): DocumentNode {
+  return { kind: "keyValueTable", rows: buildRows(spec.rows, frame.evalCtx) };
+}
+
+function buildRows(rows: KeyValueRows, evalCtx: EvalContext): KeyValueRow[] {
+  if (Array.isArray(rows)) {
+    return rows.map((row) => ({
+      label: interpolate(row.label, evalCtx),
+      value: interpolate(row.value, evalCtx),
+    }));
+  }
+  const builder = evalCtx.helpers[rows.fn];
+  if (!builder) throw new Error(`Unknown row-builder helper: ${rows.fn}`);
+  const args = (rows.args ?? []).map((arg) =>
+    typeof arg === "string" && arg.startsWith("$") ? evaluate(arg, evalCtx) : arg,
+  );
+  let produced: unknown;
+  try {
+    produced = builder(...args);
+  } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(`Row-builder "${rows.fn}" failed: ${reason}`, { cause });
+  }
+  return asKeyValueRows(produced, rows.fn);
+}
+
+function asKeyValueRows(value: unknown, fn: string): KeyValueRow[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`Row-builder "${fn}" must return an array of { label, value }`);
+  }
+  return value.map((row, i) => {
+    if (row === null || typeof row !== "object") {
+      throw new Error(`Row-builder "${fn}" returned a non-object row at index ${i}`);
+    }
+    const r = row as Record<string, unknown>;
+    return { label: cell(r.label, fn, i, "label"), value: cell(r.value, fn, i, "value") };
+  });
+}
+
+function cell(value: unknown, fn: string, index: number, key: "label" | "value"): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return String(value);
+  throw new Error(`Row-builder "${fn}" row ${index}: "${key}" must be a string or number`);
 }
 
 async function articleNode(article: ArticleItem, frame: Frame, level: number): Promise<DocumentNode> {

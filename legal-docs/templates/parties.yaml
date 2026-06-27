@@ -1,0 +1,11 @@
+template: parties
+version: 1
+locale: en
+payloadSchema: parties@1
+body:
+  - partyHeader: { party: "$lender", roleLabel: "Lender" }
+  - partyHeader: { party: "$borrower", roleLabel: "Borrower" }
+  - keyValueTable:
+      rows:
+        - { label: "Principal", value: "{{ formatCurrency($loan.principal.amount, $loan.principal.currency) }}" }
+        - { label: "Borrower", value: "{{ $borrower.name }}" }

@@ -7,8 +7,14 @@ export type { RenderDocumentInput, RenderDocumentResult } from "./facade/render-
 
 export { assembleTree } from "./core/engine";
 export type { AssembleContext, ClauseResolver } from "./core/engine";
-export type { Template, BodyItem, ArticleItem } from "./core/template";
-export type { DocumentNode, DocumentTree, InlineRich } from "./core/document-tree";
+export type { Template, BodyItem, ArticleItem, KeyValueRows } from "./core/template";
+export type {
+  DocumentNode,
+  DocumentTree,
+  InlineRich,
+  PartyIdentification,
+  KeyValueRow,
+} from "./core/document-tree";
 
 export type { Clause } from "./core/clause";
 export { parseClauseRef } from "./core/clause-ref";
@@ -24,8 +30,8 @@ export { interpolate } from "./core/interpolate";
 
 export { validatePayload, PayloadValidationError } from "./core/payload";
 export type { PayloadSchemaRegistry, PayloadIssue } from "./core/payload";
-export { money, loan } from "./core/schema-fragments";
-export type { Money, Loan } from "./core/schema-fragments";
+export { money, loan, party } from "./core/schema-fragments";
+export type { Money, Loan, Party } from "./core/schema-fragments";
 export { defaultHelpers } from "./core/helpers";
 export type { Helper, HelperRegistry } from "./core/helpers";
 

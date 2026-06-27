@@ -9,6 +9,18 @@ import type { RichTextV1 } from "./rich-text";
 /** Inline text model. Minimal for now; structured rich text uses RichTextV1 (`richText` node). */
 export type InlineRich = string;
 
+export interface PartyIdentification {
+  name: string;
+  kind?: "person" | "company";
+  idNumber?: string;
+  address?: string;
+}
+
+export interface KeyValueRow {
+  label: string;
+  value: string;
+}
+
 export type DocumentNode =
   | { kind: "title"; text: InlineRich }
   | { kind: "paragraph"; text: InlineRich }
@@ -16,6 +28,8 @@ export type DocumentNode =
   | { kind: "article"; no: string; level: number; heading?: InlineRich; body: DocumentNode[] }
   | { kind: "numberedList"; items: DocumentNode[][] }
   | { kind: "bulletList"; items: DocumentNode[][] }
-  | { kind: "alphaList"; items: DocumentNode[][] };
+  | { kind: "alphaList"; items: DocumentNode[][] }
+  | { kind: "partyHeader"; party: PartyIdentification; roleLabel: string }
+  | { kind: "keyValueTable"; rows: KeyValueRow[] };
 
 export type DocumentTree = DocumentNode[];

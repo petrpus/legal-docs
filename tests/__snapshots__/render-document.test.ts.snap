@@ -129,4 +129,40 @@ exports[`renderDocument (walking skeleton) > assembles the expected tree (golden
 ]
 `;
 
+exports[`renderDocument (walking skeleton) > assembles the party-header / key-value document tree (golden) 1`] = `
+[
+  {
+    "kind": "partyHeader",
+    "party": {
+      "address": "1 Bank St",
+      "idNumber": "12345678",
+      "kind": "company",
+      "name": "Acme Bank",
+    },
+    "roleLabel": "Lender",
+  },
+  {
+    "kind": "partyHeader",
+    "party": {
+      "kind": "person",
+      "name": "Jane Doe",
+    },
+    "roleLabel": "Borrower",
+  },
+  {
+    "kind": "keyValueTable",
+    "rows": [
+      {
+        "label": "Principal",
+        "value": "EUR 1000.00",
+      },
+      {
+        "label": "Borrower",
+        "value": "Jane Doe",
+      },
+    ],
+  },
+]
+`;
+
 exports[`renderDocument (walking skeleton) > loads a YAML template and renders a PDF containing its text > pdf-text-layer 1`] = `"DECLARATION AND CONFIRMATION This document is rendered from a declarative YAML template through the renderer-agnostic document tree. -- 1 of 1 --"`;
