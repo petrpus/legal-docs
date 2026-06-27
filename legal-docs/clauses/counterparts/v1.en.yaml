@@ -1,0 +1,7 @@
+clause: counterparts
+version: 1
+locale: en
+vars:
+  count: { type: integer, min: 1 }
+text: |
+  This document is executed in **{{ $count }}** counterparts, each party receiving one.

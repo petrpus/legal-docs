@@ -1,0 +1,7 @@
+clause: counterparts
+version: 2
+locale: en
+vars:
+  count: { type: integer, min: 1 }
+text: |
+  This agreement is signed in **{{ $count }}** counterpart copies of equal legal force.

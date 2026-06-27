@@ -38,7 +38,12 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
   }
   const template = await input.catalog.getTemplate(input.template);
   const scope = resolveScope(template, input);
-  const tree = assembleTree(template, { scope, helpers: input.helpers });
+  const tree = await assembleTree(template, {
+    scope,
+    helpers: input.helpers,
+    clauses: (ref, locale) => input.catalog.getClause(ref, locale),
+    locale: template.locale,
+  });
   const buffer = await renderTreeToBuffer(tree, input.theme);
   const snapshotId = createHash("sha256")
     .update(

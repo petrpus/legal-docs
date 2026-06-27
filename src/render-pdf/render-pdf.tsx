@@ -1,6 +1,7 @@
-import { Document, Page, Text, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Page, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { createElement, type ReactElement } from "react";
 import type { DocumentNode, DocumentTree } from "../core/document-tree";
+import type { RichRun } from "../core/rich-text";
 import { defaultTheme, type Theme } from "./theme";
 
 /**
@@ -27,6 +28,23 @@ function nodeToElement(node: DocumentNode, key: number, theme: Theme): ReactElem
           {node.text}
         </Text>
       );
+    case "richText":
+      return (
+        <View key={key}>
+          {node.value.blocks.map((paragraph, pi) => (
+            <Text
+              key={pi}
+              style={{ fontSize: theme.fontSize.paragraph, marginBottom: theme.spacing.paragraph }}
+            >
+              {paragraph.runs.map((run, ri) => (
+                <Text key={ri} style={runStyle(run)}>
+                  {run.text}
+                </Text>
+              ))}
+            </Text>
+          ))}
+        </View>
+      );
     default: {
       // Exhaustive over the Core node set: a new kind makes this assignment a compile error,
       // and this also guards untyped JS callers at runtime.
@@ -34,6 +52,13 @@ function nodeToElement(node: DocumentNode, key: number, theme: Theme): ReactElem
       throw new Error(`Unsupported node kind: ${JSON.stringify(unhandled)}`);
     }
   }
+}
+
+function runStyle(run: RichRun): { fontWeight?: "bold"; fontStyle?: "italic" } {
+  return {
+    ...(run.marks?.includes("bold") ? { fontWeight: "bold" } : {}),
+    ...(run.marks?.includes("italic") ? { fontStyle: "italic" } : {}),
+  };
 }
 
 /**
