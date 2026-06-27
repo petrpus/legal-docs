@@ -1,0 +1,6 @@
+template: not-mismatch
+version: 1
+locale: en
+derivations: [missingDerivation]
+body:
+  - paragraph: "Nothing wrong here."

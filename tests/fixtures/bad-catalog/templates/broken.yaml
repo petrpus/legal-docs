@@ -1,0 +1,8 @@
+template: broken
+version: 1
+locale: en
+body:
+  - clause: "missing-clause@v1"
+  - paragraph: "Total: {{ ohno($x) }}"
+  - clause: "note@v1"
+    vars: { count: "two" }
