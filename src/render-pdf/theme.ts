@@ -14,6 +14,8 @@ export interface Theme {
     gap: number;
   };
   list: { indent: number; markerGap: number; gap: number };
+  partyHeader: { roleFontSize: number; gap: number };
+  table: { borderColor: string; cellPadding: number; labelWidth: number; fontSize: number };
 }
 
 export const defaultTheme: Theme = {
@@ -23,4 +25,6 @@ export const defaultTheme: Theme = {
   spacing: { paragraph: 8, title: 16 },
   article: { headingFontSize: [13, 12, 11], indentPerLevel: 14, gap: 6 },
   list: { indent: 14, markerGap: 6, gap: 4 },
+  partyHeader: { roleFontSize: 11, gap: 8 },
+  table: { borderColor: "#999999", cellPadding: 4, labelWidth: 140, fontSize: 10 },
 };

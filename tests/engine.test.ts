@@ -205,4 +205,97 @@ describe("assembleTree", () => {
       { kind: "article", no: "1.", level: 1, body: [{ kind: "paragraph", text: "x" }] },
     ]);
   });
+
+  it("resolves a partyHeader from the payload and validates it", async () => {
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ partyHeader: { party: "$lender", roleLabel: "Lender" } }],
+    };
+    const scope = { lender: { name: "Acme Bank", kind: "company", idNumber: "12345678" } };
+
+    expect(await assembleTree(template, { scope })).toEqual([
+      {
+        kind: "partyHeader",
+        roleLabel: "Lender",
+        party: { name: "Acme Bank", kind: "company", idNumber: "12345678" },
+      },
+    ]);
+  });
+
+  it("rejects a partyHeader whose party is malformed", async () => {
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ partyHeader: { party: "$lender", roleLabel: "Lender" } }],
+    };
+
+    await expect(assembleTree(template, { scope: { lender: { kind: "company" } } })).rejects.toThrow(
+      /name/,
+    );
+  });
+
+  it("builds keyValueTable rows literally with interpolation", async () => {
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ keyValueTable: { rows: [{ label: "Name", value: "{{ $who }}" }] } }],
+    };
+
+    expect(await assembleTree(template, { scope: { who: "Jane" } })).toEqual([
+      { kind: "keyValueTable", rows: [{ label: "Name", value: "Jane" }] },
+    ]);
+  });
+
+  it("builds keyValueTable rows from a whitelisted row-builder helper", async () => {
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ keyValueTable: { rows: { fn: "buildRows", args: ["$loan"] } } }],
+    };
+    const helpers = {
+      buildRows: (...args: unknown[]) => {
+        const loan = args[0] as { amount: number };
+        return [{ label: "Amount", value: String(loan.amount) }];
+      },
+    };
+
+    expect(await assembleTree(template, { scope: { loan: { amount: 1000 } }, helpers })).toEqual([
+      { kind: "keyValueTable", rows: [{ label: "Amount", value: "1000" }] },
+    ]);
+  });
+
+  it("rejects an unknown row-builder helper", async () => {
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ keyValueTable: { rows: { fn: "missing" } } }],
+    };
+
+    await expect(assembleTree(template)).rejects.toThrow(/Unknown row-builder helper: missing/);
+  });
+
+  it("rejects malformed row-builder output instead of coercing it", async () => {
+    const base = { template: "t", version: 1, locale: "en" } as const;
+    const notArray = {
+      ...base,
+      body: [{ keyValueTable: { rows: { fn: "bad" } } }],
+    } as Template;
+    const missingValue = {
+      ...base,
+      body: [{ keyValueTable: { rows: { fn: "rows" } } }],
+    } as Template;
+
+    await expect(
+      assembleTree(notArray, { helpers: { bad: () => "nope" } }),
+    ).rejects.toThrow(/must return an array/);
+    await expect(
+      assembleTree(missingValue, { helpers: { rows: () => [{ label: "x" }] } }),
+    ).rejects.toThrow(/"value" must be a string or number/);
+  });
 });

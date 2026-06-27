@@ -6,7 +6,7 @@ import { z } from "zod";
 import { Catalog } from "../src/catalog/catalog";
 import { renderDocument } from "../src/facade/render-document";
 import { assembleTree } from "../src/core/engine";
-import { loan } from "../src/core/schema-fragments";
+import { loan, party } from "../src/core/schema-fragments";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const catalogDir = path.join(here, "..", "legal-docs");
@@ -123,5 +123,41 @@ describe("renderDocument (walking skeleton)", () => {
     // Alpha list markers render before each item.
     expect(text).toMatch(/a\.\s*Alpha point a\./);
     expect(text).toMatch(/b\.\s*Alpha point b\./);
+  });
+
+  const partyData = {
+    lender: { name: "Acme Bank", kind: "company", idNumber: "12345678", address: "1 Bank St" },
+    borrower: { name: "Jane Doe", kind: "person" },
+    loan: { principal: { amount: 1000, currency: "EUR" } },
+  };
+  const partySchemas = {
+    "parties@1": z.object({ lender: party, borrower: party, loan }),
+  };
+
+  it("assembles the party-header / key-value document tree (golden)", async () => {
+    const catalog = await Catalog.fromDir(catalogDir);
+    const template = await catalog.getTemplate("parties");
+
+    expect(await assembleTree(template, { scope: partyData })).toMatchSnapshot();
+  });
+
+  it("renders partyHeader and keyValueTable into the PDF", async () => {
+    const catalog = await Catalog.fromDir(catalogDir);
+    const result = await renderDocument({
+      catalog,
+      template: "parties",
+      data: partyData,
+      schemas: partySchemas,
+      format: "pdf",
+    });
+
+    const text = await extractText(result.buffer);
+    expect(text).toContain("Lender");
+    expect(text).toContain("Acme Bank");
+    expect(text).toContain("12345678");
+    expect(text).toContain("Borrower");
+    expect(text).toContain("Jane Doe");
+    expect(text).toContain("Principal");
+    expect(text).toContain("EUR 1000.00");
   });
 });

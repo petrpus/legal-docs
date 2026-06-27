@@ -10,6 +10,11 @@ export interface ArticleItem {
   body: BodyItem[];
 }
 
+/** Key-value rows: either authored literally (label/value, interpolatable) or built by a helper. */
+export type KeyValueRows =
+  | { label: string; value: string }[]
+  | { fn: string; args?: unknown[] };
+
 export type BodyItem =
   | { title: string }
   | { paragraph: string }
@@ -17,7 +22,9 @@ export type BodyItem =
   | { article: ArticleItem }
   | { numberedList: BodyItem[][] }
   | { bulletList: BodyItem[][] }
-  | { alphaList: BodyItem[][] };
+  | { alphaList: BodyItem[][] }
+  | { partyHeader: { party: string; roleLabel: string } }
+  | { keyValueTable: { rows: KeyValueRows } };
 
 export interface Template {
   /** Template id. */

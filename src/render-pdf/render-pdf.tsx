@@ -74,6 +74,59 @@ function nodeToElement(node: DocumentNode, key: number, theme: Theme): ReactElem
       return listElement(node.items, key, theme, () => "•");
     case "alphaList":
       return listElement(node.items, key, theme, (i) => `${String.fromCharCode(97 + i)}.`);
+    case "partyHeader":
+      return (
+        <View key={key} style={{ marginBottom: theme.partyHeader.gap }}>
+          <Text style={{ fontSize: theme.partyHeader.roleFontSize, fontWeight: "bold" }}>
+            {node.roleLabel}
+          </Text>
+          <Text style={{ fontSize: theme.fontSize.paragraph }}>{node.party.name}</Text>
+          {node.party.idNumber !== undefined ? (
+            <Text style={{ fontSize: theme.fontSize.paragraph }}>{node.party.idNumber}</Text>
+          ) : null}
+          {node.party.address !== undefined ? (
+            <Text style={{ fontSize: theme.fontSize.paragraph }}>{node.party.address}</Text>
+          ) : null}
+        </View>
+      );
+    case "keyValueTable":
+      return (
+        <View
+          key={key}
+          style={{
+            marginBottom: theme.spacing.paragraph,
+            borderTopWidth: 1,
+            borderColor: theme.table.borderColor,
+          }}
+        >
+          {node.rows.map((row, i) => (
+            <View
+              key={i}
+              style={{
+                flexDirection: "row",
+                borderBottomWidth: 1,
+                borderColor: theme.table.borderColor,
+              }}
+            >
+              <Text
+                style={{
+                  width: theme.table.labelWidth,
+                  padding: theme.table.cellPadding,
+                  fontSize: theme.table.fontSize,
+                  fontWeight: "bold",
+                }}
+              >
+                {row.label}
+              </Text>
+              <Text
+                style={{ flex: 1, padding: theme.table.cellPadding, fontSize: theme.table.fontSize }}
+              >
+                {row.value}
+              </Text>
+            </View>
+          ))}
+        </View>
+      );
     default: {
       // Exhaustive over the Core node set: a new kind makes this assignment a compile error,
       // and this also guards untyped JS callers at runtime.
