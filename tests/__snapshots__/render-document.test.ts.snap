@@ -1,0 +1,16 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderDocument (walking skeleton) > assembles the expected tree (golden) 1`] = `
+[
+  {
+    "kind": "title",
+    "text": "DECLARATION AND CONFIRMATION",
+  },
+  {
+    "kind": "paragraph",
+    "text": "This document is rendered from a declarative YAML template through the renderer-agnostic document tree.",
+  },
+]
+`;
+
+exports[`renderDocument (walking skeleton) > loads a YAML template and renders a PDF containing its text > pdf-text-layer 1`] = `"DECLARATION AND CONFIRMATION This document is rendered from a declarative YAML template through the renderer-agnostic document tree. -- 1 of 1 --"`;
