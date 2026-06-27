@@ -78,8 +78,11 @@ body:
   `{{ expr }}` inside text.
 - **Conditionals:** `if: … then: … else: …`, inline `{{ flag ? a : b }}`.
 - **Loops:** `for: { each: $list, as: item }`; `{{index}}` is available inside.
+- **Operators:** comparison (`== != < <= > >=`, where `==` means a *strict* equality), logical
+  (`&& || !`), nullish (`??`), arithmetic (`+ - * / %`), and a ternary `? :`. Optional chaining
+  (`$a?.b`) short-circuits on a missing value.
 - **Helpers:** whitelisted pure functions only — `formatCurrency`, `formatDate`, row-builders. No
-  `eval`, no arbitrary code.
+  `eval`, no arbitrary code. Reading `__proto__` / `constructor` / `prototype` is blocked.
 
 ### What may go inline vs in a Derivation
 

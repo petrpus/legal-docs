@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import type { Catalog } from "../catalog/catalog";
+import type { Template } from "../core/template";
 import { assembleTree } from "../core/engine";
+import { validatePayload, type PayloadSchemaRegistry } from "../core/payload";
+import type { HelperRegistry } from "../core/helpers";
 import { renderTreeToBuffer } from "../render-pdf/render-pdf";
 import type { Theme } from "../render-pdf/theme";
 
@@ -11,6 +14,10 @@ export interface RenderDocumentInput {
   /** Accepted for forward-compatibility; only the standalone-template path is implemented. */
   variant?: string;
   data?: unknown;
+  /** Code-side payload schemas, looked up by a Template's `payloadSchema` reference. */
+  schemas?: PayloadSchemaRegistry;
+  /** Extra whitelisted helpers, merged over the defaults. */
+  helpers?: HelperRegistry;
   format: "pdf";
   theme?: Theme;
 }
@@ -30,7 +37,8 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
     throw new Error(`Unsupported format: ${String(input.format)}`);
   }
   const template = await input.catalog.getTemplate(input.template);
-  const tree = assembleTree(template);
+  const scope = resolveScope(template, input);
+  const tree = assembleTree(template, { scope, helpers: input.helpers });
   const buffer = await renderTreeToBuffer(tree, input.theme);
   const snapshotId = createHash("sha256")
     .update(
@@ -44,4 +52,21 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
     .digest("hex")
     .slice(0, 16);
   return { buffer, stream: Readable.from(buffer), snapshotId };
+}
+
+function resolveScope(template: Template, input: RenderDocumentInput): Record<string, unknown> {
+  if (!template.payloadSchema) {
+    // Schema is optional: a Template without one binds raw data unvalidated (intentional).
+    return isRecord(input.data) ? input.data : {};
+  }
+  const schema = input.schemas?.[template.payloadSchema];
+  if (!schema) {
+    throw new Error(`No payload schema registered for "${template.payloadSchema}"`);
+  }
+  const validated = validatePayload(schema, input.data);
+  return isRecord(validated) ? validated : {};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
