@@ -160,4 +160,34 @@ describe("renderDocument (walking skeleton)", () => {
     expect(text).toContain("Principal");
     expect(text).toContain("EUR 1000.00");
   });
+
+  it("assembles the signatures document tree (golden)", async () => {
+    const catalog = await Catalog.fromDir(catalogDir);
+    const template = await catalog.getTemplate("signoff");
+
+    expect(
+      await assembleTree(template, {
+        scope: { lender: { name: "Acme Bank" }, witness: "John Watson" },
+      }),
+    ).toMatchSnapshot();
+  });
+
+  it("renders a signatures block into the PDF", async () => {
+    const catalog = await Catalog.fromDir(catalogDir);
+    const schemas = { "signoff@1": z.object({ lender: party, witness: z.string() }) };
+    const result = await renderDocument({
+      catalog,
+      template: "signoff",
+      data: { lender: { name: "Acme Bank" }, witness: "John Watson" },
+      schemas,
+      format: "pdf",
+    });
+
+    const text = await extractText(result.buffer);
+    expect(text).toContain("SIGNATURES");
+    expect(text).toContain("Acme Bank");
+    expect(text).toContain("Lender");
+    expect(text).toContain("John Watson");
+    expect(text).toContain("Witness");
+  });
 });

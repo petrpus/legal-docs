@@ -7,13 +7,20 @@ export type { RenderDocumentInput, RenderDocumentResult } from "./facade/render-
 
 export { assembleTree } from "./core/engine";
 export type { AssembleContext, ClauseResolver } from "./core/engine";
-export type { Template, BodyItem, ArticleItem, KeyValueRows } from "./core/template";
+export type {
+  Template,
+  BodyItem,
+  ArticleItem,
+  KeyValueRows,
+  SignaturePlaceSpec,
+} from "./core/template";
 export type {
   DocumentNode,
   DocumentTree,
   InlineRich,
   PartyIdentification,
   KeyValueRow,
+  SignaturePlace,
 } from "./core/document-tree";
 
 export type { Clause } from "./core/clause";

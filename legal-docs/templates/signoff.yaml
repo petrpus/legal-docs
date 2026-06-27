@@ -1,0 +1,10 @@
+template: signoff
+version: 1
+locale: en
+payloadSchema: signoff@1
+body:
+  - title: "SIGNATURES"
+  - signatures:
+      places:
+        - { party: "$lender", role: "Lender" }
+        - { name: "{{ $witness }}", role: "Witness" }

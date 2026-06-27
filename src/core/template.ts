@@ -24,7 +24,15 @@ export type BodyItem =
   | { bulletList: BodyItem[][] }
   | { alphaList: BodyItem[][] }
   | { partyHeader: { party: string; roleLabel: string } }
-  | { keyValueTable: { rows: KeyValueRows } };
+  | { keyValueTable: { rows: KeyValueRows } }
+  | { signatures: { places: SignaturePlaceSpec[] } };
+
+/** A signature slot: a `$`-path to a party (its name is used) or a literal/interpolated name. */
+export interface SignaturePlaceSpec {
+  party?: string;
+  name?: string;
+  role?: string;
+}
 
 export interface Template {
   /** Template id. */

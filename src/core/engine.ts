@@ -1,5 +1,5 @@
-import type { ArticleItem, BodyItem, KeyValueRows, Template } from "./template";
-import type { DocumentNode, DocumentTree, KeyValueRow } from "./document-tree";
+import type { ArticleItem, BodyItem, KeyValueRows, SignaturePlaceSpec, Template } from "./template";
+import type { DocumentNode, DocumentTree, KeyValueRow, SignaturePlace } from "./document-tree";
 import type { Clause } from "./clause";
 import { evaluate, type EvalContext } from "./expression";
 import { interpolate } from "./interpolate";
@@ -71,7 +71,28 @@ async function toNode(item: BodyItem, frame: Frame, level: number): Promise<Docu
   }
   if ("partyHeader" in item) return partyHeaderNode(item.partyHeader, frame);
   if ("keyValueTable" in item) return keyValueTableNode(item.keyValueTable, frame);
+  if ("signatures" in item) return signaturesNode(item.signatures, frame);
   throw new Error(`Unsupported body item: ${JSON.stringify(item)}`);
+}
+
+function signaturesNode(spec: { places: SignaturePlaceSpec[] }, frame: Frame): DocumentNode {
+  return { kind: "signatures", places: spec.places.map((place) => toPlace(place, frame.evalCtx)) };
+}
+
+function toPlace(spec: SignaturePlaceSpec, evalCtx: EvalContext): SignaturePlace {
+  if (spec.party !== undefined && spec.name !== undefined) {
+    throw new Error("signatures: a place has both `party` and `name`; use exactly one");
+  }
+  let name: string;
+  if (spec.party !== undefined) {
+    const resolved = evaluate(spec.party, evalCtx);
+    name = validatePayload(party, resolved).name;
+  } else if (spec.name !== undefined) {
+    name = interpolate(spec.name, evalCtx);
+  } else {
+    throw new Error("signatures: a place needs either `party` or `name`");
+  }
+  return { name, ...(spec.role !== undefined ? { role: interpolate(spec.role, evalCtx) } : {}) };
 }
 
 function partyHeaderNode(

@@ -21,6 +21,11 @@ export interface KeyValueRow {
   value: string;
 }
 
+export interface SignaturePlace {
+  name: string;
+  role?: string;
+}
+
 export type DocumentNode =
   | { kind: "title"; text: InlineRich }
   | { kind: "paragraph"; text: InlineRich }
@@ -30,6 +35,7 @@ export type DocumentNode =
   | { kind: "bulletList"; items: DocumentNode[][] }
   | { kind: "alphaList"; items: DocumentNode[][] }
   | { kind: "partyHeader"; party: PartyIdentification; roleLabel: string }
-  | { kind: "keyValueTable"; rows: KeyValueRow[] };
+  | { kind: "keyValueTable"; rows: KeyValueRow[] }
+  | { kind: "signatures"; places: SignaturePlace[] };
 
 export type DocumentTree = DocumentNode[];
