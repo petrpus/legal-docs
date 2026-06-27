@@ -97,4 +97,112 @@ describe("assembleTree", () => {
 
     await expect(assembleTree(template)).rejects.toThrow(/No clause resolver/);
   });
+
+  it("assembles a nested article with computed levels and an interpolated heading", async () => {
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [
+        {
+          article: {
+            no: "1.",
+            heading: "Section {{ $x }}",
+            body: [
+              { paragraph: "body" },
+              { article: { no: "1.1.", body: [{ paragraph: "nested" }] } },
+            ],
+          },
+        },
+      ],
+    };
+
+    expect(await assembleTree(template, { scope: { x: "A" } })).toEqual([
+      {
+        kind: "article",
+        no: "1.",
+        level: 1,
+        heading: "Section A",
+        body: [
+          { kind: "paragraph", text: "body" },
+          { kind: "article", no: "1.1.", level: 2, body: [{ kind: "paragraph", text: "nested" }] },
+        ],
+      },
+    ]);
+  });
+
+  it("assembles list items into arrays of nodes", async () => {
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ numberedList: [[{ paragraph: "a" }], [{ paragraph: "b" }]] }],
+    };
+
+    expect(await assembleTree(template)).toEqual([
+      {
+        kind: "numberedList",
+        items: [[{ kind: "paragraph", text: "a" }], [{ kind: "paragraph", text: "b" }]],
+      },
+    ]);
+  });
+
+  it.each(["numberedList", "bulletList", "alphaList"] as const)(
+    "assembles %s into the matching node kind",
+    async (kind) => {
+      const template = {
+        template: "t",
+        version: 1,
+        locale: "en",
+        body: [{ [kind]: [[{ paragraph: "x" }]] }],
+      } as unknown as Template;
+
+      const tree = await assembleTree(template);
+      expect(tree[0]).toEqual({ kind, items: [[{ kind: "paragraph", text: "x" }]] });
+    },
+  );
+
+  it("caps the article level at 3 however deep the nesting", async () => {
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [
+        {
+          article: {
+            no: "1.",
+            body: [
+              { article: { no: "1.1.", body: [{ article: { no: "1.1.1.", body: [{ article: { no: "x", body: [] } }] } }] } },
+            ],
+          },
+        },
+      ],
+    };
+
+    const tree = await assembleTree(template);
+    const levels: number[] = [];
+    const walk = (nodes: typeof tree): void => {
+      for (const node of nodes) {
+        if (node.kind === "article") {
+          levels.push(node.level);
+          walk(node.body);
+        }
+      }
+    };
+    walk(tree);
+    expect(levels).toEqual([1, 2, 3, 3]);
+  });
+
+  it("omits heading when an article has none", async () => {
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ article: { no: "1.", body: [{ paragraph: "x" }] } }],
+    };
+
+    expect(await assembleTree(template)).toEqual([
+      { kind: "article", no: "1.", level: 1, body: [{ kind: "paragraph", text: "x" }] },
+    ]);
+  });
 });

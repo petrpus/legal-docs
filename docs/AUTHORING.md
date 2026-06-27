@@ -91,6 +91,27 @@ test on a scalar (`if: $borrowerType == "SOLE_TRADER"`). Anything **computed** â
 collection operations (`.length`, `.some`), multi-field logic, choosing a clause version â€” **must** be
 a Derivation. This keeps templates declarative and the logic testable.
 
+### Articles and lists
+
+An `article` has a number, an optional `heading`, and a `body` of further items (it may nest):
+
+```yaml
+- article:
+    no: "1."
+    heading: "Definitions"
+    body:
+      - paragraph: "In this contract the following terms apply."
+```
+
+A `numberedList` / `bulletList` / `alphaList` takes a list of items, where **each item is itself a
+list of body items**:
+
+```yaml
+- numberedList:
+    - [{ paragraph: "First point." }]
+    - [{ clause: "warranty@latest", vars: { ... } }]
+```
+
 ## Writing a Clause
 
 A **Clause** is a named, versioned, locale-aware piece of reusable legal text. There is only one text

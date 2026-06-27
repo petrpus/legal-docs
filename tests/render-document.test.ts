@@ -95,4 +95,33 @@ describe("renderDocument (walking skeleton)", () => {
     expect(text).toContain("AGREEMENT");
     expect(text).toContain("signed in 2 counterpart copies of equal legal force");
   });
+
+  it("assembles the article/list document tree (golden)", async () => {
+    const catalog = await Catalog.fromDir(catalogDir);
+    const template = await catalog.getTemplate("contract");
+
+    expect(
+      await assembleTree(template, {
+        clauses: (ref, locale) => catalog.getClause(ref, locale),
+        locale: template.locale,
+      }),
+    ).toMatchSnapshot();
+  });
+
+  it("renders articles (incl. nested) and lists into the PDF", async () => {
+    const catalog = await Catalog.fromDir(catalogDir);
+    const result = await renderDocument({ catalog, template: "contract", format: "pdf" });
+
+    const text = await extractText(result.buffer);
+    expect(text).toContain("SERVICE CONTRACT");
+    expect(text).toContain("1. Definitions");
+    expect(text).toContain("Provider means the party rendering services.");
+    expect(text).toContain("signed in 2 counterpart copies");
+    expect(text).toContain("2.1.");
+    expect(text).toContain("This sub-article is nested.");
+    expect(text).toContain("Bullet one.");
+    // Alpha list markers render before each item.
+    expect(text).toMatch(/a\.\s*Alpha point a\./);
+    expect(text).toMatch(/b\.\s*Alpha point b\./);
+  });
 });

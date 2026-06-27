@@ -1,4 +1,4 @@
-import type { BodyItem, Template } from "./template";
+import type { ArticleItem, BodyItem, Template } from "./template";
 import type { DocumentNode, DocumentTree } from "./document-tree";
 import type { Clause } from "./clause";
 import { evaluate, type EvalContext } from "./expression";
@@ -21,51 +21,90 @@ export interface AssembleContext {
   locale?: string;
 }
 
+interface Frame {
+  evalCtx: EvalContext;
+  context: AssembleContext;
+  locale: string;
+}
+
+/** Articles deeper than this share the deepest level's styling. */
+export const MAX_LEVEL = 3;
+
 /**
  * Tree assembly: evaluate a Template into a renderer-agnostic DocumentTree. Inline text is bound
- * against the payload; `clause:` items are reference-resolved, their vars validated, and their
- * rich text parsed into a `richText` node. Async because resolving Clauses may hit the store.
+ * against the payload; `clause:` items are reference-resolved and validated; `article:` and list
+ * items assemble their bodies recursively. Async because resolving Clauses may hit the store.
  */
 export async function assembleTree(
   template: Template,
   context: AssembleContext = {},
 ): Promise<DocumentTree> {
-  const evalCtx: EvalContext = {
-    scope: context.scope ?? {},
-    helpers: { ...defaultHelpers, ...context.helpers },
+  const frame: Frame = {
+    evalCtx: { scope: context.scope ?? {}, helpers: { ...defaultHelpers, ...context.helpers } },
+    context,
+    locale: context.locale ?? template.locale,
   };
-  const locale = context.locale ?? template.locale;
-  return Promise.all(template.body.map((item) => toNode(item, evalCtx, context, locale)));
+  return assembleItems(template.body, frame, 1);
 }
 
-async function toNode(
-  item: BodyItem,
-  evalCtx: EvalContext,
-  context: AssembleContext,
-  locale: string,
-): Promise<DocumentNode> {
-  if ("title" in item) return { kind: "title", text: interpolate(item.title, evalCtx) };
-  if ("paragraph" in item) return { kind: "paragraph", text: interpolate(item.paragraph, evalCtx) };
-  if ("clause" in item) return clauseNode(item, evalCtx, context, locale);
+function assembleItems(items: BodyItem[], frame: Frame, level: number): Promise<DocumentNode[]> {
+  return Promise.all(items.map((item) => toNode(item, frame, level)));
+}
+
+async function toNode(item: BodyItem, frame: Frame, level: number): Promise<DocumentNode> {
+  if ("title" in item) return { kind: "title", text: interpolate(item.title, frame.evalCtx) };
+  if ("paragraph" in item) {
+    return { kind: "paragraph", text: interpolate(item.paragraph, frame.evalCtx) };
+  }
+  if ("clause" in item) return clauseNode(item, frame);
+  if ("article" in item) return articleNode(item.article, frame, level);
+  if ("numberedList" in item) {
+    return { kind: "numberedList", items: await assembleListItems(item.numberedList, frame, level) };
+  }
+  if ("bulletList" in item) {
+    return { kind: "bulletList", items: await assembleListItems(item.bulletList, frame, level) };
+  }
+  if ("alphaList" in item) {
+    return { kind: "alphaList", items: await assembleListItems(item.alphaList, frame, level) };
+  }
   throw new Error(`Unsupported body item: ${JSON.stringify(item)}`);
+}
+
+async function articleNode(article: ArticleItem, frame: Frame, level: number): Promise<DocumentNode> {
+  const body = await assembleItems(article.body, frame, Math.min(level + 1, MAX_LEVEL));
+  return {
+    kind: "article",
+    no: article.no,
+    level: Math.min(level, MAX_LEVEL),
+    ...(article.heading !== undefined
+      ? { heading: interpolate(article.heading, frame.evalCtx) }
+      : {}),
+    body,
+  };
+}
+
+function assembleListItems(
+  items: BodyItem[][],
+  frame: Frame,
+  level: number,
+): Promise<DocumentNode[][]> {
+  return Promise.all(items.map((item) => assembleItems(item, frame, level)));
 }
 
 async function clauseNode(
   item: { clause: string; vars?: Record<string, unknown> },
-  evalCtx: EvalContext,
-  context: AssembleContext,
-  locale: string,
+  frame: Frame,
 ): Promise<DocumentNode> {
-  if (!context.clauses) {
+  if (!frame.context.clauses) {
     throw new Error(`No clause resolver available to render "${item.clause}"`);
   }
-  const clause = await context.clauses(item.clause, locale);
-  const bound = bindVars(item.vars ?? {}, evalCtx);
+  const clause = await frame.context.clauses(item.clause, frame.locale);
+  const bound = bindVars(item.vars ?? {}, frame.evalCtx);
   const validated = validateVars(clause.vars, bound);
   // Interpolation runs before parsing, so a var value is substituted as raw text: it is NOT
   // markdown-escaped, and a value containing `*`/`**` would become a mark. Fine for the typed vars
   // here; revisit if untrusted string vars are introduced.
-  const text = interpolate(clause.text, { scope: validated, helpers: evalCtx.helpers });
+  const text = interpolate(clause.text, { scope: validated, helpers: frame.evalCtx.helpers });
   return { kind: "richText", value: parseRichText(text) };
 }
 

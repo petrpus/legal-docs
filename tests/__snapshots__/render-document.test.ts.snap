@@ -1,5 +1,121 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`renderDocument (walking skeleton) > assembles the article/list document tree (golden) 1`] = `
+[
+  {
+    "kind": "title",
+    "text": "SERVICE CONTRACT",
+  },
+  {
+    "body": [
+      {
+        "kind": "paragraph",
+        "text": "In this contract the following terms apply.",
+      },
+      {
+        "items": [
+          [
+            {
+              "kind": "paragraph",
+              "text": "Provider means the party rendering services.",
+            },
+          ],
+          [
+            {
+              "kind": "paragraph",
+              "text": "Client means the party receiving services.",
+            },
+          ],
+        ],
+        "kind": "numberedList",
+      },
+    ],
+    "heading": "Definitions",
+    "kind": "article",
+    "level": 1,
+    "no": "1.",
+  },
+  {
+    "body": [
+      {
+        "kind": "richText",
+        "value": {
+          "blocks": [
+            {
+              "runs": [
+                {
+                  "text": "This agreement is signed in ",
+                },
+                {
+                  "marks": [
+                    "bold",
+                  ],
+                  "text": "2",
+                },
+                {
+                  "text": " counterpart copies of equal legal force.",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "doc",
+        },
+      },
+      {
+        "body": [
+          {
+            "kind": "paragraph",
+            "text": "This sub-article is nested.",
+          },
+        ],
+        "kind": "article",
+        "level": 2,
+        "no": "2.1.",
+      },
+    ],
+    "heading": "Counterparts",
+    "kind": "article",
+    "level": 1,
+    "no": "2.",
+  },
+  {
+    "items": [
+      [
+        {
+          "kind": "paragraph",
+          "text": "Bullet one.",
+        },
+      ],
+      [
+        {
+          "kind": "paragraph",
+          "text": "Bullet two.",
+        },
+      ],
+    ],
+    "kind": "bulletList",
+  },
+  {
+    "items": [
+      [
+        {
+          "kind": "paragraph",
+          "text": "Alpha point a.",
+        },
+      ],
+      [
+        {
+          "kind": "paragraph",
+          "text": "Alpha point b.",
+        },
+      ],
+    ],
+    "kind": "alphaList",
+  },
+]
+`;
+
 exports[`renderDocument (walking skeleton) > assembles the expected tree (golden) 1`] = `
 [
   {
