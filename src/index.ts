@@ -6,9 +6,17 @@ export { renderDocument } from "./facade/render-document";
 export type { RenderDocumentInput, RenderDocumentResult } from "./facade/render-document";
 
 export { assembleTree } from "./core/engine";
-export type { AssembleContext } from "./core/engine";
+export type { AssembleContext, ClauseResolver } from "./core/engine";
 export type { Template, BodyItem } from "./core/template";
 export type { DocumentNode, DocumentTree, InlineRich } from "./core/document-tree";
+
+export type { Clause } from "./core/clause";
+export { parseClauseRef } from "./core/clause-ref";
+export type { ClauseRef } from "./core/clause-ref";
+export { parseRichText } from "./core/rich-text";
+export type { RichTextV1, RichParagraph, RichRun, Mark } from "./core/rich-text";
+export { validateVars, VarsValidationError } from "./core/vars-schema";
+export type { VarsSchema, VarSpec, VarType } from "./core/vars-schema";
 
 export { evaluate, ExpressionError } from "./core/expression";
 export type { EvalContext, Scope } from "./core/expression";

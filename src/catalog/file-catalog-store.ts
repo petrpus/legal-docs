@@ -3,11 +3,14 @@ import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { CatalogStore } from "./catalog-store";
 import type { BodyItem, Template } from "../core/template";
+import type { Clause } from "../core/clause";
+import type { VarsSchema } from "../core/vars-schema";
 
 /**
- * Loads authored content from a catalog directory: `<dir>/templates/<id>.yaml`.
- * Shape validation is intentionally light here — schema-based validation (zod) arrives with the
- * payload slice.
+ * Loads authored content from a catalog directory:
+ * `<dir>/templates/<id>.yaml` and `<dir>/clauses/<id>/v<N>.<locale>.yaml`.
+ * Shape validation is intentionally light here — schema-based validation (zod) is applied to payload
+ * data in the facade, and catalog integrity-lint is a later slice.
  */
 export class FileCatalogStore implements CatalogStore {
   constructor(private readonly dir: string) {}
@@ -34,8 +37,40 @@ export class FileCatalogStore implements CatalogStore {
     throw new Error(`Template "${id}" not found in ${this.templatesDir()}`);
   }
 
+  async clauseVersions(id: string): Promise<number[]> {
+    const entries = await readdir(this.clauseDir(id)).catch(() => [] as string[]);
+    const versions = new Set<number>();
+    for (const file of entries) {
+      const match = /^v(\d+)\.[^.]+\.ya?ml$/.exec(file);
+      if (match) versions.add(Number(match[1]));
+    }
+    return [...versions].sort((a, b) => a - b);
+  }
+
+  async loadClause(id: string, version: number, locale: string): Promise<Clause> {
+    const file = await this.resolveClauseFile(id, version, locale);
+    const raw = await readFile(file, "utf8");
+    return toClause(parseYaml(raw), id, version);
+  }
+
+  /** Prefer `v<N>.<locale>.yaml`; fall back to any locale of that version. */
+  private async resolveClauseFile(id: string, version: number, locale: string): Promise<string> {
+    for (const ext of [".yaml", ".yml"]) {
+      const file = path.join(this.clauseDir(id), `v${version}.${locale}${ext}`);
+      if (await fileExists(file)) return file;
+    }
+    const entries = await readdir(this.clauseDir(id)).catch(() => [] as string[]);
+    const fallback = entries.find((f) => new RegExp(`^v${version}\\.[^.]+\\.ya?ml$`).test(f));
+    if (fallback) return path.join(this.clauseDir(id), fallback);
+    throw new Error(`Clause "${id}" v${version} not found for locale "${locale}"`);
+  }
+
   private templatesDir(): string {
     return path.join(this.dir, "templates");
+  }
+
+  private clauseDir(id: string): string {
+    return path.join(this.dir, "clauses", id);
   }
 }
 
@@ -67,5 +102,22 @@ function toTemplate(value: unknown, id: string): Template {
     // Per-item shape is validated lazily by the engine; payload (zod) validation is applied to the
     // data, not the template, in the facade.
     body: v.body as BodyItem[],
+  };
+}
+
+function toClause(value: unknown, id: string, version: number): Clause {
+  if (value === null || typeof value !== "object") {
+    throw new Error(`Clause "${id}" v${version} is not a YAML object`);
+  }
+  const v = value as Record<string, unknown>;
+  if (typeof v.text !== "string") {
+    throw new Error(`Clause "${id}" v${version} is missing a string "text"`);
+  }
+  return {
+    clause: typeof v.clause === "string" ? v.clause : id,
+    version: typeof v.version === "number" ? v.version : version,
+    locale: typeof v.locale === "string" ? v.locale : "en",
+    vars: (v.vars ?? {}) as VarsSchema,
+    text: v.text,
   };
 }

@@ -4,7 +4,10 @@
  * control structures and payload binding arrive in later slices.
  */
 
-export type BodyItem = { title: string } | { paragraph: string };
+export type BodyItem =
+  | { title: string }
+  | { paragraph: string }
+  | { clause: string; vars?: Record<string, unknown> };
 
 export interface Template {
   /** Template id. */

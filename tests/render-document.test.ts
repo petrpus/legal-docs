@@ -40,7 +40,7 @@ describe("renderDocument (walking skeleton)", () => {
     const catalog = await Catalog.fromDir(catalogDir);
     const template = await catalog.getTemplate("hello");
 
-    expect(assembleTree(template)).toMatchSnapshot();
+    expect(await assembleTree(template)).toMatchSnapshot();
   });
 
   it("produces a stable snapshotId for identical inputs", async () => {
@@ -73,5 +73,26 @@ describe("renderDocument (walking skeleton)", () => {
     await expect(
       renderDocument({ catalog, template: "greeting", data: { loan: undefined }, schemas, format: "pdf" }),
     ).rejects.toThrow(/name/);
+  });
+
+  it("resolves @latest to the newest clause version and @vN to a pinned one", async () => {
+    const catalog = await Catalog.fromDir(catalogDir);
+
+    const latest = await catalog.getClause("counterparts@latest", "en");
+    expect(latest.version).toBe(2);
+    expect(latest.text).toContain("counterpart copies");
+
+    const pinned = await catalog.getClause("counterparts@v1", "en");
+    expect(pinned.version).toBe(1);
+    expect(pinned.text).toContain("executed in");
+  });
+
+  it("renders a clause into the PDF using its @latest wording", async () => {
+    const catalog = await Catalog.fromDir(catalogDir);
+    const result = await renderDocument({ catalog, template: "agreement", format: "pdf" });
+
+    const text = await extractText(result.buffer);
+    expect(text).toContain("AGREEMENT");
+    expect(text).toContain("signed in 2 counterpart copies of equal legal force");
   });
 });

@@ -1,0 +1,7 @@
+template: agreement
+version: 1
+locale: en
+body:
+  - title: "AGREEMENT"
+  - clause: "counterparts@latest"
+    vars: { count: 2 }
