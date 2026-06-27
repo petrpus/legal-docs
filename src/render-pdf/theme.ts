@@ -7,6 +7,13 @@ export interface Theme {
   fontSize: { title: number; paragraph: number };
   color: { text: string };
   spacing: { paragraph: number; title: number };
+  article: {
+    /** Heading font size by level (1-based, capped at 3). */
+    headingFontSize: readonly [number, number, number];
+    indentPerLevel: number;
+    gap: number;
+  };
+  list: { indent: number; markerGap: number; gap: number };
 }
 
 export const defaultTheme: Theme = {
@@ -14,4 +21,6 @@ export const defaultTheme: Theme = {
   fontSize: { title: 18, paragraph: 11 },
   color: { text: "#111111" },
   spacing: { paragraph: 8, title: 16 },
+  article: { headingFontSize: [13, 12, 11], indentPerLevel: 14, gap: 6 },
+  list: { indent: 14, markerGap: 6, gap: 4 },
 };

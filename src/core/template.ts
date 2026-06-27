@@ -4,10 +4,20 @@
  * control structures and payload binding arrive in later slices.
  */
 
+export interface ArticleItem {
+  no: string;
+  heading?: string;
+  body: BodyItem[];
+}
+
 export type BodyItem =
   | { title: string }
   | { paragraph: string }
-  | { clause: string; vars?: Record<string, unknown> };
+  | { clause: string; vars?: Record<string, unknown> }
+  | { article: ArticleItem }
+  | { numberedList: BodyItem[][] }
+  | { bulletList: BodyItem[][] }
+  | { alphaList: BodyItem[][] };
 
 export interface Template {
   /** Template id. */

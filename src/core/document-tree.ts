@@ -12,6 +12,10 @@ export type InlineRich = string;
 export type DocumentNode =
   | { kind: "title"; text: InlineRich }
   | { kind: "paragraph"; text: InlineRich }
-  | { kind: "richText"; value: RichTextV1 };
+  | { kind: "richText"; value: RichTextV1 }
+  | { kind: "article"; no: string; level: number; heading?: InlineRich; body: DocumentNode[] }
+  | { kind: "numberedList"; items: DocumentNode[][] }
+  | { kind: "bulletList"; items: DocumentNode[][] }
+  | { kind: "alphaList"; items: DocumentNode[][] };
 
 export type DocumentTree = DocumentNode[];

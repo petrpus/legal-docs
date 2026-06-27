@@ -1,0 +1,29 @@
+template: contract
+version: 1
+locale: en
+body:
+  - title: "SERVICE CONTRACT"
+  - article:
+      no: "1."
+      heading: "Definitions"
+      body:
+        - paragraph: "In this contract the following terms apply."
+        - numberedList:
+            - [{ paragraph: "Provider means the party rendering services." }]
+            - [{ paragraph: "Client means the party receiving services." }]
+  - article:
+      no: "2."
+      heading: "Counterparts"
+      body:
+        - clause: "counterparts@latest"
+          vars: { count: 2 }
+        - article:
+            no: "2.1."
+            body:
+              - paragraph: "This sub-article is nested."
+  - bulletList:
+      - [{ paragraph: "Bullet one." }]
+      - [{ paragraph: "Bullet two." }]
+  - alphaList:
+      - [{ paragraph: "Alpha point a." }]
+      - [{ paragraph: "Alpha point b." }]
