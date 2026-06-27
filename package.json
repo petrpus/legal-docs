@@ -1,0 +1,26 @@
+{
+  "name": "@petrpus/legal-docs",
+  "version": "0.0.0",
+  "description": "A universal, declarative library for generating legal documents (PDF / HTML / DOCX) from typed payloads and a file-based catalog of blocks, snippets, clauses and templates.",
+  "license": "MIT",
+  "author": "Petr Puš",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "legal",
+    "documents",
+    "pdf",
+    "docx",
+    "templates",
+    "react-pdf",
+    "document-generation"
+  ],
+  "scripts": {
+    "build": "echo \"TODO: configure build (tsup) — see docs/PLAN.md\" && exit 0",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"TODO: configure test runner (vitest) — see docs/PLAN.md\" && exit 0",
+    "lint": "echo \"TODO: configure eslint — see docs/PLAN.md\" && exit 0"
+  }
+}
