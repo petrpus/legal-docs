@@ -37,6 +37,8 @@ export { interpolate } from "./core/interpolate";
 
 export { validatePayload, PayloadValidationError } from "./core/payload";
 export type { PayloadSchemaRegistry, PayloadIssue } from "./core/payload";
+export { resolvePayload } from "./core/resolve";
+export type { Derivation, DerivationRegistry, ResolvedPayload } from "./core/resolve";
 export { money, loan, party } from "./core/schema-fragments";
 export type { Money, Loan, Party } from "./core/schema-fragments";
 export { defaultHelpers } from "./core/helpers";

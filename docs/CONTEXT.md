@@ -185,9 +185,11 @@ The catalog looking up a **Block** or **Clause reference** to a concrete element
 
 > **Principle — all computation is a Derivation.** Structural and derived inputs are computed *only*
 > in the Resolve phase as Derivations; templates' `if`/`for` merely **read** the Resolved payload.
-> Inline `if`/`for` may only *directly read* a payload or `$derived` field (incl. equality/boolean
-> tests on scalars: `if: $borrowerType == "SOLE_TRADER"`). Anything computed — arithmetic, collection
-> ops (`.length`, `.some`), multi-field logic, clause-version choice — **must** be a Derivation.
+> Inline `if`/`for` may only *directly read* a payload or `$derived` field, with comparisons
+> (`== != < <= > >=`) and boolean combination of such reads (`&& || !`) — these only read
+> (`if: $borrowerType == "SOLE_TRADER" && $hasGuarantor`). Anything *computed* — arithmetic,
+> collection ops (`.length`, `.some`), value derivation from several fields, clause-version choice —
+> **must** be a Derivation. (`for: each` must be a plain field path to an array.)
 
 ## Relationships
 

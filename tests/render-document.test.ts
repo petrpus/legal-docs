@@ -190,4 +190,60 @@ describe("renderDocument (walking skeleton)", () => {
     expect(text).toContain("John Watson");
     expect(text).toContain("Witness");
   });
+
+  const termsDerivations = {
+    counterpartsCount: (p: unknown) => (p as { parties: unknown[] }).parties.length + 1,
+    securityClause: (p: unknown) =>
+      (p as { parties: unknown[] }).parties.length >= 3 ? "counterparts@v2" : "counterparts@v1",
+  };
+  const termsData = {
+    parties: [
+      { name: "Alpha", role: "Lender" },
+      { name: "Beta", role: "Pledgor" },
+      { name: "Gamma", role: "Accession" },
+    ],
+    hasGuarantor: true,
+  };
+  const termsSchemas = {
+    "terms@1": z.object({
+      parties: z.array(z.object({ name: z.string(), role: z.string() })),
+      hasGuarantor: z.boolean(),
+    }),
+  };
+
+  it("runs the Resolve phase and if/for, rendering into the PDF", async () => {
+    const catalog = await Catalog.fromDir(catalogDir);
+    const result = await renderDocument({
+      catalog,
+      template: "terms",
+      data: termsData,
+      schemas: termsSchemas,
+      derivations: termsDerivations,
+      format: "pdf",
+    });
+
+    const text = await extractText(result.buffer);
+    expect(text).toContain("TERMS");
+    expect(text).toContain("Party 1: Alpha (Lender).");
+    expect(text).toContain("Party 3: Gamma (Accession).");
+    expect(text).toContain("A guarantor is provided.");
+    // 3 parties -> securityClause = counterparts@v2, counterpartsCount = 4.
+    expect(text).toContain("signed in 4 counterpart copies");
+  });
+
+  it("assembles the resolve / if / for document tree (golden)", async () => {
+    const catalog = await Catalog.fromDir(catalogDir);
+    const template = await catalog.getTemplate("terms");
+    const derived = {
+      counterpartsCount: termsDerivations.counterpartsCount(termsData),
+      securityClause: termsDerivations.securityClause(termsData),
+    };
+
+    const tree = await assembleTree(template, {
+      scope: { ...termsData, derived },
+      clauses: (ref, locale) => catalog.getClause(ref, locale),
+      locale: template.locale,
+    });
+    expect(tree).toMatchSnapshot();
+  });
 });

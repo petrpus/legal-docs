@@ -1,7 +1,7 @@
 import type { ArticleItem, BodyItem, KeyValueRows, SignaturePlaceSpec, Template } from "./template";
 import type { DocumentNode, DocumentTree, KeyValueRow, SignaturePlace } from "./document-tree";
 import type { Clause } from "./clause";
-import { evaluate, type EvalContext } from "./expression";
+import { evaluate, evaluatePath, evaluatePredicate, type EvalContext } from "./expression";
 import { interpolate } from "./interpolate";
 import { parseRichText } from "./rich-text";
 import { validateVars } from "./vars-schema";
@@ -49,8 +49,44 @@ export async function assembleTree(
   return assembleItems(template.body, frame, 1);
 }
 
-function assembleItems(items: BodyItem[], frame: Frame, level: number): Promise<DocumentNode[]> {
-  return Promise.all(items.map((item) => toNode(item, frame, level)));
+async function assembleItems(items: BodyItem[], frame: Frame, level: number): Promise<DocumentNode[]> {
+  const groups = await Promise.all(items.map((item) => expandItem(item, frame, level)));
+  return groups.flat();
+}
+
+/** Expand one body item into zero or more nodes. Control structures (`if`/`for`) expand variably. */
+async function expandItem(item: BodyItem, frame: Frame, level: number): Promise<DocumentNode[]> {
+  if ("if" in item) return assembleIf(item, frame, level);
+  if ("for" in item) return assembleFor(item, frame, level);
+  return [await toNode(item, frame, level)];
+}
+
+async function assembleIf(
+  item: { if: string; then: BodyItem[]; else?: BodyItem[] },
+  frame: Frame,
+  level: number,
+): Promise<DocumentNode[]> {
+  const branch = evaluatePredicate(item.if, frame.evalCtx) ? item.then : (item.else ?? []);
+  return assembleItems(branch, frame, level);
+}
+
+async function assembleFor(
+  item: { for: { each: string; as: string }; body: BodyItem[] },
+  frame: Frame,
+  level: number,
+): Promise<DocumentNode[]> {
+  const list = evaluatePath(item.for.each, frame.evalCtx);
+  if (!Array.isArray(list)) {
+    throw new Error(`for: "${item.for.each}" did not resolve to an array`);
+  }
+  const groups: DocumentNode[][] = [];
+  for (let index = 0; index < list.length; index++) {
+    // `index` is reserved as the loop counter ($index); a loop var named "index" would collide.
+    const scope = { ...frame.evalCtx.scope, [item.for.as]: list[index], index };
+    const childFrame: Frame = { ...frame, evalCtx: { ...frame.evalCtx, scope } };
+    groups.push(await assembleItems(item.body, childFrame, level));
+  }
+  return groups.flat();
 }
 
 async function toNode(item: BodyItem, frame: Frame, level: number): Promise<DocumentNode> {
@@ -184,7 +220,11 @@ async function clauseNode(
   if (!frame.context.clauses) {
     throw new Error(`No clause resolver available to render "${item.clause}"`);
   }
-  const clause = await frame.context.clauses(item.clause, frame.locale);
+  // The ref may be a `$`-expression (e.g. a Derivation choosing the version) or a literal.
+  const ref = item.clause.startsWith("$")
+    ? String(evaluate(item.clause, frame.evalCtx))
+    : item.clause;
+  const clause = await frame.context.clauses(ref, frame.locale);
   const bound = bindVars(item.vars ?? {}, frame.evalCtx);
   const validated = validateVars(clause.vars, bound);
   // Interpolation runs before parsing, so a var value is substituted as raw text: it is NOT

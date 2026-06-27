@@ -4,6 +4,7 @@ import type { Catalog } from "../catalog/catalog";
 import type { Template } from "../core/template";
 import { assembleTree } from "../core/engine";
 import { validatePayload, type PayloadSchemaRegistry } from "../core/payload";
+import { resolvePayload, type DerivationRegistry } from "../core/resolve";
 import type { HelperRegistry } from "../core/helpers";
 import { renderTreeToBuffer } from "../render-pdf/render-pdf";
 import type { Theme } from "../render-pdf/theme";
@@ -16,6 +17,8 @@ export interface RenderDocumentInput {
   data?: unknown;
   /** Code-side payload schemas, looked up by a Template's `payloadSchema` reference. */
   schemas?: PayloadSchemaRegistry;
+  /** Code-side Derivations, looked up by name from a Template's `derivations` list. */
+  derivations?: DerivationRegistry;
   /** Extra whitelisted helpers, merged over the defaults. */
   helpers?: HelperRegistry;
   format: "pdf";
@@ -37,7 +40,10 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
     throw new Error(`Unsupported format: ${String(input.format)}`);
   }
   const template = await input.catalog.getTemplate(input.template);
-  const scope = resolveScope(template, input);
+  const payload = resolveScope(template, input);
+  const { derived } = resolvePayload(payload, template.derivations ?? [], input.derivations ?? {});
+  // `$derived` is the reserved namespace, so a payload field literally named `derived` is overwritten.
+  const scope = { ...payload, derived };
   const tree = await assembleTree(template, {
     scope,
     helpers: input.helpers,

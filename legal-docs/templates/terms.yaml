@@ -1,0 +1,17 @@
+template: terms
+version: 1
+locale: en
+payloadSchema: terms@1
+derivations: [counterpartsCount, securityClause]
+body:
+  - title: "TERMS"
+  - for: { each: "$parties", as: party }
+    body:
+      - paragraph: "Party {{ $index + 1 }}: {{ $party.name }} ({{ $party.role }})."
+  - if: "$hasGuarantor"
+    then:
+      - paragraph: "A guarantor is provided."
+    else:
+      - paragraph: "No guarantor is provided."
+  - clause: "$derived.securityClause"
+    vars: { count: "$derived.counterpartsCount" }

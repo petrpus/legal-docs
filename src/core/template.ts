@@ -25,7 +25,9 @@ export type BodyItem =
   | { alphaList: BodyItem[][] }
   | { partyHeader: { party: string; roleLabel: string } }
   | { keyValueTable: { rows: KeyValueRows } }
-  | { signatures: { places: SignaturePlaceSpec[] } };
+  | { signatures: { places: SignaturePlaceSpec[] } }
+  | { if: string; then: BodyItem[]; else?: BodyItem[] }
+  | { for: { each: string; as: string }; body: BodyItem[] };
 
 /** A signature slot: a `$`-path to a party (its name is used) or a literal/interpolated name. */
 export interface SignaturePlaceSpec {
@@ -41,5 +43,7 @@ export interface Template {
   locale: string;
   /** Reference to the versioned payload schema this document validates against (optional). */
   payloadSchema?: string;
+  /** Names of the Derivations the Resolve phase runs into `$derived.*` (optional). */
+  derivations?: string[];
   body: BodyItem[];
 }

@@ -22,13 +22,91 @@ export class ExpressionError extends Error {
 }
 
 export function evaluate(expr: string, ctx: EvalContext): unknown {
-  let ast: jsep.Expression;
+  return evalNode(parse(expr), ctx);
+}
+
+/**
+ * Evaluate an `if` condition under the "direct read only" rule: only field reads and
+ * comparison/logical operators are allowed — any computation (arithmetic, calls) must be a Derivation.
+ */
+export function evaluatePredicate(expr: string, ctx: EvalContext): unknown {
+  const ast = parse(expr);
+  assertPredicate(ast);
+  return evalNode(ast, ctx);
+}
+
+/** Evaluate a `for: each` expression, which must be a direct field path (no computation). */
+export function evaluatePath(expr: string, ctx: EvalContext): unknown {
+  const ast = parse(expr);
+  assertPath(ast);
+  return evalNode(ast, ctx);
+}
+
+function parse(expr: string): jsep.Expression {
   try {
-    ast = jsep(expr);
+    return jsep(expr);
   } catch (cause) {
     throw new ExpressionError(`Cannot parse expression: ${expr}`, { cause });
   }
-  return evalNode(ast, ctx);
+}
+
+const PREDICATE_OPS = new Set(["==", "!=", "===", "!==", "<", "<=", ">", ">=", "&&", "||"]);
+
+function assertPredicate(node: jsep.Expression): void {
+  const n = node as jsep.CoreExpression;
+  switch (n.type) {
+    case "Literal":
+    case "Identifier":
+      return;
+    case "MemberExpression":
+      assertPath(n);
+      return;
+    case "UnaryExpression":
+      if (n.operator === "!") {
+        assertPredicate(n.argument);
+        return;
+      }
+      // A signed numeric literal (e.g. `-1`) is a constant, not computation — jsep does not fold it.
+      if ((n.operator === "-" || n.operator === "+") && isNumericLiteral(n.argument)) return;
+      throw new ExpressionError(`if: operator "${n.operator}" is not a direct read`);
+    case "BinaryExpression":
+      if (!PREDICATE_OPS.has(n.operator)) {
+        throw new ExpressionError(`if: operator "${n.operator}" is computation; use a Derivation`);
+      }
+      assertPredicate(n.left);
+      assertPredicate(n.right);
+      return;
+    default:
+      throw new ExpressionError(
+        `if: "${n.type}" is not allowed; use only direct field reads and comparisons`,
+      );
+  }
+}
+
+// Member props that are computation, not data reads — must go through a Derivation. (Collection
+// methods like `.some()`/`.map()` are CallExpressions and are already rejected.) This denylist
+// assumes plain-data (JSON) payloads; class-instance getters would need an allowlist instead.
+const COMPUTED_PROPS = new Set(["length"]);
+
+function isNumericLiteral(node: jsep.Expression): boolean {
+  const n = node as jsep.CoreExpression;
+  return n.type === "Literal" && typeof n.value === "number";
+}
+
+function assertPath(node: jsep.Expression): void {
+  const n = node as jsep.CoreExpression;
+  if (n.type === "Identifier") return;
+  if (n.type === "MemberExpression") {
+    if (n.computed) {
+      throw new ExpressionError("if/for: computed member access is not a direct field path");
+    }
+    if (isIdentifier(n.property) && COMPUTED_PROPS.has(n.property.name)) {
+      throw new ExpressionError(`if/for: ".${n.property.name}" is computation; use a Derivation`);
+    }
+    assertPath(n.object);
+    return;
+  }
+  throw new ExpressionError("if/for: expected a direct field path");
 }
 
 function evalNode(node: jsep.Expression, ctx: EvalContext): unknown {
