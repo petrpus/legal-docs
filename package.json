@@ -39,8 +39,10 @@
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.5.1",
+    "jsep": "^1.4.0",
     "react": "^19.2.7",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

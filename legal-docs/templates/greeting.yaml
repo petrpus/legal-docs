@@ -1,0 +1,7 @@
+template: greeting
+version: 1
+locale: en
+payloadSchema: greeting@1
+body:
+  - title: "GREETING"
+  - paragraph: "Dear {{ $name }}, your loan principal is {{ formatCurrency($loan.principal.amount, $loan.principal.currency) }}."

@@ -11,5 +11,7 @@ export interface Template {
   template: string;
   version: number;
   locale: string;
+  /** Reference to the versioned payload schema this document validates against (optional). */
+  payloadSchema?: string;
   body: BodyItem[];
 }
