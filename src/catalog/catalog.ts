@@ -1,5 +1,10 @@
 import { FileCatalogStore } from "./file-catalog-store";
 import type { CatalogStore } from "./catalog-store";
+import {
+  validateCatalog,
+  type ValidateOptions,
+  type ValidationResult,
+} from "./validate";
 import type { Template } from "../core/template";
 import type { Clause } from "../core/clause";
 import { parseClauseRef } from "../core/clause-ref";
@@ -41,5 +46,10 @@ export class Catalog {
     const latest = versions.at(-1);
     if (latest === undefined) throw new Error(`Clause "${id}" has no versions`);
     return latest;
+  }
+
+  /** Integrity lint: returns path-precise findings for unresolved refs, unregistered helpers, etc. */
+  validate(options?: ValidateOptions): Promise<ValidationResult> {
+    return validateCatalog(this, options);
   }
 }

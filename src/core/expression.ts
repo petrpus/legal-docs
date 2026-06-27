@@ -50,6 +50,53 @@ function parse(expr: string): jsep.Expression {
   }
 }
 
+/** Collect the names of all helper calls in an expression (for integrity-lint). Unparsable → []. */
+export function helperCallsIn(expr: string): string[] {
+  let ast: jsep.Expression;
+  try {
+    ast = jsep(expr);
+  } catch {
+    return [];
+  }
+  const names: string[] = [];
+  collectCalls(ast, names);
+  return names;
+}
+
+function collectCalls(node: jsep.Expression, names: string[]): void {
+  const n = node as jsep.CoreExpression;
+  switch (n.type) {
+    case "CallExpression":
+      if (isIdentifier(n.callee)) names.push(n.callee.name);
+      else collectCalls(n.callee, names);
+      n.arguments.forEach((arg) => collectCalls(arg, names));
+      return;
+    case "BinaryExpression":
+      collectCalls(n.left, names);
+      collectCalls(n.right, names);
+      return;
+    case "UnaryExpression":
+      collectCalls(n.argument, names);
+      return;
+    case "ConditionalExpression":
+      collectCalls(n.test, names);
+      collectCalls(n.consequent, names);
+      collectCalls(n.alternate, names);
+      return;
+    case "MemberExpression":
+      collectCalls(n.object, names);
+      if (n.computed) collectCalls(n.property, names);
+      return;
+    case "ArrayExpression":
+      n.elements.forEach((element) => {
+        if (element) collectCalls(element, names);
+      });
+      return;
+    default:
+      return;
+  }
+}
+
 const PREDICATE_OPS = new Set(["==", "!=", "===", "!==", "<", "<=", ">", ">=", "&&", "||"]);
 
 function assertPredicate(node: jsep.Expression): void {

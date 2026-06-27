@@ -1,6 +1,11 @@
 export { Catalog } from "./catalog/catalog";
 export { FileCatalogStore } from "./catalog/file-catalog-store";
 export type { CatalogStore } from "./catalog/catalog-store";
+export type {
+  ValidationResult,
+  ValidationFinding,
+  ValidateOptions,
+} from "./catalog/validate";
 
 export { renderDocument } from "./facade/render-document";
 export type { RenderDocumentInput, RenderDocumentResult } from "./facade/render-document";

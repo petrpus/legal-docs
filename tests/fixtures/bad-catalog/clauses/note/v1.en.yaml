@@ -1,0 +1,7 @@
+clause: note
+version: 1
+locale: en
+vars:
+  count: { type: integer }
+text: |
+  Note number {{ $count }}.
