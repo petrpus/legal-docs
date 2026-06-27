@@ -364,4 +364,104 @@ describe("assembleTree", () => {
       /name/,
     );
   });
+
+  it("includes the then- or else-branch of an if by a direct field read", async () => {
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ if: "$flag", then: [{ paragraph: "yes" }], else: [{ paragraph: "no" }] }],
+    };
+
+    expect(await assembleTree(template, { scope: { flag: true } })).toEqual([
+      { kind: "paragraph", text: "yes" },
+    ]);
+    expect(await assembleTree(template, { scope: { flag: false } })).toEqual([
+      { kind: "paragraph", text: "no" },
+    ]);
+  });
+
+  it("repeats a for body per element with $index and the loop var", async () => {
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ for: { each: "$xs", as: "x" }, body: [{ paragraph: "{{ $index }}:{{ $x }}" }] }],
+    };
+
+    expect(await assembleTree(template, { scope: { xs: ["a", "b"] } })).toEqual([
+      { kind: "paragraph", text: "0:a" },
+      { kind: "paragraph", text: "1:b" },
+    ]);
+  });
+
+  it("rejects computation in an if condition (length / arithmetic / calls)", async () => {
+    const make = (cond: string): Template => ({
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ if: cond, then: [{ paragraph: "x" }] }],
+    });
+
+    await expect(assembleTree(make("$xs.length > 0"), { scope: { xs: [1] } })).rejects.toThrow(
+      /Derivation/,
+    );
+    await expect(assembleTree(make("$a + $b == 2"), { scope: { a: 1, b: 1 } })).rejects.toThrow(
+      /computation/,
+    );
+  });
+
+  it("accepts a comparison against a signed numeric literal in an if", async () => {
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ if: "$balance < -1", then: [{ paragraph: "overdrawn" }] }],
+    };
+
+    expect(await assembleTree(template, { scope: { balance: -5 } })).toEqual([
+      { kind: "paragraph", text: "overdrawn" },
+    ]);
+  });
+
+  it("rejects a for-each that does not resolve to an array", async () => {
+    const template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ for: { each: "$x", as: "i" }, body: [{ paragraph: "y" }] }],
+    } as Template;
+
+    await expect(assembleTree(template, { scope: { x: 5 } })).rejects.toThrow(
+      /did not resolve to an array/,
+    );
+  });
+
+  it("resolves a clause reference from a $-expression", async () => {
+    const clauses: ClauseResolver = async (ref) => {
+      expect(ref).toBe("counterparts@v2");
+      return {
+        clause: "counterparts",
+        version: 2,
+        locale: "en",
+        vars: {},
+        text: "Picked v2.",
+      };
+    };
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ clause: "$derived.securityClause" }],
+    };
+
+    const tree = await assembleTree(template, {
+      scope: { derived: { securityClause: "counterparts@v2" } },
+      clauses,
+    });
+    expect(tree[0]).toEqual({
+      kind: "richText",
+      value: { type: "doc", blocks: [{ type: "paragraph", runs: [{ text: "Picked v2." }] }] },
+    });
+  });
 });

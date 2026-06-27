@@ -165,6 +165,56 @@ exports[`renderDocument (walking skeleton) > assembles the party-header / key-va
 ]
 `;
 
+exports[`renderDocument (walking skeleton) > assembles the resolve / if / for document tree (golden) 1`] = `
+[
+  {
+    "kind": "title",
+    "text": "TERMS",
+  },
+  {
+    "kind": "paragraph",
+    "text": "Party 1: Alpha (Lender).",
+  },
+  {
+    "kind": "paragraph",
+    "text": "Party 2: Beta (Pledgor).",
+  },
+  {
+    "kind": "paragraph",
+    "text": "Party 3: Gamma (Accession).",
+  },
+  {
+    "kind": "paragraph",
+    "text": "A guarantor is provided.",
+  },
+  {
+    "kind": "richText",
+    "value": {
+      "blocks": [
+        {
+          "runs": [
+            {
+              "text": "This agreement is signed in ",
+            },
+            {
+              "marks": [
+                "bold",
+              ],
+              "text": "4",
+            },
+            {
+              "text": " counterpart copies of equal legal force.",
+            },
+          ],
+          "type": "paragraph",
+        },
+      ],
+      "type": "doc",
+    },
+  },
+]
+`;
+
 exports[`renderDocument (walking skeleton) > assembles the signatures document tree (golden) 1`] = `
 [
   {

@@ -99,6 +99,9 @@ function toTemplate(value: unknown, id: string): Template {
     version: typeof v.version === "number" ? v.version : 1,
     locale: typeof v.locale === "string" ? v.locale : "en",
     payloadSchema: typeof v.payloadSchema === "string" ? v.payloadSchema : undefined,
+    derivations: Array.isArray(v.derivations)
+      ? v.derivations.filter((d): d is string => typeof d === "string")
+      : undefined,
     // Per-item shape is validated lazily by the engine; payload (zod) validation is applied to the
     // data, not the template, in the facade.
     body: v.body as BodyItem[],
