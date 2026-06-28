@@ -7,6 +7,7 @@ import type { ClausePin, Snapshot } from "../core/snapshot";
 import type { DocumentTree } from "../core/document-tree";
 import { renderTreeToBuffer } from "../render-pdf/render-pdf";
 import { renderTreeToHtml } from "../render-html/render-html";
+import { renderTreeToDocx } from "../render-docx/render-docx";
 import type { CustomBlockRegistry, DegradationMode } from "../render-pdf/custom-block";
 import type { Theme } from "../render-pdf/theme";
 
@@ -23,7 +24,7 @@ export interface RenderFromSnapshotOptions {
   /** How a Custom block missing this format degrades (defaults to `placeholder`). */
   degradation?: DegradationMode;
   /** Output format (defaults to `pdf`). */
-  format?: "pdf" | "html";
+  format?: "pdf" | "html" | "docx";
   theme?: Theme;
 }
 
@@ -38,8 +39,14 @@ export interface HtmlFromSnapshot {
   html: string;
 }
 
+export interface DocxFromSnapshot {
+  format: "docx";
+  buffer: Buffer;
+  stream: Readable;
+}
+
 /** Discriminated by `options.format`. */
-export type RenderFromSnapshotResult = PdfFromSnapshot | HtmlFromSnapshot;
+export type RenderFromSnapshotResult = PdfFromSnapshot | HtmlFromSnapshot | DocxFromSnapshot;
 
 /**
  * Deterministically re-render a document from its {@link Snapshot}.
@@ -57,7 +64,11 @@ export function renderFromSnapshot(
   snapshot: Snapshot,
   options: RenderFromSnapshotOptions & { format: "html" },
 ): Promise<HtmlFromSnapshot>;
-// Third overload: a caller whose `format` is only known as the union still resolves.
+export function renderFromSnapshot(
+  snapshot: Snapshot,
+  options: RenderFromSnapshotOptions & { format: "docx" },
+): Promise<DocxFromSnapshot>;
+// Final overload: a caller whose `format` is only known as the union still resolves.
 export function renderFromSnapshot(
   snapshot: Snapshot,
   options?: RenderFromSnapshotOptions,
@@ -74,6 +85,10 @@ export async function renderFromSnapshot(
   if (format === "pdf") {
     const buffer = await renderTreeToBuffer(tree, options.theme, options.customBlocks, options.degradation);
     return { format: "pdf", buffer, stream: Readable.from(buffer) };
+  }
+  if (format === "docx") {
+    const buffer = await renderTreeToDocx(tree, options.theme, options.customBlocks, options.degradation);
+    return { format: "docx", buffer, stream: Readable.from(buffer) };
   }
   const unsupported: never = format;
   throw new Error(`Unsupported format: ${String(unsupported)}`);

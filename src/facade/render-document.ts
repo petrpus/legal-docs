@@ -9,6 +9,7 @@ import type { HelperRegistry } from "../core/helpers";
 import { buildSnapshot, type ClausePin, type Snapshot, type SnapshotMode } from "../core/snapshot";
 import { renderTreeToBuffer } from "../render-pdf/render-pdf";
 import { renderTreeToHtml } from "../render-html/render-html";
+import { renderTreeToDocx } from "../render-docx/render-docx";
 import type { CustomBlockRegistry, DegradationMode } from "../render-pdf/custom-block";
 import type { Theme } from "../render-pdf/theme";
 
@@ -28,7 +29,7 @@ export interface RenderDocumentInput {
   customBlocks?: CustomBlockRegistry;
   /** How a Custom block missing this format degrades (ADR-0005). Defaults to `placeholder`. */
   degradation?: DegradationMode;
-  format: "pdf" | "html";
+  format: "pdf" | "html" | "docx";
   theme?: Theme;
   /** What the returned Snapshot freezes (ADR-0003). Defaults to `full`. */
   snapshotMode?: SnapshotMode;
@@ -53,12 +54,19 @@ export interface HtmlRenderResult extends RenderResultBase {
   html: string;
 }
 
-/** Discriminated by `format`: a PDF generation yields `buffer`/`stream`, an HTML one yields `html`. */
-export type RenderDocumentResult = PdfRenderResult | HtmlRenderResult;
+export interface DocxRenderResult extends RenderResultBase {
+  format: "docx";
+  buffer: Buffer;
+  stream: Readable;
+}
+
+/** Discriminated by `format`: PDF/DOCX yield `buffer`/`stream`, HTML yields `html`. */
+export type RenderDocumentResult = PdfRenderResult | HtmlRenderResult | DocxRenderResult;
 
 export function renderDocument(input: RenderDocumentInput & { format: "pdf" }): Promise<PdfRenderResult>;
 export function renderDocument(input: RenderDocumentInput & { format: "html" }): Promise<HtmlRenderResult>;
-// Third overload: a caller whose `format` is only known as the union still resolves (to the union result).
+export function renderDocument(input: RenderDocumentInput & { format: "docx" }): Promise<DocxRenderResult>;
+// Final overload: a caller whose `format` is only known as the union still resolves (to the union result).
 export function renderDocument(input: RenderDocumentInput): Promise<RenderDocumentResult>;
 export async function renderDocument(input: RenderDocumentInput): Promise<RenderDocumentResult> {
   // A `variant` resolves `template` as a family and composes that member into a concrete Template.
@@ -103,6 +111,10 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
   if (input.format === "pdf") {
     const buffer = await renderTreeToBuffer(tree, input.theme, input.customBlocks, input.degradation);
     return { format: "pdf", buffer, stream: Readable.from(buffer), snapshot, snapshotId: snapshot.id };
+  }
+  if (input.format === "docx") {
+    const buffer = await renderTreeToDocx(tree, input.theme, input.customBlocks, input.degradation);
+    return { format: "docx", buffer, stream: Readable.from(buffer), snapshot, snapshotId: snapshot.id };
   }
   const unsupported: never = input.format;
   throw new Error(`Unsupported format: ${String(unsupported)}`);
