@@ -1,0 +1,6 @@
+template: doc
+version: 1
+locale: en
+body:
+  - title: "DOC"
+  - custom: { component: "banner", props: { label: "$title" } }

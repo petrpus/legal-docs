@@ -8,6 +8,7 @@ import { resolvePayload, type DerivationRegistry } from "../core/resolve";
 import type { HelperRegistry } from "../core/helpers";
 import { buildSnapshot, type ClausePin, type Snapshot, type SnapshotMode } from "../core/snapshot";
 import { renderTreeToBuffer } from "../render-pdf/render-pdf";
+import type { CustomBlockRegistry } from "../render-pdf/custom-block";
 import type { Theme } from "../render-pdf/theme";
 
 export interface RenderDocumentInput {
@@ -22,6 +23,8 @@ export interface RenderDocumentInput {
   derivations?: DerivationRegistry;
   /** Extra whitelisted helpers, merged over the defaults. */
   helpers?: HelperRegistry;
+  /** Code-side Custom-block implementations, looked up by a `custom` node's `component`. */
+  customBlocks?: CustomBlockRegistry;
   format: "pdf";
   theme?: Theme;
   /** What the returned Snapshot freezes (ADR-0003). Defaults to `full`. */
@@ -62,7 +65,7 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
     },
     locale: template.locale,
   });
-  const buffer = await renderTreeToBuffer(tree, input.theme);
+  const buffer = await renderTreeToBuffer(tree, input.theme, input.customBlocks);
   const snapshot = buildSnapshot(
     {
       template: template.template,

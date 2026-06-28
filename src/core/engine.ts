@@ -2,6 +2,7 @@ import type { ArticleItem, BodyItem, KeyValueRows, SignaturePlaceSpec, Template 
 import type { DocumentNode, DocumentTree, KeyValueRow, SignaturePlace } from "./document-tree";
 import type { Clause } from "./clause";
 import { evaluate, evaluatePath, evaluatePredicate, type EvalContext } from "./expression";
+import { deepBind } from "./deep-bind";
 import { interpolate } from "./interpolate";
 import { parseRichText } from "./rich-text";
 import { validateVars } from "./vars-schema";
@@ -108,10 +109,20 @@ async function toNode(item: BodyItem, frame: Frame, level: number): Promise<Docu
   if ("partyHeader" in item) return partyHeaderNode(item.partyHeader, frame);
   if ("keyValueTable" in item) return keyValueTableNode(item.keyValueTable, frame);
   if ("signatures" in item) return signaturesNode(item.signatures, frame);
+  if ("custom" in item) return customNode(item.custom, frame);
   if ("slot" in item) {
     throw new Error(`Unfilled slot "${item.slot}" reached tree assembly — compose a Variant first`);
   }
   throw new Error(`Unsupported body item: ${JSON.stringify(item)}`);
+}
+
+/** Build a Custom block node, deep-binding its props. The engine never touches the (code-side) registry. */
+function customNode(spec: { component: string; props?: unknown }, frame: Frame): DocumentNode {
+  return {
+    kind: "custom",
+    component: spec.component,
+    props: spec.props === undefined ? undefined : deepBind(spec.props, frame.evalCtx),
+  };
 }
 
 function signaturesNode(spec: { places: SignaturePlaceSpec[] }, frame: Frame): DocumentNode {

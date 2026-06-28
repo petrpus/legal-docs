@@ -29,7 +29,8 @@ export type BodyItem =
   | { if: string; then: BodyItem[]; else?: BodyItem[] }
   | { for: { each: string; as: string }; body: BodyItem[] }
   | { include: string }
-  | { slot: string };
+  | { slot: string }
+  | { custom: { component: string; props?: unknown } };
 
 /**
  * An Include (a.k.a. Partial) is a shared, authored body fragment referenced by several Templates via

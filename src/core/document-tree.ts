@@ -36,6 +36,9 @@ export type DocumentNode =
   | { kind: "alphaList"; items: DocumentNode[][] }
   | { kind: "partyHeader"; party: PartyIdentification; roleLabel: string }
   | { kind: "keyValueTable"; rows: KeyValueRow[] }
-  | { kind: "signatures"; places: SignaturePlace[] };
+  | { kind: "signatures"; places: SignaturePlace[] }
+  // Escape hatch (ADR-0005): a renderer-native Custom block, referenced by `component` name. `props`
+  // is the bound, JSON-serializable payload the registered implementation receives.
+  | { kind: "custom"; component: string; props: unknown };
 
 export type DocumentTree = DocumentNode[];
