@@ -46,10 +46,14 @@ template that references it this way). Whichever is chosen, the document **Snaps
 concrete version actually resolved, so audit and re-render stay deterministic.
 
 **Custom block**:
-A special kind of **Block** whose `kind` is `custom`: instead of a declarative definition it carries
-a renderer-native implementation per output format (`CustomBlock<{ pdf; html?; docx? }>`). The
-escape hatch for special-layout documents (e.g. a landscape grid promissory note). Registered in the
-catalog like any other Block.
+The escape hatch for special-layout documents (e.g. a landscape grid promissory note). A **code-side**
+renderer-native implementation per output format (`CustomBlock<{ pdf; html?; docx? }>`, `pdf` required),
+held in the **Custom-block registry** — *not* the Catalog. A template references one by name through a
+`custom` body item (`custom: { component, props }`); tree assembly binds the `props` and produces a
+**DocumentNode** of kind `custom`, which the matching **Renderer** dispatches to the registered
+implementation. A Custom block is a *leaf*: it renders its own complete layout, not core nodes. An
+unregistered `component` is a hard error (and a lint finding); a missing *format* implementation
+triggers the **Degradation contract**.
 
 ### Templates & composition
 
@@ -103,7 +107,8 @@ is configurable (engine default, overridable), default **`placeholder`**:
 - **`placeholder`** (default): insert a visible, logged marker (`[unsupported block: X in docx]`) and
   continue.
 - **`throw`**: fail hard.
-Silent omission is never allowed; degradation is always at least logged.
+Silent omission is never allowed; degradation is always at least logged. Because `pdf` is required,
+PDF output never degrades — the contract governs the optional `html` / `docx` implementations.
 
 **InlineRich** / **RichTextV1**:
 The shared, renderer-agnostic inline / rich-text model (ported from the reference app's
