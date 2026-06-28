@@ -10,6 +10,9 @@ export interface CustomBlockContext {
 /** The PDF implementation of a Custom block: bound props + context → a react-pdf element. */
 export type PdfCustomBlock = (props: unknown, ctx: CustomBlockContext) => ReactElement;
 
+/** The HTML implementation of a Custom block: bound props + context → an HTML string (inserted raw). */
+export type HtmlCustomBlock = (props: unknown, ctx: CustomBlockContext) => string;
+
 /**
  * A Custom block: a code-side, renderer-native implementation per output format (ADR-0005). `pdf` is
  * required; `html`/`docx` slots arrive with those renderers (Phases 4–5). An optional `schema`
@@ -18,8 +21,7 @@ export type PdfCustomBlock = (props: unknown, ctx: CustomBlockContext) => ReactE
 export interface CustomBlock {
   schema?: ZodType;
   pdf: PdfCustomBlock;
-  /** Phase 4 (HTML renderer). */
-  html?: unknown;
+  html?: HtmlCustomBlock;
   /** Phase 5 (DOCX renderer). */
   docx?: unknown;
 }

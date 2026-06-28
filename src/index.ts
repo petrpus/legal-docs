@@ -72,6 +72,9 @@ export type {
   CustomBlockRegistry,
   CustomBlockContext,
   PdfCustomBlock,
+  HtmlCustomBlock,
   DegradationMode,
 } from "./render-pdf/custom-block";
+export { renderTreeToHtml } from "./render-html/render-html";
+export { escapeHtml } from "./render-html/escape";
 export { deepBind } from "./core/deep-bind";
