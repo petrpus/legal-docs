@@ -40,6 +40,7 @@
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.5.1",
+    "docx": "^9.7.1",
     "jsep": "^1.4.0",
     "react": "^19.2.7",
     "yaml": "^2.9.0",
@@ -50,6 +51,7 @@
     "@types/node": "^26.0.1",
     "@types/react": "^19.2.17",
     "eslint": "^10.6.0",
+    "jszip": "^3.10.1",
     "pdf-parse": "^2.4.5",
     "prettier": "^3.9.0",
     "tsup": "^8.5.1",
