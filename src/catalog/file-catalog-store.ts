@@ -2,7 +2,7 @@ import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { CatalogStore } from "./catalog-store";
-import type { BodyItem, Template } from "../core/template";
+import type { BodyItem, Include, Template } from "../core/template";
 import type { Clause } from "../core/clause";
 import type { VarsSchema } from "../core/vars-schema";
 
@@ -37,6 +37,14 @@ export class FileCatalogStore implements CatalogStore {
     throw new Error(`Template "${id}" not found in ${this.templatesDir()}`);
   }
 
+  async loadInclude(id: string): Promise<Include> {
+    for (const ext of [".yaml", ".yml"]) {
+      const file = path.join(this.partialsDir(), `${id}${ext}`);
+      if (await fileExists(file)) return toInclude(parseYaml(await readFile(file, "utf8")), id);
+    }
+    throw new Error(`Include "${id}" not found in ${this.partialsDir()}`);
+  }
+
   async clauseVersions(id: string): Promise<number[]> {
     const entries = await readdir(this.clauseDir(id)).catch(() => [] as string[]);
     const versions = new Set<number>();
@@ -67,6 +75,10 @@ export class FileCatalogStore implements CatalogStore {
 
   private templatesDir(): string {
     return path.join(this.dir, "templates");
+  }
+
+  private partialsDir(): string {
+    return path.join(this.dir, "partials");
   }
 
   private clauseDir(id: string): string {
@@ -104,6 +116,22 @@ function toTemplate(value: unknown, id: string): Template {
       : undefined,
     // Per-item shape is validated lazily by the engine; payload (zod) validation is applied to the
     // data, not the template, in the facade.
+    body: v.body as BodyItem[],
+  };
+}
+
+function toInclude(value: unknown, id: string): Include {
+  if (value === null || typeof value !== "object") {
+    throw new Error(`Include "${id}" is not a YAML object`);
+  }
+  const v = value as Record<string, unknown>;
+  if (!Array.isArray(v.body)) {
+    throw new Error(`Include "${id}" is missing a "body" array`);
+  }
+  return {
+    id: typeof v.id === "string" ? v.id : id,
+    // Per-item shape is validated lazily by the engine (same as toTemplate); the YAML body array is
+    // the only structural guarantee made here.
     body: v.body as BodyItem[],
   };
 }

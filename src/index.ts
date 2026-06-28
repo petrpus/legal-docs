@@ -14,11 +14,14 @@ export { assembleTree } from "./core/engine";
 export type { AssembleContext, ClauseResolver } from "./core/engine";
 export type {
   Template,
+  Include,
   BodyItem,
   ArticleItem,
   KeyValueRows,
   SignaturePlaceSpec,
 } from "./core/template";
+export { expandIncludes, IncludeError } from "./core/includes";
+export type { IncludeLoader } from "./core/includes";
 export type {
   DocumentNode,
   DocumentTree,

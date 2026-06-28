@@ -1,0 +1,4 @@
+id: greeting-block
+body:
+  - title: Hello
+  - paragraph: Welcome

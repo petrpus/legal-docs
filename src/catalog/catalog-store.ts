@@ -1,4 +1,4 @@
-import type { Template } from "../core/template";
+import type { Include, Template } from "../core/template";
 import type { Clause } from "../core/clause";
 
 /**
@@ -11,6 +11,8 @@ export interface CatalogStore {
   templateIds(): Promise<string[]>;
   /** Load a single Template by id. */
   loadTemplate(id: string): Promise<Template>;
+  /** Load a shared Include (Partial) by id. */
+  loadInclude(id: string): Promise<Include>;
   /** All versions of a Clause that exist, ascending. */
   clauseVersions(id: string): Promise<number[]>;
   /** Load a specific Clause version for a locale. */
