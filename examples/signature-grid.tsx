@@ -1,7 +1,7 @@
 import { Text, View } from "@react-pdf/renderer";
 import { z } from "zod";
-// In a consuming project, import this from the package instead: `from "@petrpus/legal-docs"`.
-import type { CustomBlock } from "../src/index";
+// In a consuming project, import these from the package instead: `from "@petrpus/legal-docs"`.
+import { escapeHtml, type CustomBlock } from "../src/index";
 
 /**
  * A product-agnostic example **Custom block** (ADR-0005): a multi-column grid of signature cells —
@@ -38,5 +38,21 @@ export const signatureGrid: CustomBlock = {
         ))}
       </View>
     );
+  },
+  html: (props, { theme }) => {
+    const { signatories, columns = 2 } = signatureGridSchema.parse(props);
+    const cellWidth = `${100 / columns}%`;
+    const line = `border-top:${theme.signatures.lineWidth}px solid ${theme.signatures.lineColor};margin-top:${theme.signatures.lineSpace}px;margin-bottom:4px;`;
+    // The block owns its markup, but must escape its own data — it builds HTML from untrusted strings.
+    const cells = signatories
+      .map((s) => {
+        const role =
+          s.role !== undefined
+            ? `<div style="font-size:${theme.signatures.fontSize}px;color:${theme.signatures.roleColor}">${escapeHtml(s.role)}</div>`
+            : "";
+        return `<div class="sig-cell" style="width:${cellWidth};padding-right:12px;margin-bottom:16px;box-sizing:border-box"><div class="sig-cell__line" style="${line}"></div><div>${escapeHtml(s.name)}</div>${role}</div>`;
+      })
+      .join("");
+    return `<div class="sig-grid" style="display:flex;flex-wrap:wrap">${cells}</div>`;
   },
 };

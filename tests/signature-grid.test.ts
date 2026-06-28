@@ -45,6 +45,28 @@ describe("signature-grid special-layout sample", () => {
     expect(out).toContain("Borrower");
   });
 
+  it("renders the signature grid to HTML, escaping its own data, incl. a role-less signatory", async () => {
+    const catalog = await Catalog.fromDir(catalogDir);
+
+    const { html } = await renderDocument({
+      catalog,
+      template: "signature-grid",
+      data: {
+        signatories: [
+          { name: "Acme & <b>Co</b>", role: "Lender" }, // HTML-special chars
+          { name: "Jane Doe" }, // role-less branch
+        ],
+      },
+      customBlocks: { "signature-grid": signatureGrid },
+      format: "html",
+    });
+
+    expect(html).toContain('class="sig-grid"');
+    expect(html).toContain("Acme &amp; &lt;b&gt;Co&lt;/b&gt;"); // escaped, not raw markup
+    expect(html).not.toContain("<b>Co</b>");
+    expect(html).toContain("Jane Doe");
+  });
+
   it("renders with the default column count and a role-less signatory", async () => {
     const catalog = await Catalog.fromDir(sigGridDir);
 

@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { createElement } from "react";
 import { Text, View } from "@react-pdf/renderer";
 import { z } from "zod";
-import { Catalog, renderDocument, party, loan } from "../dist/index.js";
+import { Catalog, renderDocument, party, loan, escapeHtml } from "../dist/index.js";
 
 // A worked signature-grid Custom block (mirrors examples/signature-grid.tsx, using createElement so
 // this plain-ESM script needs no JSX/TS build). A multi-column grid of signature cells.
@@ -33,6 +33,18 @@ const signatureGrid = {
         ),
       ),
     );
+  },
+  html: (props, { theme }) => {
+    const { signatories, columns = 2 } = signatureGridSchema.parse(props);
+    const cellWidth = `${100 / columns}%`;
+    const line = `border-top:${theme.signatures.lineWidth}px solid ${theme.signatures.lineColor};margin-top:${theme.signatures.lineSpace}px;margin-bottom:4px;`;
+    const cells = signatories
+      .map((s) => {
+        const role = s.role !== undefined ? `<div style="font-size:${theme.signatures.fontSize}px;color:${theme.signatures.roleColor}">${escapeHtml(s.role)}</div>` : "";
+        return `<div class="sig-cell" style="width:${cellWidth};padding-right:12px;margin-bottom:16px;box-sizing:border-box"><div class="sig-cell__line" style="${line}"></div><div>${escapeHtml(s.name)}</div>${role}</div>`;
+      })
+      .join("");
+    return `<div class="sig-grid" style="display:flex;flex-wrap:wrap">${cells}</div>`;
   },
 };
 
@@ -131,7 +143,10 @@ async function render(name, config) {
   if (hasPdftoppm) {
     execFileSync("pdftoppm", ["-png", "-r", "110", "-singlefile", pdfPath, `${outDir}/${name}`]);
   }
-  console.log(`✓ ${name}.pdf${hasPdftoppm ? ` + ${name}.png` : ""}  (snapshot ${snapshotId})`);
+  // A separate html pass over the same inputs; its Snapshot is identical to the pdf one, so ignored.
+  const { html } = await renderDocument({ catalog, format: "html", ...config });
+  writeFileSync(`${outDir}/${name}.html`, html);
+  console.log(`✓ ${name}.pdf + ${name}.html${hasPdftoppm ? ` + ${name}.png` : ""}  (snapshot ${snapshotId})`);
 }
 
 for (const id of await catalog.templateIds()) {
