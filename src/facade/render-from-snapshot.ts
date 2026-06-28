@@ -6,6 +6,7 @@ import type { HelperRegistry } from "../core/helpers";
 import type { ClausePin, Snapshot } from "../core/snapshot";
 import type { DocumentTree } from "../core/document-tree";
 import { renderTreeToBuffer } from "../render-pdf/render-pdf";
+import type { CustomBlockRegistry, DegradationMode } from "../render-pdf/custom-block";
 import type { Theme } from "../render-pdf/theme";
 
 export interface RenderFromSnapshotOptions {
@@ -13,6 +14,13 @@ export interface RenderFromSnapshotOptions {
   catalog?: Catalog;
   /** Extra whitelisted helpers, needed only if a `pins` re-render's template uses custom helpers. */
   helpers?: HelperRegistry;
+  /**
+   * Code-side Custom-block implementations. Required if the Snapshot's tree contains `custom` nodes —
+   * the implementation is code, not frozen data, so it must be supplied for `full`/`tree` and `pins`.
+   */
+  customBlocks?: CustomBlockRegistry;
+  /** How a Custom block missing this format degrades (defaults to `placeholder`). */
+  degradation?: DegradationMode;
   theme?: Theme;
 }
 
@@ -34,7 +42,7 @@ export async function renderFromSnapshot(
   options: RenderFromSnapshotOptions = {},
 ): Promise<RenderFromSnapshotResult> {
   const tree = snapshot.tree ?? (await reassembleFromPins(snapshot, options));
-  const buffer = await renderTreeToBuffer(tree, options.theme);
+  const buffer = await renderTreeToBuffer(tree, options.theme, options.customBlocks, options.degradation);
   return { buffer, stream: Readable.from(buffer) };
 }
 
