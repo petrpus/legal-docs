@@ -2,6 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import { PDFParse } from "pdf-parse";
+import JSZip from "jszip";
 import { Catalog } from "../src/catalog/catalog";
 import { renderDocument } from "../src/facade/render-document";
 import { signatureGrid } from "../examples/signature-grid";
@@ -18,6 +19,13 @@ async function text(buffer: Buffer): Promise<string> {
   } finally {
     await parser.destroy();
   }
+}
+
+async function docXml(buffer: Buffer): Promise<string> {
+  const zip = await JSZip.loadAsync(buffer);
+  const file = zip.file("word/document.xml");
+  if (!file) throw new Error("no word/document.xml");
+  return file.async("string");
 }
 
 describe("signature-grid special-layout sample", () => {
@@ -65,6 +73,50 @@ describe("signature-grid special-layout sample", () => {
     expect(html).toContain("Acme &amp; &lt;b&gt;Co&lt;/b&gt;"); // escaped, not raw markup
     expect(html).not.toContain("<b>Co</b>");
     expect(html).toContain("Jane Doe");
+  });
+
+  it("renders the signature grid to DOCX as a table of signatory names", async () => {
+    const catalog = await Catalog.fromDir(catalogDir);
+
+    const result = await renderDocument({
+      catalog,
+      template: "signature-grid",
+      data: {
+        signatories: [
+          { name: "Acme Bank a.s.", role: "Lender" },
+          { name: "Jane Doe", role: "Borrower" },
+        ],
+      },
+      customBlocks: { "signature-grid": signatureGrid },
+      format: "docx",
+    });
+
+    const xml = await docXml(result.buffer);
+    expect(xml).toContain("<w:tbl>"); // a table
+    expect(xml).toContain("Acme Bank a.s.");
+    expect(xml).toContain("Borrower");
+  });
+
+  it("chunks signatories into rows of `columns` in DOCX (3 at columns=2 → 2 rows), incl. a role-less one", async () => {
+    const catalog = await Catalog.fromDir(catalogDir);
+
+    const result = await renderDocument({
+      catalog,
+      template: "signature-grid", // its props set columns: 2
+      data: {
+        signatories: [
+          { name: "Alpha", role: "Lender" },
+          { name: "Beta" }, // role-less branch
+          { name: "Gamma", role: "Guarantor" },
+        ],
+      },
+      customBlocks: { "signature-grid": signatureGrid },
+      format: "docx",
+    });
+
+    const xml = await docXml(result.buffer);
+    expect((xml.match(/<w:tr>/g) ?? []).length).toBeGreaterThanOrEqual(2); // 3 signatories / 2 cols → 2 rows
+    for (const name of ["Alpha", "Beta", "Gamma"]) expect(xml).toContain(name);
   });
 
   it("renders with the default column count and a role-less signatory", async () => {

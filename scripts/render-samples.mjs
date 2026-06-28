@@ -4,8 +4,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { createElement } from "react";
 import { Text, View } from "@react-pdf/renderer";
+import { BorderStyle, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
 import { z } from "zod";
-import { Catalog, renderDocument, party, loan, escapeHtml } from "../dist/index.js";
+import { Catalog, renderDocument, party, loan, escapeHtml, halfPoints, twips, eighths } from "../dist/index.js";
 
 // A worked signature-grid Custom block (mirrors examples/signature-grid.tsx, using createElement so
 // this plain-ESM script needs no JSX/TS build). A multi-column grid of signature cells.
@@ -45,6 +46,28 @@ const signatureGrid = {
       })
       .join("");
     return `<div class="sig-grid" style="display:flex;flex-wrap:wrap">${cells}</div>`;
+  },
+  docx: (props, { theme }) => {
+    const { signatories, columns = 2 } = signatureGridSchema.parse(props);
+    const cell = (s) => {
+      const children = [
+        new Paragraph({
+          border: { top: { style: BorderStyle.SINGLE, size: eighths(theme.signatures.lineWidth), color: theme.signatures.lineColor.replace(/^#/, "") } },
+          spacing: { before: twips(theme.signatures.lineSpace) },
+        }),
+        new Paragraph({ children: [new TextRun({ text: s.name, size: halfPoints(theme.signatures.fontSize) })] }),
+      ];
+      if (s.role !== undefined) {
+        children.push(new Paragraph({ children: [new TextRun({ text: s.role, size: halfPoints(theme.signatures.fontSize), color: theme.signatures.roleColor.replace(/^#/, "") })] }));
+      }
+      return new TableCell({ children });
+    };
+    const rows = [];
+    for (let i = 0; i < signatories.length; i += columns) {
+      rows.push(new TableRow({ children: signatories.slice(i, i + columns).map(cell) }));
+    }
+    const none = { style: BorderStyle.NONE, size: 0, color: "auto" };
+    return [new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, borders: { top: none, bottom: none, left: none, right: none, insideHorizontal: none, insideVertical: none }, rows })];
   },
 };
 
@@ -143,10 +166,12 @@ async function render(name, config) {
   if (hasPdftoppm) {
     execFileSync("pdftoppm", ["-png", "-r", "110", "-singlefile", pdfPath, `${outDir}/${name}`]);
   }
-  // A separate html pass over the same inputs; its Snapshot is identical to the pdf one, so ignored.
+  // Separate html and docx passes over the same inputs; their Snapshots match the pdf one, so ignored.
   const { html } = await renderDocument({ catalog, format: "html", ...config });
   writeFileSync(`${outDir}/${name}.html`, html);
-  console.log(`✓ ${name}.pdf + ${name}.html${hasPdftoppm ? ` + ${name}.png` : ""}  (snapshot ${snapshotId})`);
+  const docx = await renderDocument({ catalog, format: "docx", ...config });
+  writeFileSync(`${outDir}/${name}.docx`, docx.buffer);
+  console.log(`✓ ${name}.pdf + ${name}.html + ${name}.docx${hasPdftoppm ? ` + ${name}.png` : ""}  (snapshot ${snapshotId})`);
 }
 
 for (const id of await catalog.templateIds()) {

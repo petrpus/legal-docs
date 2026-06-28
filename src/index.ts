@@ -89,4 +89,5 @@ export { renderTreeToHtml } from "./render-html/render-html";
 export { escapeHtml } from "./render-html/escape";
 export { renderClauseDiff } from "./render-html/clause-diff-html";
 export { renderTreeToDocx } from "./render-docx/render-docx";
+export { halfPoints, twips, eighths } from "./render-docx/theme-docx";
 export { deepBind } from "./core/deep-bind";
