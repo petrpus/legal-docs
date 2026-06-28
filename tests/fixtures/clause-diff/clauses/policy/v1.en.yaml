@@ -1,0 +1,7 @@
+clause: policy
+version: 1
+locale: en
+text: |
+  The borrower shall repay the loan in full.
+
+  Interest accrues monthly.
