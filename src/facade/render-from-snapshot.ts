@@ -6,6 +6,7 @@ import type { HelperRegistry } from "../core/helpers";
 import type { ClausePin, Snapshot } from "../core/snapshot";
 import type { DocumentTree } from "../core/document-tree";
 import { renderTreeToBuffer } from "../render-pdf/render-pdf";
+import { renderTreeToHtml } from "../render-html/render-html";
 import type { CustomBlockRegistry, DegradationMode } from "../render-pdf/custom-block";
 import type { Theme } from "../render-pdf/theme";
 
@@ -21,13 +22,24 @@ export interface RenderFromSnapshotOptions {
   customBlocks?: CustomBlockRegistry;
   /** How a Custom block missing this format degrades (defaults to `placeholder`). */
   degradation?: DegradationMode;
+  /** Output format (defaults to `pdf`). */
+  format?: "pdf" | "html";
   theme?: Theme;
 }
 
-export interface RenderFromSnapshotResult {
+export interface PdfFromSnapshot {
+  format: "pdf";
   buffer: Buffer;
   stream: Readable;
 }
+
+export interface HtmlFromSnapshot {
+  format: "html";
+  html: string;
+}
+
+/** Discriminated by `options.format`. */
+export type RenderFromSnapshotResult = PdfFromSnapshot | HtmlFromSnapshot;
 
 /**
  * Deterministically re-render a document from its {@link Snapshot}.
@@ -37,13 +49,34 @@ export interface RenderFromSnapshotResult {
  *   versions are pinned to the Snapshot, so a moved `@latest` does not change the output, but the
  *   catalog must still hold those versions and the template structure is read from it.
  */
+export function renderFromSnapshot(
+  snapshot: Snapshot,
+  options?: RenderFromSnapshotOptions & { format?: "pdf" },
+): Promise<PdfFromSnapshot>;
+export function renderFromSnapshot(
+  snapshot: Snapshot,
+  options: RenderFromSnapshotOptions & { format: "html" },
+): Promise<HtmlFromSnapshot>;
+// Third overload: a caller whose `format` is only known as the union still resolves.
+export function renderFromSnapshot(
+  snapshot: Snapshot,
+  options?: RenderFromSnapshotOptions,
+): Promise<RenderFromSnapshotResult>;
 export async function renderFromSnapshot(
   snapshot: Snapshot,
   options: RenderFromSnapshotOptions = {},
 ): Promise<RenderFromSnapshotResult> {
   const tree = snapshot.tree ?? (await reassembleFromPins(snapshot, options));
-  const buffer = await renderTreeToBuffer(tree, options.theme, options.customBlocks, options.degradation);
-  return { buffer, stream: Readable.from(buffer) };
+  const format = options.format ?? "pdf";
+  if (format === "html") {
+    return { format: "html", html: renderTreeToHtml(tree, options.theme, options.customBlocks, options.degradation) };
+  }
+  if (format === "pdf") {
+    const buffer = await renderTreeToBuffer(tree, options.theme, options.customBlocks, options.degradation);
+    return { format: "pdf", buffer, stream: Readable.from(buffer) };
+  }
+  const unsupported: never = format;
+  throw new Error(`Unsupported format: ${String(unsupported)}`);
 }
 
 async function reassembleFromPins(
