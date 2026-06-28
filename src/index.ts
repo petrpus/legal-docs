@@ -84,4 +84,5 @@ export type {
 } from "./render-pdf/custom-block";
 export { renderTreeToHtml } from "./render-html/render-html";
 export { escapeHtml } from "./render-html/escape";
+export { renderClauseDiff } from "./render-html/clause-diff-html";
 export { deepBind } from "./core/deep-bind";
