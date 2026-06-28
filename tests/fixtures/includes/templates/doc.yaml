@@ -1,0 +1,7 @@
+template: doc
+version: 1
+locale: en
+body:
+  - title: Doc
+  - include: greeting-block
+  - paragraph: Footer

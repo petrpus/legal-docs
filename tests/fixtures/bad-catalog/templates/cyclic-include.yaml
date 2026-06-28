@@ -1,0 +1,5 @@
+template: cyclic-include
+version: 1
+locale: en
+body:
+  - include: loop-a

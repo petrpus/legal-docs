@@ -1,10 +1,11 @@
-import type { BodyItem, KeyValueRows, Template } from "../core/template";
+import type { BodyItem, Include, KeyValueRows, Template } from "../core/template";
 import type { Clause } from "../core/clause";
 import type { VarSpec } from "../core/vars-schema";
 import { defaultHelpers, type HelperRegistry } from "../core/helpers";
 import type { DerivationRegistry } from "../core/resolve";
 import { helperCallsIn } from "../core/expression";
 import { expressionTokens } from "../core/interpolate";
+import { expandIncludes, IncludeError } from "../core/includes";
 
 export interface ValidationFinding {
   path: string;
@@ -28,6 +29,7 @@ export interface LintableCatalog {
   templateIds(): Promise<string[]>;
   getTemplate(id: string): Promise<Template>;
   getClause(ref: string, locale: string): Promise<Clause>;
+  loadInclude(id: string): Promise<Include>;
 }
 
 interface LintContext {
@@ -66,7 +68,18 @@ export async function validateCatalog(
       }
     }
     const ctx: LintContext = { catalog, locale: template.locale, helpers, derivations, findings };
-    await lintItems(template.body, `${base} › body`, ctx);
+    // Lint the include-expanded body so Clauses/helpers inside Includes are checked too. A bad
+    // include is itself a finding; the unexpanded body is linted as a fallback. Note: expansion is
+    // fail-fast, so a template with several bad includes surfaces only the first — re-run after
+    // fixing it. (Findings across different templates and other rule kinds are still collected.)
+    let body = template.body;
+    try {
+      body = await expandIncludes(template.body, (id) => catalog.loadInclude(id));
+    } catch (error) {
+      if (!(error instanceof IncludeError)) throw error;
+      findings.push({ path: `${base} › ${error.path}`, message: error.message });
+    }
+    await lintItems(body, `${base} › body`, ctx);
   }
 
   return { ok: findings.length === 0, findings };
@@ -104,6 +117,8 @@ async function lintItem(item: BodyItem, path: string, ctx: LintContext): Promise
     return;
   }
   if ("for" in item) return lintItems(item.body, `${path} › for`, ctx);
+  // `include` is resolved by expansion before lintItems runs; an unresolved one is already a finding.
+  if ("include" in item) return;
 }
 
 async function lintListItems(groups: BodyItem[][], path: string, ctx: LintContext): Promise<void> {

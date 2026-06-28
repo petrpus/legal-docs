@@ -5,7 +5,7 @@ import {
   type ValidateOptions,
   type ValidationResult,
 } from "./validate";
-import type { Template } from "../core/template";
+import type { Include, Template } from "../core/template";
 import type { Clause } from "../core/clause";
 import { parseClauseRef } from "../core/clause-ref";
 
@@ -32,6 +32,11 @@ export class Catalog {
 
   templateIds(): Promise<string[]> {
     return this.store.templateIds();
+  }
+
+  /** Load a shared Include (Partial) by id. */
+  loadInclude(id: string): Promise<Include> {
+    return this.store.loadInclude(id);
   }
 
   /** Resolve a Clause reference (`id@vN` | `id@latest` | `id`) to a concrete Clause for a locale. */

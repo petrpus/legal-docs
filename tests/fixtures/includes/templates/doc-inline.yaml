@@ -1,0 +1,8 @@
+template: doc-inline
+version: 1
+locale: en
+body:
+  - title: Doc
+  - title: Hello
+  - paragraph: Welcome
+  - paragraph: Footer

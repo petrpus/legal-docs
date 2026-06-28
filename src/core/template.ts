@@ -27,7 +27,20 @@ export type BodyItem =
   | { keyValueTable: { rows: KeyValueRows } }
   | { signatures: { places: SignaturePlaceSpec[] } }
   | { if: string; then: BodyItem[]; else?: BodyItem[] }
-  | { for: { each: string; as: string }; body: BodyItem[] };
+  | { for: { each: string; as: string }; body: BodyItem[] }
+  | { include: string };
+
+/**
+ * An Include (a.k.a. Partial) is a shared, authored body fragment referenced by several Templates via
+ * an `{ include: <id> }` body item. It is not renderable on its own; Include expansion splices its
+ * body in place before tree assembly. (The type is named `Include` rather than `Partial` to avoid
+ * shadowing the global `Partial<T>` utility type on the public surface.)
+ */
+export interface Include {
+  /** Include id. */
+  id: string;
+  body: BodyItem[];
+}
 
 /** A signature slot: a `$`-path to a party (its name is used) or a literal/interpolated name. */
 export interface SignaturePlaceSpec {

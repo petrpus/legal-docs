@@ -49,4 +49,18 @@ describe("Catalog.validate", () => {
       /templates\/mismatch › derivations/,
     );
   });
+
+  it("reports unresolved and cyclic includes as findings", async () => {
+    const catalog = await Catalog.fromDir(badDir);
+
+    const result = await catalog.validate();
+    const find = (re: RegExp) => result.findings.find((f) => re.test(f.message));
+
+    expect(find(/include "ghost" does not resolve/)?.path).toMatch(
+      /templates\/unknown-include › body\[0\]/,
+    );
+    expect(find(/include cycle: loop-a → loop-b → loop-a/)?.path).toMatch(
+      /templates\/cyclic-include › body\[0\]/,
+    );
+  });
 });

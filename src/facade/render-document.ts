@@ -3,6 +3,7 @@ import { Readable } from "node:stream";
 import type { Catalog } from "../catalog/catalog";
 import type { Template } from "../core/template";
 import { assembleTree } from "../core/engine";
+import { expandIncludes } from "../core/includes";
 import { validatePayload, type PayloadSchemaRegistry } from "../core/payload";
 import { resolvePayload, type DerivationRegistry } from "../core/resolve";
 import type { HelperRegistry } from "../core/helpers";
@@ -40,11 +41,14 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
     throw new Error(`Unsupported format: ${String(input.format)}`);
   }
   const template = await input.catalog.getTemplate(input.template);
-  const payload = resolveScope(template, input);
-  const { derived } = resolvePayload(payload, template.derivations ?? [], input.derivations ?? {});
+  // Expand Includes into a concrete, include-free body before tree assembly.
+  const body = await expandIncludes(template.body, (id) => input.catalog.loadInclude(id));
+  const concrete = { ...template, body };
+  const payload = resolveScope(concrete, input);
+  const { derived } = resolvePayload(payload, concrete.derivations ?? [], input.derivations ?? {});
   // `$derived` is the reserved namespace, so a payload field literally named `derived` is overwritten.
   const scope = { ...payload, derived };
-  const tree = await assembleTree(template, {
+  const tree = await assembleTree(concrete, {
     scope,
     helpers: input.helpers,
     clauses: (ref, locale) => input.catalog.getClause(ref, locale),
