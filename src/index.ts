@@ -9,6 +9,11 @@ export type {
 
 export { renderDocument } from "./facade/render-document";
 export type { RenderDocumentInput, RenderDocumentResult } from "./facade/render-document";
+export { renderFromSnapshot } from "./facade/render-from-snapshot";
+export type {
+  RenderFromSnapshotOptions,
+  RenderFromSnapshotResult,
+} from "./facade/render-from-snapshot";
 export { buildSnapshot, DEFAULT_SNAPSHOT_MODE } from "./core/snapshot";
 export type { Snapshot, SnapshotMode, ClausePin, SnapshotInput } from "./core/snapshot";
 

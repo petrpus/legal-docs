@@ -1,0 +1,6 @@
+template: doc
+version: 1
+locale: en
+body:
+  - title: "NOTE DOCUMENT"
+  - clause: "note@latest"
