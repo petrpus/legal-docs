@@ -26,3 +26,10 @@ export interface CustomBlock {
 
 /** Code-side registry of Custom blocks, keyed by `component` name. Passed to renderDocument/validate. */
 export type CustomBlockRegistry = Record<string, CustomBlock>;
+
+/**
+ * What happens when a registered Custom block lacks the target format's implementation (Degradation
+ * contract, ADR-0005). `placeholder` (default) emits a visible, logged marker; `throw` fails hard.
+ * Silent omission is never allowed.
+ */
+export type DegradationMode = "placeholder" | "throw";
