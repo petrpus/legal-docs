@@ -5,11 +5,12 @@ import { z } from "zod";
 import { Catalog } from "../src/catalog/catalog";
 import { renderDocument, type RenderDocumentInput } from "../src/facade/render-document";
 import { loan, party } from "../src/core/schema-fragments";
+import { signatureGrid } from "../examples/signature-grid";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const catalogDir = path.join(here, "..", "legal-docs");
 
-type SampleConfig = Pick<RenderDocumentInput, "data" | "schemas" | "derivations">;
+type SampleConfig = Pick<RenderDocumentInput, "data" | "schemas" | "derivations" | "customBlocks">;
 
 const partyData = {
   lender: { name: "Acme Bank a.s.", kind: "company", idNumber: "12345678", address: "1 Bank St" },
@@ -54,6 +55,16 @@ const samples: Record<string, SampleConfig> = {
       securityClause: (p) =>
         (p as typeof termsData).parties.length >= 3 ? "counterparts@v2" : "counterparts@v1",
     },
+  },
+  "signature-grid": {
+    data: {
+      signatories: [
+        { name: "Acme Bank a.s.", role: "Lender" },
+        { name: "Jane Doe", role: "Borrower" },
+        { name: "Guarantor Ltd", role: "Guarantor" },
+      ],
+    },
+    customBlocks: { "signature-grid": signatureGrid },
   },
 };
 
