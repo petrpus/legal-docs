@@ -1,7 +1,8 @@
 import { Text, View } from "@react-pdf/renderer";
+import { BorderStyle, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
 import { z } from "zod";
 // In a consuming project, import these from the package instead: `from "@petrpus/legal-docs"`.
-import { escapeHtml, type CustomBlock } from "../src/index";
+import { escapeHtml, eighths, halfPoints, twips, type CustomBlock } from "../src/index";
 
 /**
  * A product-agnostic example **Custom block** (ADR-0005): a multi-column grid of signature cells —
@@ -54,5 +55,36 @@ export const signatureGrid: CustomBlock = {
       })
       .join("");
     return `<div class="sig-grid" style="display:flex;flex-wrap:wrap">${cells}</div>`;
+  },
+  docx: (props, { theme }) => {
+    const { signatories, columns = 2 } = signatureGridSchema.parse(props);
+    const cell = (s: { name: string; role?: string }): TableCell => {
+      const children = [
+        new Paragraph({
+          border: { top: { style: BorderStyle.SINGLE, size: eighths(theme.signatures.lineWidth), color: theme.signatures.lineColor.replace(/^#/, "") } },
+          spacing: { before: twips(theme.signatures.lineSpace) },
+        }),
+        // Name at the signatures font size (matching the core `signatures` node's DOCX convention).
+        new Paragraph({ children: [new TextRun({ text: s.name, size: halfPoints(theme.signatures.fontSize) })] }),
+      ];
+      if (s.role !== undefined) {
+        children.push(
+          new Paragraph({ children: [new TextRun({ text: s.role, size: halfPoints(theme.signatures.fontSize), color: theme.signatures.roleColor.replace(/^#/, "") })] }),
+        );
+      }
+      return new TableCell({ children });
+    };
+    const rows: TableRow[] = [];
+    for (let i = 0; i < signatories.length; i += columns) {
+      rows.push(new TableRow({ children: signatories.slice(i, i + columns).map(cell) }));
+    }
+    const none = { style: BorderStyle.NONE, size: 0, color: "auto" };
+    return [
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: { top: none, bottom: none, left: none, right: none, insideHorizontal: none, insideVertical: none },
+        rows,
+      }),
+    ];
   },
 };
