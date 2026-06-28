@@ -72,5 +72,6 @@ export type {
   CustomBlockRegistry,
   CustomBlockContext,
   PdfCustomBlock,
+  DegradationMode,
 } from "./render-pdf/custom-block";
 export { deepBind } from "./core/deep-bind";

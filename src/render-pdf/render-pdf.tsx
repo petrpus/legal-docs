@@ -5,7 +5,13 @@ import type { RichRun } from "../core/rich-text";
 import { MAX_LEVEL } from "../core/engine";
 import { validatePayload } from "../core/payload";
 import { defaultTheme, type Theme } from "./theme";
-import type { CustomBlockRegistry } from "./custom-block";
+import type { CustomBlockRegistry, DegradationMode } from "./custom-block";
+
+/** Render-time Custom-block context threaded through the visitor. */
+interface CustomCtx {
+  blocks: CustomBlockRegistry;
+  degradation: DegradationMode;
+}
 
 /**
  * The PDF Renderer: a visitor over the DocumentTree. The switch is exhaustive over the Core node
@@ -15,7 +21,7 @@ function nodeToElement(
   node: DocumentNode,
   key: number,
   theme: Theme,
-  customBlocks: CustomBlockRegistry,
+  cx: CustomCtx,
 ): ReactElement {
   switch (node.kind) {
     case "title":
@@ -71,16 +77,16 @@ function nodeToElement(
           >
             {node.heading === undefined ? node.no : `${node.no} ${node.heading}`}
           </Text>
-          {node.body.map((child, ci) => nodeToElement(child, ci, theme, customBlocks))}
+          {node.body.map((child, ci) => nodeToElement(child, ci, theme, cx))}
         </View>
       );
     }
     case "numberedList":
-      return listElement(node.items, key, theme, customBlocks, (i) => `${i + 1}.`);
+      return listElement(node.items, key, theme, cx, (i) => `${i + 1}.`);
     case "bulletList":
-      return listElement(node.items, key, theme, customBlocks, () => "•");
+      return listElement(node.items, key, theme, cx, () => "•");
     case "alphaList":
-      return listElement(node.items, key, theme, customBlocks, (i) => `${String.fromCharCode(97 + i)}.`);
+      return listElement(node.items, key, theme, cx, (i) => `${String.fromCharCode(97 + i)}.`);
     case "partyHeader":
       return (
         <View key={key} style={{ marginBottom: theme.partyHeader.gap }}>
@@ -158,7 +164,7 @@ function nodeToElement(
         </View>
       );
     case "custom":
-      return customElement(node, key, theme, customBlocks);
+      return customElement(node, key, theme, cx);
     default: {
       // Exhaustive over the Core node set: a new kind makes this assignment a compile error,
       // and this also guards untyped JS callers at runtime.
@@ -170,20 +176,21 @@ function nodeToElement(
 
 /**
  * Dispatch a `custom` node to its registered Custom block. An unregistered component is a hard error
- * (a config/authoring bug). A declared props `schema` is validated before the implementation runs.
- * (The missing-`pdf` branch is a runtime guard for untyped callers; the Degradation contract for
- * missing formats arrives in a follow-up slice.)
+ * (a config/authoring bug). A block missing this format's implementation goes through the Degradation
+ * contract. A declared props `schema` is validated before the implementation runs.
  */
 function customElement(
   node: Extract<DocumentNode, { kind: "custom" }>,
   key: number,
   theme: Theme,
-  customBlocks: CustomBlockRegistry,
+  cx: CustomCtx,
 ): ReactElement {
-  const block = customBlocks[node.component];
+  const block = cx.blocks[node.component];
   if (!block) throw new Error(`Custom block "${node.component}" is not registered`);
   if (typeof block.pdf !== "function") {
-    throw new Error(`Custom block "${node.component}" has no pdf implementation`);
+    // `pdf` is required by the contract, so this only fires for an untyped caller or a future format;
+    // the Degradation contract governs it (default: a visible, logged placeholder; never silent).
+    return degrade(node.component, "pdf", key, theme, cx.degradation);
   }
   let props = node.props;
   if (block.schema) {
@@ -199,11 +206,33 @@ function customElement(
   return cloneElement(block.pdf(props, { theme }), { key });
 }
 
+/** Degradation contract: a visible, logged placeholder, or a hard failure — never silent omission. */
+function degrade(
+  component: string,
+  format: string,
+  key: number,
+  theme: Theme,
+  mode: DegradationMode,
+): ReactElement {
+  if (mode === "throw") {
+    throw new Error(
+      `Custom block "${component}" cannot render in "${format}": no ${format} implementation (degradation=throw)`,
+    );
+  }
+  const marker = `[unsupported block: ${component} in ${format}]`;
+  console.warn(marker);
+  return (
+    <Text key={key} style={{ fontSize: theme.fontSize.paragraph, color: theme.color.text }}>
+      {marker}
+    </Text>
+  );
+}
+
 function listElement(
   items: DocumentNode[][],
   key: number,
   theme: Theme,
-  customBlocks: CustomBlockRegistry,
+  cx: CustomCtx,
   marker: (index: number) => string,
 ): ReactElement {
   return (
@@ -213,7 +242,7 @@ function listElement(
           <Text style={{ fontSize: theme.fontSize.paragraph, marginRight: theme.list.markerGap }}>
             {marker(i)}
           </Text>
-          <View>{item.map((child, ci) => nodeToElement(child, ci, theme, customBlocks))}</View>
+          <View>{item.map((child, ci) => nodeToElement(child, ci, theme, cx))}</View>
         </View>
       ))}
     </View>
@@ -235,12 +264,14 @@ export function documentElement(
   tree: DocumentTree,
   theme: Theme = defaultTheme,
   customBlocks: CustomBlockRegistry = {},
+  degradation: DegradationMode = "placeholder",
 ) {
+  const cx: CustomCtx = { blocks: customBlocks, degradation };
   return createElement(
     Document,
     null,
     <Page size={theme.page.size} style={{ padding: theme.page.padding, color: theme.color.text }}>
-      {tree.map((node, i) => nodeToElement(node, i, theme, customBlocks))}
+      {tree.map((node, i) => nodeToElement(node, i, theme, cx))}
     </Page>,
   );
 }
@@ -249,6 +280,7 @@ export function renderTreeToBuffer(
   tree: DocumentTree,
   theme?: Theme,
   customBlocks?: CustomBlockRegistry,
+  degradation?: DegradationMode,
 ): Promise<Buffer> {
-  return renderToBuffer(documentElement(tree, theme, customBlocks));
+  return renderToBuffer(documentElement(tree, theme, customBlocks, degradation));
 }
