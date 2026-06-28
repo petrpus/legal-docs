@@ -1,0 +1,5 @@
+template: bad-props
+version: 1
+locale: en
+body:
+  - custom: { component: "banner", props: { label: 123 } }

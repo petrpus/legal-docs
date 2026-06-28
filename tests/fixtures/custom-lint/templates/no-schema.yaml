@@ -1,0 +1,5 @@
+template: no-schema
+version: 1
+locale: en
+body:
+  - custom: { component: "plain", props: { anything: 1 } }
