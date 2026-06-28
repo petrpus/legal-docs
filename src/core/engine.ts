@@ -108,6 +108,9 @@ async function toNode(item: BodyItem, frame: Frame, level: number): Promise<Docu
   if ("partyHeader" in item) return partyHeaderNode(item.partyHeader, frame);
   if ("keyValueTable" in item) return keyValueTableNode(item.keyValueTable, frame);
   if ("signatures" in item) return signaturesNode(item.signatures, frame);
+  if ("slot" in item) {
+    throw new Error(`Unfilled slot "${item.slot}" reached tree assembly — compose a Variant first`);
+  }
   throw new Error(`Unsupported body item: ${JSON.stringify(item)}`);
 }
 

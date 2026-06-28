@@ -15,6 +15,8 @@ export type { AssembleContext, ClauseResolver } from "./core/engine";
 export type {
   Template,
   Include,
+  BaseTemplate,
+  Variant,
   BodyItem,
   ArticleItem,
   KeyValueRows,
@@ -22,6 +24,7 @@ export type {
 } from "./core/template";
 export { expandIncludes, IncludeError } from "./core/includes";
 export type { IncludeLoader } from "./core/includes";
+export { composeTemplate, CompositionError } from "./core/compose";
 export type {
   DocumentNode,
   DocumentTree,

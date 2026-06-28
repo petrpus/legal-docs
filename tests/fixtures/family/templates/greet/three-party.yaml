@@ -1,0 +1,8 @@
+variant: three-party
+extends: greet
+parties: [lender, pledgor, accessionDebtor]
+overrides:
+  intro:
+    - paragraph: "Three-party intro"
+  closing:
+    - paragraph: "Signed by three."

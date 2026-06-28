@@ -1,8 +1,9 @@
 import { access, readFile, readdir } from "node:fs/promises";
+import type { Dirent } from "node:fs";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { CatalogStore } from "./catalog-store";
-import type { BodyItem, Include, Template } from "../core/template";
+import type { BaseTemplate, BodyItem, Include, Template, Variant } from "../core/template";
 import type { Clause } from "../core/clause";
 import type { VarsSchema } from "../core/vars-schema";
 
@@ -16,10 +17,53 @@ export class FileCatalogStore implements CatalogStore {
   constructor(private readonly dir: string) {}
 
   async templateIds(): Promise<string[]> {
-    const entries = await readdir(this.templatesDir());
+    const entries = await readdir(this.templatesDir(), { withFileTypes: true });
     return entries
-      .filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"))
+      .filter((e) => e.isFile() && /\.ya?ml$/.test(e.name))
+      .map((e) => e.name.replace(/\.ya?ml$/, ""));
+  }
+
+  /** A family is a `templates/<id>/` directory holding a `base.yaml`. */
+  async familyIds(): Promise<string[]> {
+    const entries = await readdir(this.templatesDir(), { withFileTypes: true }).catch(emptyIfMissing<Dirent>);
+    const families: string[] = [];
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (await this.hasBase(entry.name)) families.push(entry.name);
+    }
+    return families;
+  }
+
+  async variantIds(family: string): Promise<string[]> {
+    const entries = await readdir(this.familyDir(family)).catch(emptyIfMissing<string>);
+    return entries
+      .filter((f) => /\.ya?ml$/.test(f) && !/^base\.ya?ml$/.test(f))
       .map((f) => f.replace(/\.ya?ml$/, ""));
+  }
+
+  async loadBase(family: string): Promise<BaseTemplate> {
+    const file = await this.resolveFamilyFile(family, "base");
+    return toBase(parseYaml(await readFile(file, "utf8")), family);
+  }
+
+  async loadVariant(family: string, variant: string): Promise<Variant> {
+    const file = await this.resolveFamilyFile(family, variant);
+    return toVariant(parseYaml(await readFile(file, "utf8")), family, variant);
+  }
+
+  private async hasBase(family: string): Promise<boolean> {
+    for (const ext of [".yaml", ".yml"]) {
+      if (await fileExists(path.join(this.familyDir(family), `base${ext}`))) return true;
+    }
+    return false;
+  }
+
+  private async resolveFamilyFile(family: string, name: string): Promise<string> {
+    for (const ext of [".yaml", ".yml"]) {
+      const file = path.join(this.familyDir(family), `${name}${ext}`);
+      if (await fileExists(file)) return file;
+    }
+    throw new Error(`"${name}" not found in family "${family}" (${this.familyDir(family)})`);
   }
 
   async loadTemplate(id: string): Promise<Template> {
@@ -81,6 +125,10 @@ export class FileCatalogStore implements CatalogStore {
     return path.join(this.dir, "partials");
   }
 
+  private familyDir(family: string): string {
+    return path.join(this.templatesDir(), family);
+  }
+
   private clauseDir(id: string): string {
     return path.join(this.dir, "clauses", id);
   }
@@ -93,6 +141,12 @@ async function fileExists(file: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** A `readdir` rejection handler: empty for a missing directory, rethrow any real I/O error. */
+function emptyIfMissing<T>(error: unknown): T[] {
+  if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return [];
+  throw error;
 }
 
 function toTemplate(value: unknown, id: string): Template {
@@ -118,6 +172,49 @@ function toTemplate(value: unknown, id: string): Template {
     // data, not the template, in the facade.
     body: v.body as BodyItem[],
   };
+}
+
+function toBase(value: unknown, family: string): BaseTemplate {
+  if (value === null || typeof value !== "object") {
+    throw new Error(`Base of family "${family}" is not a YAML object`);
+  }
+  const v = value as Record<string, unknown>;
+  if (!Array.isArray(v.body)) {
+    throw new Error(`Base of family "${family}" is missing a "body" array`);
+  }
+  return {
+    base: typeof v.base === "string" ? v.base : family,
+    version: typeof v.version === "number" ? v.version : 1,
+    locale: typeof v.locale === "string" ? v.locale : "en",
+    payloadSchema: typeof v.payloadSchema === "string" ? v.payloadSchema : undefined,
+    derivations: Array.isArray(v.derivations)
+      ? v.derivations.filter((d): d is string => typeof d === "string")
+      : undefined,
+    // Per-item shape is validated lazily by the engine, as in toTemplate.
+    body: v.body as BodyItem[],
+  };
+}
+
+function toVariant(value: unknown, family: string, variant: string): Variant {
+  if (value === null || typeof value !== "object") {
+    throw new Error(`Variant "${variant}" of family "${family}" is not a YAML object`);
+  }
+  const v = value as Record<string, unknown>;
+  return {
+    variant: typeof v.variant === "string" ? v.variant : variant,
+    // `extends` defaults to the containing family dir, so the composeTemplate mismatch guard only
+    // fires on an explicitly wrong value — omitting it is the common, correct case.
+    extends: typeof v.extends === "string" ? v.extends : family,
+    parties: Array.isArray(v.parties)
+      ? v.parties.filter((p): p is string => typeof p === "string")
+      : undefined,
+    // Override fills are body-item arrays, validated lazily by the engine like template bodies.
+    overrides: isRecord(v.overrides) ? (v.overrides as Record<string, BodyItem[]>) : undefined,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function toInclude(value: unknown, id: string): Include {

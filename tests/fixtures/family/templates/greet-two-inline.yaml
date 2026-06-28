@@ -1,0 +1,10 @@
+template: greet-two-inline
+version: 2
+locale: en
+body:
+  - title: "Greetings"
+  - paragraph: "Two-party intro"
+  - for: { each: "$parties", as: p }
+    body:
+      - paragraph: "Party {{ $p }}"
+  - paragraph: "Signed by two."

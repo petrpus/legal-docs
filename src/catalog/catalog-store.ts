@@ -1,4 +1,4 @@
-import type { Include, Template } from "../core/template";
+import type { BaseTemplate, Include, Template, Variant } from "../core/template";
 import type { Clause } from "../core/clause";
 
 /**
@@ -9,10 +9,18 @@ import type { Clause } from "../core/clause";
 export interface CatalogStore {
   /** Ids of all templates available in the store. */
   templateIds(): Promise<string[]>;
-  /** Load a single Template by id. */
+  /** Load a single standalone Template by id. */
   loadTemplate(id: string): Promise<Template>;
   /** Load a shared Include (Partial) by id. */
   loadInclude(id: string): Promise<Include>;
+  /** Ids of all Template families (groups of a Base template + Variants). */
+  familyIds(): Promise<string[]>;
+  /** Variant ids available in a family. */
+  variantIds(family: string): Promise<string[]>;
+  /** Load a family's Base template. */
+  loadBase(family: string): Promise<BaseTemplate>;
+  /** Load a single Variant of a family. */
+  loadVariant(family: string, variant: string): Promise<Variant>;
   /** All versions of a Clause that exist, ascending. */
   clauseVersions(id: string): Promise<number[]>;
   /** Load a specific Clause version for a locale. */

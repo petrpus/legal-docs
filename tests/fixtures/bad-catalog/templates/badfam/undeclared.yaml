@@ -1,0 +1,5 @@
+variant: undeclared
+extends: badfam
+overrides:
+  ghostslot:
+    - paragraph: "nope"

@@ -1,0 +1,5 @@
+variant: wrongbase
+extends: some-other-family
+overrides:
+  known:
+    - paragraph: "ok"

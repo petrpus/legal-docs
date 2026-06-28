@@ -8,6 +8,7 @@ import {
 import type { Include, Template } from "../core/template";
 import type { Clause } from "../core/clause";
 import { parseClauseRef } from "../core/clause-ref";
+import { composeTemplate } from "../core/compose";
 
 /**
  * The in-memory model of all authored content, loaded through a CatalogStore. The walking skeleton
@@ -26,12 +27,35 @@ export class Catalog {
     return new Catalog(store);
   }
 
-  getTemplate(id: string): Promise<Template> {
-    return this.store.loadTemplate(id);
+  /**
+   * Resolve a renderable Template. With no `variant`, loads a standalone Template; with a `variant`,
+   * composes the family's Base template + that Variant into a concrete Template (Slots filled).
+   */
+  getTemplate(id: string, variant?: string): Promise<Template> {
+    if (variant === undefined) return this.store.loadTemplate(id);
+    return this.composeVariant(id, variant);
+  }
+
+  private async composeVariant(family: string, variant: string): Promise<Template> {
+    const [base, spec] = await Promise.all([
+      this.store.loadBase(family),
+      this.store.loadVariant(family, variant),
+    ]);
+    return composeTemplate(base, spec);
   }
 
   templateIds(): Promise<string[]> {
     return this.store.templateIds();
+  }
+
+  /** Ids of all Template families (a Base template + its Variants). */
+  familyIds(): Promise<string[]> {
+    return this.store.familyIds();
+  }
+
+  /** Variant ids available in a family. */
+  variantIds(family: string): Promise<string[]> {
+    return this.store.variantIds(family);
   }
 
   /** Load a shared Include (Partial) by id. */

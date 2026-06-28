@@ -1,0 +1,8 @@
+variant: two-party
+extends: greet
+parties: [lender, pledgor]
+overrides:
+  intro:
+    - paragraph: "Two-party intro"
+  closing:
+    - paragraph: "Signed by two."
