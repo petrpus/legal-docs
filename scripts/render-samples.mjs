@@ -66,19 +66,44 @@ const hasPdftoppm = (() => {
   }
 })();
 
+// Standalone templates: one render each. Variant families are rendered separately below.
+const pledgeSchema = { "pledge@1": z.object({ parties: z.array(party) }) };
+const variantSamples = [
+  {
+    template: "pledge-agreement",
+    variant: "two-party",
+    schemas: pledgeSchema,
+    data: { parties: [{ name: "Acme Bank a.s." }, { name: "Jane Doe" }] },
+  },
+  {
+    template: "pledge-agreement",
+    variant: "three-party",
+    schemas: pledgeSchema,
+    data: { parties: [{ name: "Acme Bank a.s." }, { name: "Jane Doe" }, { name: "Guarantor Ltd" }] },
+  },
+];
+
+async function render(name, config) {
+  const { buffer, snapshotId } = await renderDocument({ catalog, format: "pdf", ...config });
+  const pdfPath = `${outDir}/${name}.pdf`;
+  writeFileSync(pdfPath, buffer);
+  if (hasPdftoppm) {
+    execFileSync("pdftoppm", ["-png", "-r", "110", "-singlefile", pdfPath, `${outDir}/${name}`]);
+  }
+  console.log(`✓ ${name}.pdf${hasPdftoppm ? ` + ${name}.png` : ""}  (snapshot ${snapshotId})`);
+}
+
 for (const id of await catalog.templateIds()) {
   const config = samples[id];
   if (!config) {
     console.warn(`! no sample config for "${id}" — skipping`);
     continue;
   }
-  const { buffer, snapshotId } = await renderDocument({ catalog, template: id, format: "pdf", ...config });
-  const pdfPath = `${outDir}/${id}.pdf`;
-  writeFileSync(pdfPath, buffer);
-  if (hasPdftoppm) {
-    execFileSync("pdftoppm", ["-png", "-r", "110", "-singlefile", pdfPath, `${outDir}/${id}`]);
-  }
-  console.log(`✓ ${id}.pdf${hasPdftoppm ? ` + ${id}.png` : ""}  (snapshot ${snapshotId})`);
+  await render(id, { template: id, ...config });
+}
+
+for (const config of variantSamples) {
+  await render(`${config.template}-${config.variant}`, config);
 }
 
 console.log(`\nWrote samples to ${outDir}${hasPdftoppm ? "" : "  (install poppler-utils for .png too)"}`);

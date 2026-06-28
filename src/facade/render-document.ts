@@ -13,7 +13,7 @@ import type { Theme } from "../render-pdf/theme";
 export interface RenderDocumentInput {
   catalog: Catalog;
   template: string;
-  /** Accepted for forward-compatibility; only the standalone-template path is implemented. */
+  /** Selects a family member: the `template` is resolved as a family and this Variant is composed. */
   variant?: string;
   data?: unknown;
   /** Code-side payload schemas, looked up by a Template's `payloadSchema` reference. */
@@ -40,7 +40,8 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
   if (input.format !== "pdf") {
     throw new Error(`Unsupported format: ${String(input.format)}`);
   }
-  const template = await input.catalog.getTemplate(input.template);
+  // A `variant` resolves `template` as a family and composes that member into a concrete Template.
+  const template = await input.catalog.getTemplate(input.template, input.variant);
   // Expand Includes into a concrete, include-free body before tree assembly.
   const body = await expandIncludes(template.body, (id) => input.catalog.loadInclude(id));
   const concrete = { ...template, body };
@@ -60,6 +61,7 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
       JSON.stringify({
         template: template.template,
         version: template.version,
+        variant: template.variant ?? null,
         tree,
         data: input.data ?? null,
       }),

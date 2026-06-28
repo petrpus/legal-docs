@@ -1,0 +1,11 @@
+base: pledge-agreement
+version: 1
+locale: en
+payloadSchema: pledge@1
+body:
+  - title: "PLEDGE AGREEMENT"
+  - for: { each: "$parties", as: p }
+    body:
+      - partyHeader: { party: "$p", roleLabel: "Party {{ $index + 1 }}" }
+  - slot: security
+  - paragraph: "Executed by the parties above."

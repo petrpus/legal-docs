@@ -1,0 +1,6 @@
+variant: two-party
+extends: pledge-agreement
+parties: [lender, pledgor]
+overrides:
+  security:
+    - clause: "pledge-security@v1"

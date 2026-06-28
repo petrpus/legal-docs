@@ -1,0 +1,6 @@
+variant: three-party
+extends: pledge-agreement
+parties: [lender, pledgor, accessionDebtor]
+overrides:
+  security:
+    - clause: "pledge-security@v2"
