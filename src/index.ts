@@ -67,3 +67,10 @@ export type { Helper, HelperRegistry } from "./core/helpers";
 
 export { defaultTheme } from "./render-pdf/theme";
 export type { Theme } from "./render-pdf/theme";
+export type {
+  CustomBlock,
+  CustomBlockRegistry,
+  CustomBlockContext,
+  PdfCustomBlock,
+} from "./render-pdf/custom-block";
+export { deepBind } from "./core/deep-bind";
