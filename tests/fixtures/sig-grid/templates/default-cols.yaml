@@ -1,0 +1,5 @@
+template: default-cols
+version: 1
+locale: en
+body:
+  - custom: { component: "signature-grid", props: { signatories: "$signatories" } }

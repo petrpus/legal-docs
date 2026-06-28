@@ -2,8 +2,39 @@
 // Run with: npm run samples   (builds first, then executes this against dist/).
 import { mkdirSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { createElement } from "react";
+import { Text, View } from "@react-pdf/renderer";
 import { z } from "zod";
 import { Catalog, renderDocument, party, loan } from "../dist/index.js";
+
+// A worked signature-grid Custom block (mirrors examples/signature-grid.tsx, using createElement so
+// this plain-ESM script needs no JSX/TS build). A multi-column grid of signature cells.
+const signatureGridSchema = z.object({
+  signatories: z.array(z.object({ name: z.string(), role: z.string().optional() })),
+  columns: z.number().int().positive().optional(),
+});
+const signatureGrid = {
+  schema: signatureGridSchema,
+  pdf: (props, { theme }) => {
+    const { signatories, columns = 2 } = signatureGridSchema.parse(props);
+    const cellWidth = `${100 / columns}%`;
+    return createElement(
+      View,
+      { style: { flexDirection: "row", flexWrap: "wrap" } },
+      signatories.map((s, i) =>
+        createElement(
+          View,
+          { key: i, style: { width: cellWidth, paddingRight: 12, marginBottom: 16 } },
+          createElement(View, {
+            style: { marginTop: 28, borderTopWidth: 1, borderColor: theme.color.text, marginBottom: 4 },
+          }),
+          createElement(Text, { style: { fontSize: theme.fontSize.paragraph } }, s.name),
+          s.role !== undefined ? createElement(Text, { style: { fontSize: theme.signatures.fontSize, color: theme.signatures.roleColor } }, s.role) : null,
+        ),
+      ),
+    );
+  },
+};
 
 const root = new URL("..", import.meta.url).pathname;
 const outDir = `${root}samples`;
@@ -54,6 +85,16 @@ const samples = {
       counterpartsCount: (p) => p.parties.length + 1,
       securityClause: (p) => (p.parties.length >= 3 ? "counterparts@v2" : "counterparts@v1"),
     },
+  },
+  "signature-grid": {
+    data: {
+      signatories: [
+        { name: "Acme Bank a.s.", role: "Lender" },
+        { name: "Jane Doe", role: "Borrower" },
+        { name: "Guarantor Ltd", role: "Guarantor" },
+      ],
+    },
+    customBlocks: { "signature-grid": signatureGrid },
   },
 };
 

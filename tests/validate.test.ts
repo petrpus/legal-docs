@@ -2,13 +2,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import { Catalog } from "../src/catalog/catalog";
+import { signatureGrid } from "../examples/signature-grid";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const sampleDir = path.join(here, "..", "legal-docs");
 const badDir = path.join(here, "fixtures", "bad-catalog");
 
 describe("Catalog.validate", () => {
-  it("passes on the sample catalog (with its derivations registered)", async () => {
+  it("passes on the sample catalog (with its derivations and custom blocks registered)", async () => {
     const catalog = await Catalog.fromDir(sampleDir);
 
     const result = await catalog.validate({
@@ -16,6 +17,7 @@ describe("Catalog.validate", () => {
         counterpartsCount: () => 1,
         securityClause: () => "counterparts@v1",
       },
+      customBlocks: { "signature-grid": signatureGrid },
     });
 
     expect(result).toEqual({ ok: true, findings: [] });

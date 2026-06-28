@@ -1,0 +1,10 @@
+template: signature-grid
+version: 1
+locale: en
+body:
+  - title: "EXECUTION"
+  - custom:
+      component: "signature-grid"
+      props:
+        signatories: "$signatories"
+        columns: 2
