@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import type { Catalog } from "../catalog/catalog";
 import type { Template } from "../core/template";
@@ -7,6 +6,7 @@ import { expandIncludes } from "../core/includes";
 import { validatePayload, type PayloadSchemaRegistry } from "../core/payload";
 import { resolvePayload, type DerivationRegistry } from "../core/resolve";
 import type { HelperRegistry } from "../core/helpers";
+import { buildSnapshot, type ClausePin, type Snapshot, type SnapshotMode } from "../core/snapshot";
 import { renderTreeToBuffer } from "../render-pdf/render-pdf";
 import type { Theme } from "../render-pdf/theme";
 
@@ -24,15 +24,16 @@ export interface RenderDocumentInput {
   helpers?: HelperRegistry;
   format: "pdf";
   theme?: Theme;
+  /** What the returned Snapshot freezes (ADR-0003). Defaults to `full`. */
+  snapshotMode?: SnapshotMode;
 }
 
 export interface RenderDocumentResult {
   buffer: Buffer;
   stream: Readable;
-  /**
-   * Audit handle for the generation. A stub in Phase 1 — a deterministic digest of the inputs, so it
-   * is already stable for identical inputs; full Snapshot modes arrive in Phase 2.
-   */
+  /** The audit Snapshot for this generation; the consumer persists it (and can re-render from it). */
+  snapshot: Snapshot;
+  /** Convenience alias for `snapshot.id` — a stable digest of the generation. */
   snapshotId: string;
 }
 
@@ -49,26 +50,33 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
   const { derived } = resolvePayload(payload, concrete.derivations ?? [], input.derivations ?? {});
   // `$derived` is the reserved namespace, so a payload field literally named `derived` is overwritten.
   const scope = { ...payload, derived };
+  // Record every Clause version resolved during assembly, so the Snapshot can pin them for audit.
+  const pins: ClausePin[] = [];
   const tree = await assembleTree(concrete, {
     scope,
     helpers: input.helpers,
-    clauses: (ref, locale) => input.catalog.getClause(ref, locale),
+    clauses: async (ref, locale) => {
+      const clause = await input.catalog.getClause(ref, locale);
+      pins.push({ ref, clause: clause.clause, version: clause.version, locale });
+      return clause;
+    },
     locale: template.locale,
   });
   const buffer = await renderTreeToBuffer(tree, input.theme);
-  const snapshotId = createHash("sha256")
-    .update(
-      JSON.stringify({
-        template: template.template,
-        version: template.version,
-        variant: template.variant ?? null,
-        tree,
-        data: input.data ?? null,
-      }),
-    )
-    .digest("hex")
-    .slice(0, 16);
-  return { buffer, stream: Readable.from(buffer), snapshotId };
+  const snapshot = buildSnapshot(
+    {
+      template: template.template,
+      version: template.version,
+      ...(template.variant !== undefined ? { variant: template.variant } : {}),
+      locale: template.locale,
+      payload: input.data,
+      resolved: scope,
+      pins,
+      tree,
+    },
+    input.snapshotMode,
+  );
+  return { buffer, stream: Readable.from(buffer), snapshot, snapshotId: snapshot.id };
 }
 
 function resolveScope(template: Template, input: RenderDocumentInput): Record<string, unknown> {
