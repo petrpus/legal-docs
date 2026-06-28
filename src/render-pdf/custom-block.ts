@@ -1,4 +1,5 @@
 import type { ReactElement } from "react";
+import type { Paragraph, Table } from "docx";
 import type { ZodType } from "zod";
 import type { Theme } from "./theme";
 
@@ -13,6 +14,9 @@ export type PdfCustomBlock = (props: unknown, ctx: CustomBlockContext) => ReactE
 /** The HTML implementation of a Custom block: bound props + context → an HTML string (inserted raw). */
 export type HtmlCustomBlock = (props: unknown, ctx: CustomBlockContext) => string;
 
+/** The DOCX implementation of a Custom block: bound props + context → block-level docx elements. */
+export type DocxCustomBlock = (props: unknown, ctx: CustomBlockContext) => (Paragraph | Table)[];
+
 /**
  * A Custom block: a code-side, renderer-native implementation per output format (ADR-0005). `pdf` is
  * required; `html`/`docx` slots arrive with those renderers (Phases 4–5). An optional `schema`
@@ -22,8 +26,7 @@ export interface CustomBlock {
   schema?: ZodType;
   pdf: PdfCustomBlock;
   html?: HtmlCustomBlock;
-  /** Phase 5 (DOCX renderer). */
-  docx?: unknown;
+  docx?: DocxCustomBlock;
 }
 
 /** Code-side registry of Custom blocks, keyed by `component` name. Passed to renderDocument/validate. */

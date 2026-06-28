@@ -1,0 +1,290 @@
+import {
+  BorderStyle,
+  Document,
+  Packer,
+  Paragraph,
+  Table,
+  TableCell,
+  TableRow,
+  TextRun,
+  WidthType,
+} from "docx";
+import type {
+  DocumentNode,
+  DocumentTree,
+  KeyValueRow,
+  PartyIdentification,
+  SignaturePlace,
+} from "../core/document-tree";
+import type { RichParagraph, RichRun } from "../core/rich-text";
+import { MAX_LEVEL } from "../core/engine";
+import { validatePayload } from "../core/payload";
+import { defaultTheme, type Theme } from "../render-pdf/theme";
+import type { CustomBlockRegistry, DegradationMode } from "../render-pdf/custom-block";
+import { eighths, halfPoints, twips } from "./theme-docx";
+
+interface DocxCtx {
+  theme: Theme;
+  blocks: CustomBlockRegistry;
+  degradation: DegradationMode;
+  /** Nesting depth — Word is flat, so nesting becomes a left indent on the paragraph. */
+  depth: number;
+}
+
+/**
+ * The DOCX Renderer: a visitor over the DocumentTree producing `docx` library objects (ADR-0007).
+ * Word has no nested block container, so nested nodes flatten into a flat `(Paragraph | Table)[]` with
+ * indentation/markers carried as paragraph properties. The library handles XML escaping.
+ */
+export async function renderTreeToDocx(
+  tree: DocumentTree,
+  theme: Theme = defaultTheme,
+  customBlocks: CustomBlockRegistry = {},
+  degradation: DegradationMode = "placeholder",
+): Promise<Buffer> {
+  // `async` so a synchronous build error (unregistered component, throw-mode degradation) surfaces as
+  // a rejected promise rather than a sync throw.
+  const ctx: DocxCtx = { theme, blocks: customBlocks, degradation, depth: 0 };
+  const children = tree.flatMap((node) => nodeToDocx(node, ctx));
+  const doc = new Document({ sections: [{ children }] });
+  return Packer.toBuffer(doc);
+}
+
+function nodeToDocx(node: DocumentNode, ctx: DocxCtx): (Paragraph | Table)[] {
+  switch (node.kind) {
+    case "title":
+      return [
+        new Paragraph({
+          children: [run(node.text, ctx.theme.fontSize.title, { bold: true })],
+          spacing: { after: twips(ctx.theme.spacing.title) },
+          ...indent(ctx),
+        }),
+      ];
+    case "paragraph":
+      return [textParagraph(node.text, ctx)];
+    case "richText":
+      return node.value.blocks.map((block) => richParagraph(block, ctx));
+    case "article":
+      return articleDocx(node, ctx);
+    case "numberedList":
+      return listDocx(node.items, ctx, (i) => `${i + 1}. `);
+    case "bulletList":
+      return listDocx(node.items, ctx, () => "• ");
+    case "alphaList":
+      return listDocx(node.items, ctx, (i) => `${String.fromCharCode(97 + i)}. `);
+    case "partyHeader":
+      return partyDocx(node.party, node.roleLabel, ctx);
+    case "keyValueTable":
+      return [keyValueTableDocx(node.rows, ctx)];
+    case "signatures":
+      return [signaturesDocx(node.places, ctx)];
+    case "custom":
+      return customDocx(node, ctx);
+    default: {
+      const unhandled: never = node;
+      throw new Error(`Unsupported node kind: ${JSON.stringify(unhandled)}`);
+    }
+  }
+}
+
+function run(text: string, sizePt: number, opts: { bold?: boolean; italics?: boolean; color?: string } = {}): TextRun {
+  return new TextRun({ text, size: halfPoints(sizePt), ...opts });
+}
+
+/**
+ * Left indent (twips) for the current nesting depth; absent at the top level. The flat model uses one
+ * depth-based indent token (`article.indentPerLevel`) for all nesting — per-node spacing tokens
+ * (`list.indent`, `partyHeader.gap`, `signatures.columnGap`, …) are not all honoured; that is the
+ * documented ADR-0007 approximation.
+ */
+function indent(ctx: DocxCtx): { indent?: { left: number } } {
+  return ctx.depth > 0 ? { indent: { left: twips(ctx.theme.article.indentPerLevel * ctx.depth) } } : {};
+}
+
+function textParagraph(text: string, ctx: DocxCtx): Paragraph {
+  return new Paragraph({
+    children: [run(text, ctx.theme.fontSize.paragraph)],
+    spacing: { after: twips(ctx.theme.spacing.paragraph) },
+    ...indent(ctx),
+  });
+}
+
+function richParagraph(block: RichParagraph, ctx: DocxCtx): Paragraph {
+  return new Paragraph({
+    children: block.runs.map((r) => richRun(r, ctx)),
+    spacing: { after: twips(ctx.theme.spacing.paragraph) },
+    ...indent(ctx),
+  });
+}
+
+function richRun(r: RichRun, ctx: DocxCtx): TextRun {
+  return run(r.text, ctx.theme.fontSize.paragraph, {
+    bold: r.marks?.includes("bold") ?? false,
+    italics: r.marks?.includes("italic") ?? false,
+  });
+}
+
+function articleDocx(node: Extract<DocumentNode, { kind: "article" }>, ctx: DocxCtx): (Paragraph | Table)[] {
+  const headingText = node.heading === undefined ? node.no : `${node.no} ${node.heading}`;
+  const level = Math.min(Math.max(node.level, 1), MAX_LEVEL);
+  const headingSize = ctx.theme.article.headingFontSize[level - 1] ?? ctx.theme.article.headingFontSize[0];
+  const heading = new Paragraph({
+    children: [run(headingText, headingSize, { bold: true })],
+    spacing: { after: twips(ctx.theme.spacing.paragraph) },
+    ...indent(ctx),
+  });
+  // Word is flat: the body is indented one level deeper than its heading (ADR-0007), unlike the PDF/
+  // HTML renderers where a heading and its body share the article's indent.
+  const body = node.body.flatMap((child) => nodeToDocx(child, { ...ctx, depth: ctx.depth + 1 }));
+  return [heading, ...body];
+}
+
+function listDocx(items: DocumentNode[][], ctx: DocxCtx, marker: (i: number) => string): (Paragraph | Table)[] {
+  const itemCtx: DocxCtx = { ...ctx, depth: ctx.depth + 1 };
+  return items.flatMap((item, i) => {
+    if (item.every(isTextNode)) {
+      // Common case: a plain-text item → one paragraph with the manual marker prefix (ADR-0007
+      // flat-model approximation; inline formatting within the item is flattened to text).
+      return [
+        new Paragraph({
+          children: [run(`${marker(i)}${plainText(item)}`, ctx.theme.fontSize.paragraph)],
+          spacing: { after: twips(ctx.theme.list.gap) },
+          ...indent(itemCtx),
+        }),
+      ];
+    }
+    // An item with non-text content (e.g. a Custom block) is rendered in full so nothing is silently
+    // dropped and the Degradation contract still fires; the marker leads as its own paragraph.
+    const lead = new Paragraph({
+      children: [run(marker(i).trim(), ctx.theme.fontSize.paragraph)],
+      ...indent(itemCtx),
+    });
+    return [lead, ...item.flatMap((node) => nodeToDocx(node, itemCtx))];
+  });
+}
+
+function isTextNode(node: DocumentNode): boolean {
+  return node.kind === "title" || node.kind === "paragraph" || node.kind === "richText";
+}
+
+function partyDocx(party: PartyIdentification, roleLabel: string, ctx: DocxCtx): Paragraph[] {
+  const out = [
+    new Paragraph({
+      children: [run(roleLabel, ctx.theme.partyHeader.roleFontSize, { bold: true })],
+      ...indent(ctx),
+    }),
+    textParagraph(party.name, ctx),
+  ];
+  if (party.idNumber !== undefined) out.push(textParagraph(party.idNumber, ctx));
+  if (party.address !== undefined) out.push(textParagraph(party.address, ctx));
+  return out;
+}
+
+function keyValueTableDocx(rows: KeyValueRow[], ctx: DocxCtx): Table {
+  const border = { style: BorderStyle.SINGLE, size: eighths(0.75), color: hex(ctx.theme.table.borderColor) };
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: { top: border, bottom: border, left: border, right: border, insideHorizontal: border, insideVertical: border },
+    rows: rows.map(
+      (row) =>
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: twips(ctx.theme.table.labelWidth), type: WidthType.DXA },
+              children: [new Paragraph({ children: [run(row.label, ctx.theme.table.fontSize, { bold: true })] })],
+            }),
+            new TableCell({
+              children: [new Paragraph({ children: [run(row.value, ctx.theme.table.fontSize)] })],
+            }),
+          ],
+        }),
+    ),
+  });
+}
+
+function signaturesDocx(places: SignaturePlace[], ctx: DocxCtx): Table {
+  const line = {
+    top: { style: BorderStyle.SINGLE, size: eighths(ctx.theme.signatures.lineWidth), color: hex(ctx.theme.signatures.lineColor) },
+  };
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: noTableBorders(),
+    rows: [
+      new TableRow({
+        children: places.map((place) => {
+          const cells = [
+            new Paragraph({ border: line, spacing: { before: twips(ctx.theme.signatures.lineSpace) } }),
+            new Paragraph({ children: [run(place.name, ctx.theme.signatures.fontSize)] }),
+          ];
+          if (place.role !== undefined) {
+            cells.push(
+              new Paragraph({
+                children: [run(place.role, ctx.theme.signatures.fontSize, { color: hex(ctx.theme.signatures.roleColor) })],
+              }),
+            );
+          }
+          return new TableCell({ children: cells });
+        }),
+      }),
+    ],
+  });
+}
+
+function customDocx(node: Extract<DocumentNode, { kind: "custom" }>, ctx: DocxCtx): (Paragraph | Table)[] {
+  const block = ctx.blocks[node.component];
+  if (!block) throw new Error(`Custom block "${node.component}" is not registered`);
+  if (typeof block.docx !== "function") return degradeDocx(node.component, ctx);
+  let props = node.props;
+  if (block.schema) {
+    try {
+      props = validatePayload(block.schema, node.props);
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : String(cause);
+      throw new Error(`Custom block "${node.component}" received invalid props: ${reason}`, { cause });
+    }
+  }
+  return block.docx(props, { theme: ctx.theme });
+}
+
+/** Degradation contract for DOCX: a visible, logged placeholder paragraph, or a hard failure. */
+function degradeDocx(component: string, ctx: DocxCtx): Paragraph[] {
+  if (ctx.degradation === "throw") {
+    throw new Error(
+      `Custom block "${component}" cannot render in "docx": no docx implementation (degradation=throw)`,
+    );
+  }
+  const marker = `[unsupported block: ${component} in docx]`;
+  console.warn(marker);
+  return [
+    new Paragraph({
+      children: [new TextRun({ text: marker, italics: true, color: hex(ctx.theme.color.text) })],
+    }),
+  ];
+}
+
+/** Concatenated plain text of an all-text list item (title / paragraph / richText only). */
+function plainText(nodes: DocumentNode[]): string {
+  return nodes.map(textOf).filter((t) => t.length > 0).join(" ");
+}
+
+function textOf(node: DocumentNode): string {
+  switch (node.kind) {
+    case "title":
+    case "paragraph":
+      return node.text;
+    case "richText":
+      return node.value.blocks.map((b) => b.runs.map((r) => r.text).join("")).join(" ");
+    default:
+      // Unreachable: plainText only runs over text nodes; non-text items take the full-render branch.
+      return "";
+  }
+}
+
+function hex(color: string): string {
+  return color.replace(/^#/, "");
+}
+
+function noTableBorders() {
+  const none = { style: BorderStyle.NONE, size: 0, color: "auto" };
+  return { top: none, bottom: none, left: none, right: none, insideHorizontal: none, insideVertical: none };
+}
