@@ -1,0 +1,6 @@
+base: badfam
+version: 1
+locale: en
+body:
+  - title: "Bad"
+  - slot: known

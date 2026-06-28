@@ -1,0 +1,10 @@
+base: greet
+version: 2
+locale: en
+body:
+  - title: "Greetings"
+  - slot: intro
+  - for: { each: "$parties", as: p }
+    body:
+      - paragraph: "Party {{ $p }}"
+  - slot: closing

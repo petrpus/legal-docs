@@ -1,0 +1,6 @@
+template: stray-slot
+version: 1
+locale: en
+body:
+  - title: "Stray"
+  - slot: orphan

@@ -6,6 +6,7 @@ import type { DerivationRegistry } from "../core/resolve";
 import { helperCallsIn } from "../core/expression";
 import { expressionTokens } from "../core/interpolate";
 import { expandIncludes, IncludeError } from "../core/includes";
+import { CompositionError } from "../core/compose";
 
 export interface ValidationFinding {
   path: string;
@@ -27,9 +28,11 @@ export interface ValidateOptions {
 /** Minimal Catalog surface the lint needs (avoids a Catalog ↔ validate import cycle). */
 export interface LintableCatalog {
   templateIds(): Promise<string[]>;
-  getTemplate(id: string): Promise<Template>;
+  getTemplate(id: string, variant?: string): Promise<Template>;
   getClause(ref: string, locale: string): Promise<Clause>;
   loadInclude(id: string): Promise<Include>;
+  familyIds(): Promise<string[]>;
+  variantIds(family: string): Promise<string[]>;
 }
 
 interface LintContext {
@@ -53,36 +56,68 @@ export async function validateCatalog(
   const helpers = new Set(Object.keys({ ...defaultHelpers, ...options.helpers }));
   const derivations = new Set(Object.keys(options.derivations ?? {}));
 
+  const base = { helpers, derivations, findings };
+
   for (const id of await catalog.templateIds()) {
     const template = await catalog.getTemplate(id);
-    const base = `templates/${id}`;
+    const path = `templates/${id}`;
     if (template.template !== id) {
       findings.push({
-        path: base,
+        path,
         message: `template id "${template.template}" does not match its file name "${id}"`,
       });
     }
-    for (const name of template.derivations ?? []) {
-      if (!derivations.has(name)) {
-        findings.push({ path: `${base} › derivations`, message: `derivation "${name}" is not registered` });
+    lintDerivations(template, path, derivations, findings);
+    await lintBody(template, path, { catalog, locale: template.locale, ...base });
+  }
+
+  for (const family of await catalog.familyIds()) {
+    for (const variant of await catalog.variantIds(family)) {
+      const path = `templates/${family} › ${variant}`;
+      let template: Template;
+      try {
+        // Composition surfaces undeclared-slot overrides and `extends` mismatches as a thrown error.
+        template = await catalog.getTemplate(family, variant);
+      } catch (error) {
+        if (!(error instanceof CompositionError)) throw error;
+        findings.push({ path, message: error.message });
+        continue;
       }
+      lintDerivations(template, path, derivations, findings);
+      await lintBody(template, path, { catalog, locale: template.locale, ...base });
     }
-    const ctx: LintContext = { catalog, locale: template.locale, helpers, derivations, findings };
-    // Lint the include-expanded body so Clauses/helpers inside Includes are checked too. A bad
-    // include is itself a finding; the unexpanded body is linted as a fallback. Note: expansion is
-    // fail-fast, so a template with several bad includes surfaces only the first — re-run after
-    // fixing it. (Findings across different templates and other rule kinds are still collected.)
-    let body = template.body;
-    try {
-      body = await expandIncludes(template.body, (id) => catalog.loadInclude(id));
-    } catch (error) {
-      if (!(error instanceof IncludeError)) throw error;
-      findings.push({ path: `${base} › ${error.path}`, message: error.message });
-    }
-    await lintItems(body, `${base} › body`, ctx);
   }
 
   return { ok: findings.length === 0, findings };
+}
+
+function lintDerivations(
+  template: Template,
+  path: string,
+  derivations: Set<string>,
+  findings: ValidationFinding[],
+): void {
+  for (const name of template.derivations ?? []) {
+    if (!derivations.has(name)) {
+      findings.push({ path: `${path} › derivations`, message: `derivation "${name}" is not registered` });
+    }
+  }
+}
+
+/**
+ * Lint a Template's body, expanded for Includes so Clauses/helpers inside an Include are checked too.
+ * A bad include is itself a finding; the unexpanded body is linted as a fallback. Expansion is
+ * fail-fast, so several bad includes in one body surface only the first — re-run after fixing it.
+ */
+async function lintBody(template: Template, path: string, ctx: LintContext): Promise<void> {
+  let body = template.body;
+  try {
+    body = await expandIncludes(template.body, (id) => ctx.catalog.loadInclude(id));
+  } catch (error) {
+    if (!(error instanceof IncludeError)) throw error;
+    ctx.findings.push({ path: `${path} › ${error.path}`, message: error.message });
+  }
+  await lintItems(body, `${path} › body`, ctx);
 }
 
 async function lintItems(items: BodyItem[], path: string, ctx: LintContext): Promise<void> {
@@ -119,6 +154,16 @@ async function lintItem(item: BodyItem, path: string, ctx: LintContext): Promise
   if ("for" in item) return lintItems(item.body, `${path} › for`, ctx);
   // `include` is resolved by expansion before lintItems runs; an unresolved one is already a finding.
   if ("include" in item) return;
+  // A Slot is filled by composition before a Variant body reaches the lint, so any surviving `{ slot }`
+  // is misplaced — declared inside an Include or an override fill, or used in a standalone Template,
+  // none of which composition can reach. It would fail hard at render, so flag it here.
+  if ("slot" in item) {
+    ctx.findings.push({
+      path,
+      message: `unfilled slot "${item.slot}": a Slot must be declared directly in a Base template body`,
+    });
+    return;
+  }
 }
 
 async function lintListItems(groups: BodyItem[][], path: string, ctx: LintContext): Promise<void> {

@@ -28,7 +28,8 @@ export type BodyItem =
   | { signatures: { places: SignaturePlaceSpec[] } }
   | { if: string; then: BodyItem[]; else?: BodyItem[] }
   | { for: { each: string; as: string }; body: BodyItem[] }
-  | { include: string };
+  | { include: string }
+  | { slot: string };
 
 /**
  * An Include (a.k.a. Partial) is a shared, authored body fragment referenced by several Templates via
@@ -50,7 +51,7 @@ export interface SignaturePlaceSpec {
 }
 
 export interface Template {
-  /** Template id. */
+  /** Template id (the family id when this Template was composed from a Variant). */
   template: string;
   version: number;
   locale: string;
@@ -59,4 +60,39 @@ export interface Template {
   /** Names of the Derivations the Resolve phase runs into `$derived.*` (optional). */
   derivations?: string[];
   body: BodyItem[];
+  /** The Variant this Template was composed from (absent for a standalone Template). */
+  variant?: string;
+  /** Party roles declared by the Variant (absent for a standalone Template). */
+  parties?: string[];
+}
+
+/**
+ * The abstract member of a Template family: declares named `{ slot }` override points (and may use
+ * `for: $parties` / `if:`), but is not renderable on its own — a Variant fills its Slots to produce a
+ * concrete Template.
+ */
+export interface BaseTemplate {
+  /** Family id. */
+  base: string;
+  version: number;
+  locale: string;
+  payloadSchema?: string;
+  derivations?: string[];
+  body: BodyItem[];
+}
+
+/**
+ * A named member of a Template family: `extends` a Base template, declares its party roles, and fills
+ * or replaces declared Slots. An authoring concept — it is composed into a concrete Template before
+ * tree assembly.
+ */
+export interface Variant {
+  /** Variant id. */
+  variant: string;
+  /** Family id this Variant extends (matches the Base template's `base`). */
+  extends: string;
+  /** Party roles this Variant declares (carried onto the composed Template). */
+  parties?: string[];
+  /** Slot fills, keyed by Slot name. Each key must name a Slot the Base declares. */
+  overrides?: Record<string, BodyItem[]>;
 }

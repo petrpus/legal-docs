@@ -164,16 +164,42 @@ Most differences between similar documents are **data-driven** and need no varia
 with `for: $parties`, gate optional sections with `if:`, and let a Derivation choose clause versions.
 Reach for a named **Variant** only when the *authored structure itself* genuinely diverges.
 
-```yaml
-templateFamily: pledge-agreement
-variants:
-  two-party:   { extends: pledge-agreement.base, parties: [lender, pledgor] }
-  three-party: { extends: pledge-agreement.base, parties: [lender, pledgor, accessionDebtor],
-                 overrides: { "slot.security": { clause: security.3party@v2 } } }
+A family is a directory: a `base.yaml` plus one file per Variant.
+
+```
+templates/pledge-agreement/
+  base.yaml          # declares Slots, iterates for: $parties, gates with if:
+  two-party.yaml
+  three-party.yaml
 ```
 
-The **Base template** declares **Slot**s and iterates `for: $parties`; a **Variant** `extends` it,
-declares its parties, and fills/overrides only the affected Slots. Shared fragments go in an
+```yaml
+# templates/pledge-agreement/base.yaml
+base: pledge-agreement
+version: 1
+locale: en
+body:
+  - title: "PLEDGE AGREEMENT"
+  - slot: security              # a named Slot — a Variant fills this
+  - for: { each: "$parties", as: p }
+    body:
+      - partyHeader: { party: "$p", roleLabel: "Party" }
+```
+
+```yaml
+# templates/pledge-agreement/three-party.yaml
+variant: three-party
+extends: pledge-agreement        # matches the base's `base:` (may be omitted — defaults to the dir)
+parties: [lender, pledgor, accessionDebtor]
+overrides:                       # keyed by Slot name; each value is a list of body items
+  security:
+    - clause: security.3party@v2
+```
+
+The **Base template** declares **Slot**s (`- slot: <name>`) and iterates `for: $parties`; a
+**Variant** `extends` it, declares its parties, and **fills or replaces** only the Slots it names.
+Each `overrides` value is a body-item list. A Variant may only fill Slots the Base declares (an
+unknown Slot is an error), and a Slot left unfilled is simply omitted. Shared fragments go in an
 **Include**. Wording differences ride on Clause versions, not on copied templates.
 
 ## Validation & propagation
