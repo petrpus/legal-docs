@@ -1,3 +1,4 @@
+import type { ZodType } from "zod";
 import type { BodyItem, Include, KeyValueRows, Template } from "../core/template";
 import type { Clause } from "../core/clause";
 import type { VarSpec } from "../core/vars-schema";
@@ -18,11 +19,16 @@ export interface ValidationResult {
   findings: ValidationFinding[];
 }
 
+/** Lint-facing view of a Custom block: only its props `schema` matters here, not its render impls. */
+export type LintCustomBlocks = Record<string, { schema?: ZodType }>;
+
 export interface ValidateOptions {
   /** Extra helpers beyond the defaults (so lint knows what is registered). */
   helpers?: HelperRegistry;
   /** Derivations available by name. */
   derivations?: DerivationRegistry;
+  /** Custom blocks available by `component` name (so lint can check registration + literal props). */
+  customBlocks?: LintCustomBlocks;
 }
 
 /** Minimal Catalog surface the lint needs (avoids a Catalog ↔ validate import cycle). */
@@ -40,6 +46,7 @@ interface LintContext {
   locale: string;
   helpers: Set<string>;
   derivations: Set<string>;
+  customBlocks: LintCustomBlocks;
   findings: ValidationFinding[];
 }
 
@@ -56,7 +63,7 @@ export async function validateCatalog(
   const helpers = new Set(Object.keys({ ...defaultHelpers, ...options.helpers }));
   const derivations = new Set(Object.keys(options.derivations ?? {}));
 
-  const base = { helpers, derivations, findings };
+  const base = { helpers, derivations, customBlocks: options.customBlocks ?? {}, findings };
 
   for (const id of await catalog.templateIds()) {
     const template = await catalog.getTemplate(id);
@@ -152,6 +159,7 @@ async function lintItem(item: BodyItem, path: string, ctx: LintContext): Promise
     return;
   }
   if ("for" in item) return lintItems(item.body, `${path} › for`, ctx);
+  if ("custom" in item) return lintCustom(item.custom, path, ctx);
   // `include` is resolved by expansion before lintItems runs; an unresolved one is already a finding.
   if ("include" in item) return;
   // A Slot is filled by composition before a Variant body reaches the lint, so any surviving `{ slot }`
@@ -255,6 +263,47 @@ function literalVarMismatch(spec: VarSpec, value: unknown): string | null {
       return `unknown var type "${unknownType}"`;
     }
   }
+}
+
+function lintCustom(
+  spec: { component: string; props?: unknown },
+  path: string,
+  ctx: LintContext,
+): void {
+  const block = ctx.customBlocks[spec.component];
+  if (!block) {
+    ctx.findings.push({ path, message: `custom block "${spec.component}" is not registered` });
+    return;
+  }
+  // Only fully-literal props are checked: a closed zod schema cannot be partially validated against a
+  // props object with some `$`-expression leaves (resolved at render) without losing required-field
+  // checks, so mixed literal+expression props are intentionally skipped wholesale (re-checked at render).
+  if (spec.props === undefined || !block.schema || hasExpression(spec.props)) return;
+  const result = block.schema.safeParse(spec.props);
+  if (!result.success) {
+    const issue = result.error.issues[0];
+    const where = issue?.path.join(".");
+    const detail = issue ? `${where ? `props.${where}` : "props"}: ${issue.message}` : "invalid props";
+    ctx.findings.push({ path, message: `custom block "${spec.component}" ${detail}` });
+  }
+}
+
+/**
+ * True if any string leaf is a `$`-expression — meaning the value is bound at render, not literal.
+ * Descends only into arrays and plain objects, matching `deepBind`'s descent rule (exotic objects are
+ * passed through there, so a `$`-string inside one would not be evaluated and must not be detected here).
+ */
+function hasExpression(value: unknown): boolean {
+  if (typeof value === "string") return value.startsWith("$");
+  if (Array.isArray(value)) return value.some(hasExpression);
+  if (isPlainObject(value)) return Object.values(value).some(hasExpression);
+  return false;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value) as unknown;
+  return proto === Object.prototype || proto === null;
 }
 
 function checkString(text: string, path: string, ctx: LintContext): void {

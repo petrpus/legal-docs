@@ -1,0 +1,5 @@
+template: dynamic
+version: 1
+locale: en
+body:
+  - custom: { component: "banner", props: { label: "$title" } }

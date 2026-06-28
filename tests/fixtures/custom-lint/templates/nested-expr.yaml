@@ -1,0 +1,5 @@
+template: nested-expr
+version: 1
+locale: en
+body:
+  - custom: { component: "metric", props: { rows: [{ n: "$x" }] } }

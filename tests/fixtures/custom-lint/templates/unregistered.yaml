@@ -1,0 +1,5 @@
+template: unregistered
+version: 1
+locale: en
+body:
+  - custom: { component: "ghost" }
