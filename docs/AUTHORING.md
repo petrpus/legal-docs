@@ -207,8 +207,9 @@ unknown Slot is an error), and a Slot left unfilled is simply omitted. Shared fr
 - Run `catalog.validate()` (also in CI) — it checks every Block/Clause/Include reference resolves,
   every helper is registered, and every element's `vars` typecheck against the payload. Errors are
   path-precise.
-- `catalog.clauses.diff("aml.intro", { from: 2, to: 3 })` shows a human-readable diff between clause
-  versions (rendered via the HTML renderer).
+- `catalog.clauses.diff("aml.intro", { from: 2, to: 3 })` returns a structured, paragraph-level diff
+  between two clause versions (added / removed / replaced blocks); human-readable HTML rendering of
+  that diff arrives with the HTML renderer.
 
 ## What you cannot do
 

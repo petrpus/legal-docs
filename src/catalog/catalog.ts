@@ -9,6 +9,16 @@ import type { Include, Template } from "../core/template";
 import type { Clause } from "../core/clause";
 import { parseClauseRef } from "../core/clause-ref";
 import { composeTemplate } from "../core/compose";
+import { parseRichText } from "../core/rich-text";
+import { diffRichText, type ClauseDiff } from "../core/clause-diff";
+
+/** Options for a Clause version diff. */
+export interface ClauseDiffOptions {
+  from: number;
+  to: number;
+  /** Locale of the versions to compare (defaults to `en`). */
+  locale?: string;
+}
 
 /**
  * The in-memory model of all authored content, loaded through a CatalogStore. The walking skeleton
@@ -68,6 +78,37 @@ export class Catalog {
     const { id, version } = parseClauseRef(ref);
     const concrete = version === "latest" ? await this.latestVersion(id) : version;
     return this.store.loadClause(id, concrete, locale);
+  }
+
+  private clausesApi?: { diff: (id: string, options: ClauseDiffOptions) => Promise<ClauseDiff> };
+
+  /** Clause-level operations (currently version diffing). A stable object across accesses. */
+  get clauses(): { diff: (id: string, options: ClauseDiffOptions) => Promise<ClauseDiff> } {
+    return (this.clausesApi ??= { diff: (id, options) => this.diffClause(id, options) });
+  }
+
+  private async diffClause(id: string, options: ClauseDiffOptions): Promise<ClauseDiff> {
+    const locale = options.locale ?? "en";
+    const [from, to] = await Promise.all([
+      this.clauseVersion(id, options.from, locale),
+      this.clauseVersion(id, options.to, locale),
+    ]);
+    return {
+      clause: id,
+      from: options.from,
+      to: options.to,
+      locale,
+      changes: diffRichText(parseRichText(from.text), parseRichText(to.text)),
+    };
+  }
+
+  private async clauseVersion(id: string, version: number, locale: string): Promise<Clause> {
+    try {
+      return await this.store.loadClause(id, version, locale);
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : String(cause);
+      throw new Error(`Cannot diff clause "${id}" v${version} (${locale}): ${reason}`, { cause });
+    }
   }
 
   private async latestVersion(id: string): Promise<number> {

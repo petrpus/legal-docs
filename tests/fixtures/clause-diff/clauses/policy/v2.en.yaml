@@ -1,0 +1,9 @@
+clause: policy
+version: 2
+locale: en
+text: |
+  The borrower shall repay the loan within thirty days.
+
+  Interest accrues monthly.
+
+  Late payment incurs a penalty.
