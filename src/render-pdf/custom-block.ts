@@ -38,3 +38,40 @@ export type CustomBlockRegistry = Record<string, CustomBlock>;
  * Silent omission is never allowed.
  */
 export type DegradationMode = "placeholder" | "throw";
+
+/** A degradation event surfaced to a consumer-supplied {@link OnDegrade} sink. */
+export interface DegradationEvent {
+  component: string;
+  format: "pdf" | "html" | "docx";
+  /** The placeholder marker text (also what the renderer renders in `placeholder` mode). */
+  marker: string;
+}
+
+/** A consumer sink for degradation events. When supplied, it replaces the default `console.warn`. */
+export type OnDegrade = (event: DegradationEvent) => void;
+
+/**
+ * Apply the Degradation contract for a missing-format Custom block: in `throw` mode fail hard; in
+ * `placeholder` mode notify (the consumer's {@link OnDegrade} sink, or `console.warn` by default) and
+ * return the marker for the renderer to render. Never silent.
+ */
+export function reportDegradation(
+  component: string,
+  format: DegradationEvent["format"],
+  mode: DegradationMode,
+  onDegrade?: OnDegrade,
+): string {
+  if (mode === "throw") {
+    throw new Error(
+      `Custom block "${component}" cannot render in "${format}": no ${format} implementation (degradation=throw)`,
+    );
+  }
+  if (mode === "placeholder") {
+    const marker = `[unsupported block: ${component} in ${format}]`;
+    if (onDegrade) onDegrade({ component, format, marker });
+    else console.warn(marker);
+    return marker;
+  }
+  const unsupported: never = mode;
+  throw new Error(`Unknown degradation mode: ${String(unsupported)}`);
+}

@@ -5,12 +5,14 @@ import type { RichRun } from "../core/rich-text";
 import { MAX_LEVEL } from "../core/engine";
 import { validatePayload } from "../core/payload";
 import { defaultTheme, type Theme } from "./theme";
-import type { CustomBlockRegistry, DegradationMode } from "./custom-block";
+import { reportDegradation } from "./custom-block";
+import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "./custom-block";
 
 /** Render-time Custom-block context threaded through the visitor. */
 interface CustomCtx {
   blocks: CustomBlockRegistry;
   degradation: DegradationMode;
+  onDegrade?: OnDegrade;
 }
 
 /**
@@ -190,7 +192,7 @@ function customElement(
   if (typeof block.pdf !== "function") {
     // `pdf` is required by the contract, so this only fires for an untyped caller or a future format;
     // the Degradation contract governs it (default: a visible, logged placeholder; never silent).
-    return degrade(node.component, "pdf", key, theme, cx.degradation);
+    return degrade(node.component, key, theme, cx);
   }
   let props = node.props;
   if (block.schema) {
@@ -207,20 +209,8 @@ function customElement(
 }
 
 /** Degradation contract: a visible, logged placeholder, or a hard failure — never silent omission. */
-function degrade(
-  component: string,
-  format: string,
-  key: number,
-  theme: Theme,
-  mode: DegradationMode,
-): ReactElement {
-  if (mode === "throw") {
-    throw new Error(
-      `Custom block "${component}" cannot render in "${format}": no ${format} implementation (degradation=throw)`,
-    );
-  }
-  const marker = `[unsupported block: ${component} in ${format}]`;
-  console.warn(marker);
+function degrade(component: string, key: number, theme: Theme, cx: CustomCtx): ReactElement {
+  const marker = reportDegradation(component, "pdf", cx.degradation, cx.onDegrade);
   return (
     <Text key={key} style={{ fontSize: theme.fontSize.paragraph, color: theme.color.text }}>
       {marker}
@@ -265,8 +255,9 @@ export function documentElement(
   theme: Theme = defaultTheme,
   customBlocks: CustomBlockRegistry = {},
   degradation: DegradationMode = "placeholder",
+  onDegrade?: OnDegrade,
 ) {
-  const cx: CustomCtx = { blocks: customBlocks, degradation };
+  const cx: CustomCtx = { blocks: customBlocks, degradation, onDegrade };
   return createElement(
     Document,
     null,
@@ -281,6 +272,7 @@ export function renderTreeToBuffer(
   theme?: Theme,
   customBlocks?: CustomBlockRegistry,
   degradation?: DegradationMode,
+  onDegrade?: OnDegrade,
 ): Promise<Buffer> {
-  return renderToBuffer(documentElement(tree, theme, customBlocks, degradation));
+  return renderToBuffer(documentElement(tree, theme, customBlocks, degradation, onDegrade));
 }

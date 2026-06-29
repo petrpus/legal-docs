@@ -20,13 +20,15 @@ import type { RichParagraph, RichRun } from "../core/rich-text";
 import { MAX_LEVEL } from "../core/engine";
 import { validatePayload } from "../core/payload";
 import { defaultTheme, type Theme } from "../render-pdf/theme";
-import type { CustomBlockRegistry, DegradationMode } from "../render-pdf/custom-block";
+import { reportDegradation } from "../render-pdf/custom-block";
+import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../render-pdf/custom-block";
 import { eighths, halfPoints, twips } from "./theme-docx";
 
 interface DocxCtx {
   theme: Theme;
   blocks: CustomBlockRegistry;
   degradation: DegradationMode;
+  onDegrade?: OnDegrade;
   /** Nesting depth — Word is flat, so nesting becomes a left indent on the paragraph. */
   depth: number;
 }
@@ -41,10 +43,11 @@ export async function renderTreeToDocx(
   theme: Theme = defaultTheme,
   customBlocks: CustomBlockRegistry = {},
   degradation: DegradationMode = "placeholder",
+  onDegrade?: OnDegrade,
 ): Promise<Buffer> {
   // `async` so a synchronous build error (unregistered component, throw-mode degradation) surfaces as
   // a rejected promise rather than a sync throw.
-  const ctx: DocxCtx = { theme, blocks: customBlocks, degradation, depth: 0 };
+  const ctx: DocxCtx = { theme, blocks: customBlocks, degradation, onDegrade, depth: 0 };
   const children = tree.flatMap((node) => nodeToDocx(node, ctx));
   const doc = new Document({ sections: [{ children }] });
   return Packer.toBuffer(doc);
@@ -248,13 +251,7 @@ function customDocx(node: Extract<DocumentNode, { kind: "custom" }>, ctx: DocxCt
 
 /** Degradation contract for DOCX: a visible, logged placeholder paragraph, or a hard failure. */
 function degradeDocx(component: string, ctx: DocxCtx): Paragraph[] {
-  if (ctx.degradation === "throw") {
-    throw new Error(
-      `Custom block "${component}" cannot render in "docx": no docx implementation (degradation=throw)`,
-    );
-  }
-  const marker = `[unsupported block: ${component} in docx]`;
-  console.warn(marker);
+  const marker = reportDegradation(component, "docx", ctx.degradation, ctx.onDegrade);
   return [
     new Paragraph({
       children: [new TextRun({ text: marker, italics: true, color: hex(ctx.theme.color.text) })],
