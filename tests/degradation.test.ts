@@ -6,14 +6,17 @@ import { Catalog } from "../src/catalog/catalog";
 import { renderDocument } from "../src/facade/render-document";
 import { createElement } from "react";
 import { Text } from "@react-pdf/renderer";
-import type { CustomBlock, CustomBlockRegistry } from "../src/render-pdf/custom-block";
+import { renderTreeToHtml } from "../src/render-html/render-html";
+import { renderTreeToDocx } from "../src/render-docx/render-docx";
+import { defaultTheme } from "../src/render-pdf/theme";
+import type { CustomBlock, CustomBlockRegistry, DegradationEvent } from "../src/render-pdf/custom-block";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const catalogDir = path.join(here, "fixtures", "custom");
 
-// Simulate an untyped caller / a future format: a registered block with no `pdf` implementation.
-// `pdf` is required by the type, so this deliberate bypass is the only way to reach the degradation
-// branch for the PDF renderer (it goes live for html/docx in Phases 4–5).
+// Simulate an untyped caller: a registered block with no `pdf` implementation. `pdf` is required by
+// the type, so this deliberate bypass is the only way to reach the degradation branch for the PDF
+// renderer (it fires naturally for a missing `html`/`docx` block).
 const missingPdf = {} as unknown as CustomBlock;
 const customBlocks: CustomBlockRegistry = { banner: missingPdf };
 
@@ -41,16 +44,19 @@ describe("Degradation contract", () => {
     warn.mockRestore();
   });
 
-  it("fails hard in throw mode, with no placeholder logged", async () => {
+  it("fails hard in throw mode, notifying neither console.warn nor the sink", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const catalog = await Catalog.fromDir(catalogDir);
+    const events: DegradationEvent[] = [];
 
     await expect(
       renderDocument({
         catalog, template: "doc", data: { title: "x" }, customBlocks, degradation: "throw", format: "pdf",
+        onDegrade: (e) => events.push(e),
       }),
     ).rejects.toThrow(/Custom block "banner" cannot render in "pdf"/);
     expect(warn).not.toHaveBeenCalled();
+    expect(events).toEqual([]); // throw mode short-circuits before notifying the sink
     warn.mockRestore();
   });
 
@@ -66,5 +72,60 @@ describe("Degradation contract", () => {
         catalog, template: "doc", data: { title: "x" }, customBlocks: wrongName, degradation: "placeholder", format: "pdf",
       }),
     ).rejects.toThrow(/Custom block "banner" is not registered/);
+  });
+
+  it("routes degradation to an onDegrade sink instead of console.warn (renderer level)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const events: DegradationEvent[] = [];
+
+    const html = renderTreeToHtml(
+      [{ kind: "custom", component: "banner", props: undefined }],
+      defaultTheme,
+      { banner: { pdf: () => createElement(Text, null, "x") } }, // no html → degrades
+      "placeholder",
+      (event) => events.push(event),
+    );
+
+    expect(events).toEqual([
+      { component: "banner", format: "html", marker: "[unsupported block: banner in html]" },
+    ]);
+    expect(warn).not.toHaveBeenCalled(); // the sink replaces console.warn
+    expect(html).toContain("[unsupported block: banner in html]"); // still a visible placeholder
+    warn.mockRestore();
+  });
+
+  it("routes degradation to an onDegrade sink in the DOCX renderer too", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const events: DegradationEvent[] = [];
+
+    await renderTreeToDocx(
+      [{ kind: "custom", component: "banner", props: undefined }],
+      defaultTheme,
+      { banner: { pdf: () => createElement(Text, null, "x") } }, // no docx → degrades
+      "placeholder",
+      (event) => events.push(event),
+    );
+
+    expect(events).toEqual([
+      { component: "banner", format: "docx", marker: "[unsupported block: banner in docx]" },
+    ]);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("threads onDegrade through the facade", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const catalog = await Catalog.fromDir(catalogDir);
+    const events: DegradationEvent[] = [];
+
+    await renderDocument({
+      catalog, template: "doc", data: { title: "x" }, customBlocks, format: "pdf", onDegrade: (e) => events.push(e),
+    });
+
+    expect(events).toEqual([
+      { component: "banner", format: "pdf", marker: "[unsupported block: banner in pdf]" },
+    ]);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

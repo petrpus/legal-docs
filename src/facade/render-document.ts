@@ -10,7 +10,7 @@ import { buildSnapshot, type ClausePin, type Snapshot, type SnapshotMode } from 
 import { renderTreeToBuffer } from "../render-pdf/render-pdf";
 import { renderTreeToHtml } from "../render-html/render-html";
 import { renderTreeToDocx } from "../render-docx/render-docx";
-import type { CustomBlockRegistry, DegradationMode } from "../render-pdf/custom-block";
+import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../render-pdf/custom-block";
 import type { Theme } from "../render-pdf/theme";
 
 export interface RenderDocumentInput {
@@ -31,6 +31,8 @@ export interface RenderDocumentInput {
   customBlocks?: CustomBlockRegistry;
   /** How a Custom block missing this format degrades (ADR-0005). Defaults to `placeholder`. */
   degradation?: DegradationMode;
+  /** A sink for degradation events; when supplied it replaces the default `console.warn`. */
+  onDegrade?: OnDegrade;
   format: "pdf" | "html" | "docx";
   theme?: Theme;
   /** What the returned Snapshot freezes (ADR-0003). Defaults to `full`. */
@@ -111,15 +113,15 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
   );
   // The Snapshot is format-agnostic (it freezes the tree); only the rendered output differs.
   if (input.format === "html") {
-    const html = renderTreeToHtml(tree, input.theme, input.customBlocks, input.degradation);
+    const html = renderTreeToHtml(tree, input.theme, input.customBlocks, input.degradation, input.onDegrade);
     return { format: "html", html, snapshot, snapshotId: snapshot.id };
   }
   if (input.format === "pdf") {
-    const buffer = await renderTreeToBuffer(tree, input.theme, input.customBlocks, input.degradation);
+    const buffer = await renderTreeToBuffer(tree, input.theme, input.customBlocks, input.degradation, input.onDegrade);
     return { format: "pdf", buffer, stream: Readable.from(buffer), snapshot, snapshotId: snapshot.id };
   }
   if (input.format === "docx") {
-    const buffer = await renderTreeToDocx(tree, input.theme, input.customBlocks, input.degradation);
+    const buffer = await renderTreeToDocx(tree, input.theme, input.customBlocks, input.degradation, input.onDegrade);
     return { format: "docx", buffer, stream: Readable.from(buffer), snapshot, snapshotId: snapshot.id };
   }
   const unsupported: never = input.format;

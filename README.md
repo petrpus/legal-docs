@@ -103,7 +103,8 @@ await renderDocument({ catalog, template: "deed", data, customBlocks: { "signatu
 
 A Custom block missing the target format degrades per the **Degradation contract**
 (`degradation: "placeholder"` default — a visible, logged marker — or `"throw"`), never silently.
-A worked example lives in [`examples/signature-grid.tsx`](examples/signature-grid.tsx).
+Pass `onDegrade` to capture degradation events instead of the default `console.warn`. A worked example
+lives in [`examples/signature-grid.tsx`](examples/signature-grid.tsx).
 
 ## Snapshot & re-render
 

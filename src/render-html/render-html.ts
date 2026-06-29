@@ -8,13 +8,15 @@ import type {
 import type { RichRun, RichTextV1 } from "../core/rich-text";
 import { validatePayload } from "../core/payload";
 import { defaultTheme, type Theme } from "../render-pdf/theme";
-import type { CustomBlockRegistry, DegradationMode } from "../render-pdf/custom-block";
+import { reportDegradation } from "../render-pdf/custom-block";
+import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../render-pdf/custom-block";
 import { escapeHtml } from "./escape";
 import { themeCss } from "./theme-css";
 
 interface HtmlCtx {
   blocks: CustomBlockRegistry;
   degradation: DegradationMode;
+  onDegrade?: OnDegrade;
   theme: Theme;
 }
 
@@ -28,8 +30,9 @@ export function renderTreeToHtml(
   theme: Theme = defaultTheme,
   customBlocks: CustomBlockRegistry = {},
   degradation: DegradationMode = "placeholder",
+  onDegrade?: OnDegrade,
 ): string {
-  const cx: HtmlCtx = { blocks: customBlocks, degradation, theme };
+  const cx: HtmlCtx = { blocks: customBlocks, degradation, onDegrade, theme };
   const body = tree.map((node) => nodeToHtml(node, cx)).join("");
   return `<div class="legal-doc"><style>${themeCss(theme)}</style>${body}</div>`;
 }
@@ -121,7 +124,7 @@ function signaturesHtml(places: SignaturePlace[]): string {
 function customHtml(node: Extract<DocumentNode, { kind: "custom" }>, cx: HtmlCtx): string {
   const block = cx.blocks[node.component];
   if (!block) throw new Error(`Custom block "${node.component}" is not registered`);
-  if (typeof block.html !== "function") return degradeHtml(node.component, cx.degradation);
+  if (typeof block.html !== "function") return degradeHtml(node.component, cx);
   let props = node.props;
   if (block.schema) {
     try {
@@ -136,13 +139,7 @@ function customHtml(node: Extract<DocumentNode, { kind: "custom" }>, cx: HtmlCtx
 }
 
 /** Degradation contract for HTML: a visible, logged placeholder, or a hard failure — never silent. */
-function degradeHtml(component: string, mode: DegradationMode): string {
-  if (mode === "throw") {
-    throw new Error(
-      `Custom block "${component}" cannot render in "html": no html implementation (degradation=throw)`,
-    );
-  }
-  const marker = `[unsupported block: ${component} in html]`;
-  console.warn(marker);
+function degradeHtml(component: string, cx: HtmlCtx): string {
+  const marker = reportDegradation(component, "html", cx.degradation, cx.onDegrade);
   return `<div class="legal-doc__unsupported">${escapeHtml(marker)}</div>`;
 }

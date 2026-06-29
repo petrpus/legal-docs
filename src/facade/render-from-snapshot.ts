@@ -8,7 +8,7 @@ import type { DocumentTree } from "../core/document-tree";
 import { renderTreeToBuffer } from "../render-pdf/render-pdf";
 import { renderTreeToHtml } from "../render-html/render-html";
 import { renderTreeToDocx } from "../render-docx/render-docx";
-import type { CustomBlockRegistry, DegradationMode } from "../render-pdf/custom-block";
+import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../render-pdf/custom-block";
 import type { Theme } from "../render-pdf/theme";
 
 export interface RenderFromSnapshotOptions {
@@ -23,6 +23,8 @@ export interface RenderFromSnapshotOptions {
   customBlocks?: CustomBlockRegistry;
   /** How a Custom block missing this format degrades (defaults to `placeholder`). */
   degradation?: DegradationMode;
+  /** A sink for degradation events; when supplied it replaces the default `console.warn`. */
+  onDegrade?: OnDegrade;
   /** Output format (defaults to `pdf`). */
   format?: "pdf" | "html" | "docx";
   theme?: Theme;
@@ -80,14 +82,14 @@ export async function renderFromSnapshot(
   const tree = snapshot.tree ?? (await reassembleFromPins(snapshot, options));
   const format = options.format ?? "pdf";
   if (format === "html") {
-    return { format: "html", html: renderTreeToHtml(tree, options.theme, options.customBlocks, options.degradation) };
+    return { format: "html", html: renderTreeToHtml(tree, options.theme, options.customBlocks, options.degradation, options.onDegrade) };
   }
   if (format === "pdf") {
-    const buffer = await renderTreeToBuffer(tree, options.theme, options.customBlocks, options.degradation);
+    const buffer = await renderTreeToBuffer(tree, options.theme, options.customBlocks, options.degradation, options.onDegrade);
     return { format: "pdf", buffer, stream: Readable.from(buffer) };
   }
   if (format === "docx") {
-    const buffer = await renderTreeToDocx(tree, options.theme, options.customBlocks, options.degradation);
+    const buffer = await renderTreeToDocx(tree, options.theme, options.customBlocks, options.degradation, options.onDegrade);
     return { format: "docx", buffer, stream: Readable.from(buffer) };
   }
   const unsupported: never = format;

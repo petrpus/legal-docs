@@ -84,6 +84,8 @@ export type {
   HtmlCustomBlock,
   DocxCustomBlock,
   DegradationMode,
+  DegradationEvent,
+  OnDegrade,
 } from "./render-pdf/custom-block";
 export { renderTreeToHtml } from "./render-html/render-html";
 export { escapeHtml } from "./render-html/escape";
