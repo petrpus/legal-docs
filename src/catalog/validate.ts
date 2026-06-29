@@ -8,6 +8,7 @@ import { helperCallsIn } from "../core/expression";
 import { expressionTokens } from "../core/interpolate";
 import { expandIncludes, IncludeError } from "../core/includes";
 import { CompositionError } from "../core/compose";
+import { parseClauseRef } from "../core/clause-ref";
 
 export interface ValidationFinding {
   path: string;
@@ -36,6 +37,7 @@ export interface LintableCatalog {
   templateIds(): Promise<string[]>;
   getTemplate(id: string, variant?: string): Promise<Template>;
   getClause(ref: string, locale: string): Promise<Clause>;
+  clauseLocales(id: string, version: number): Promise<string[]>;
   loadInclude(id: string): Promise<Include>;
   familyIds(): Promise<string[]>;
   variantIds(family: string): Promise<string[]>;
@@ -205,14 +207,35 @@ async function lintClause(
   // A `$`-expression ref is chosen at render time and cannot be resolved statically.
   if (item.clause.startsWith("$")) return;
 
-  let clause: Clause;
+  let resolved: Clause;
   try {
-    clause = await ctx.catalog.getClause(item.clause, ctx.locale);
+    resolved = await ctx.catalog.getClause(item.clause, ctx.locale);
   } catch {
     ctx.findings.push({ path, message: `clause "${item.clause}" does not resolve` });
     return;
   }
-  lintVars(clause, item.vars ?? {}, path, ctx);
+  // Lint the `vars` mapping against EVERY locale the Clause is authored in — each locale file declares
+  // its own `vars` schema, so a translation can require a var the default locale does not. Enumerate by
+  // the parsed id (the directory), not the YAML `clause:` field, so a diverging field can't hide locales.
+  const { id } = parseClauseRef(item.clause);
+  const locales = await ctx.catalog.clauseLocales(id, resolved.version);
+  for (const locale of locales.length > 0 ? locales : [resolved.locale]) {
+    // Annotate the locale when it is not the template's own, so a broken translation is identifiable.
+    const at = locale === ctx.locale ? path : `${path} [${locale}]`;
+    let clause: Clause;
+    if (locale === resolved.locale) {
+      clause = resolved;
+    } else {
+      try {
+        clause = await ctx.catalog.getClause(`${id}@v${resolved.version}`, locale);
+      } catch {
+        // A malformed translation file is a finding, not a crash (the lint must report, never throw).
+        ctx.findings.push({ path: at, message: `clause "${id}@v${resolved.version}" (${locale}) does not load` });
+        continue;
+      }
+    }
+    lintVars(clause, item.vars ?? {}, at, ctx);
+  }
 }
 
 function lintVars(
