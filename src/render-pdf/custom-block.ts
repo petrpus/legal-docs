@@ -19,8 +19,8 @@ export type DocxCustomBlock = (props: unknown, ctx: CustomBlockContext) => (Para
 
 /**
  * A Custom block: a code-side, renderer-native implementation per output format (ADR-0005). `pdf` is
- * required; `html`/`docx` slots arrive with those renderers (Phases 4–5). An optional `schema`
- * validates `props` at render dispatch. A Custom block is a leaf — it renders its own complete layout.
+ * required; `html`/`docx` are optional (a missing one triggers the Degradation contract). An optional
+ * `schema` validates `props` at render dispatch. A Custom block is a leaf — it renders its own layout.
  */
 export interface CustomBlock {
   schema?: ZodType;

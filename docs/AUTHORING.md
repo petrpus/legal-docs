@@ -1,7 +1,7 @@
 # Authoring guide
 
-> Draft skeleton. Terminology follows [`CONTEXT.md`](./CONTEXT.md). The concrete file format is fixed
-> in Phase 1–2; the examples here are illustrative and may change in detail, not in shape.
+> How to author templates and clauses for the as-built system. Terminology follows
+> [`CONTEXT.md`](./CONTEXT.md); rationale lives in [`adr/`](./adr/).
 
 This guide is for the people who own the **wording** of documents — legal ops, lawyers, anyone who
 edits text without touching application code. You write **data files** (YAML/JSON), never code. The

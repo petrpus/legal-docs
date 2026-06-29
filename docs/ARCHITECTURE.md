@@ -1,7 +1,7 @@
 # Architecture
 
-> Draft skeleton. Terminology follows [`CONTEXT.md`](./CONTEXT.md); rationale lives in
-> [`adr/`](./adr/). Code examples are illustrative until Phase 1 fixes the concrete shapes.
+> Describes the as-built system (all roadmap phases delivered). Terminology follows
+> [`CONTEXT.md`](./CONTEXT.md); rationale lives in [`adr/`](./adr/).
 
 `@petrpus/legal-docs` turns a typed data **payload** into a legal document (PDF / HTML / DOCX) from
 declarative **Templates** and a versioned **Catalog** of reusable **Block**s and **Clause**s. It owns
@@ -27,7 +27,8 @@ Resolved payload
 DocumentNode[]   ◄──────────────── the renderer-agnostic seam
    │  Renderer (visitor)                 ← PDF / HTML / DOCX, one per format
    ▼
-{ stream, buffer, snapshotId }           ← plus a Snapshot for audit / deterministic re-render
+result (discriminated by format)         ← pdf/docx: { buffer, stream }; html: { html };
+                                            all carry { snapshot, snapshotId } for re-render
 ```
 
 The three phases are deliberately separate so each is independently testable:
@@ -110,18 +111,22 @@ no `eval`, no Turing-complete logic. A non-developer author cannot inject arbitr
 integrity lint gates CI: every Block/Clause reference resolves, every helper is registered, and every
 element's `vars` typecheck against the payload.
 
-## Public API (proposed)
+## Public API
 
 ```ts
-import { Catalog, renderDocument } from "@petrpus/legal-docs";
+import { Catalog, renderDocument, renderFromSnapshot, renderClauseDiff } from "@petrpus/legal-docs";
 
 const catalog = await Catalog.fromDir("./legal-docs");        // FileCatalogStore, no DB
-const pdf  = await renderDocument({ catalog, template: "debtor-declaration", data, format: "pdf" });
-const docx = await renderDocument({ catalog, template: "pledge-agreement", variant: "three-party",
-                                    data, format: "docx" });   // → { stream, buffer, snapshotId }
 
-catalog.validate();                                            // integrity lint
-catalog.clauses.diff("aml.intro", { from: 2, to: 3 });        // human-readable clause diff
+// Render to any format; the result is discriminated by `format` and carries a Snapshot.
+const pdf  = await renderDocument({ catalog, template: "agreement", data, format: "pdf" });
+const html = await renderDocument({ catalog, template: "agreement", data, locale: "cs", format: "html" });
+const docx = await renderDocument({ catalog, template: "pledge-agreement", variant: "three-party",
+                                    data, customBlocks, format: "docx" });
+
+await renderFromSnapshot(pdf.snapshot, { format: "pdf" });    // deterministic re-render
+catalog.validate({ customBlocks });                           // integrity lint
+renderClauseDiff(await catalog.clauses.diff("aml.intro", { from: 2, to: 3 })); // HTML diff view
 ```
 
 ## See also

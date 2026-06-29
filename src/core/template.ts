@@ -1,7 +1,7 @@
 /**
  * A Template is the renderable, versioned unit (one document type), authored as declarative data.
- * The walking skeleton supports only inline `title` / `paragraph` body items; Blocks, Clauses,
- * control structures and payload binding arrive in later slices.
+ * Its `body` is a tree of `BodyItem`s — inline text, Blocks, Clauses, lists, control structures
+ * (`if`/`for`), Includes, Slots and the `custom` escape hatch — bound against the payload at assembly.
  */
 
 export interface ArticleItem {
