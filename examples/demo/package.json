@@ -1,0 +1,23 @@
+{
+  "name": "legal-docs-demo",
+  "private": true,
+  "type": "module",
+  "description": "A minimal Vite + React demo for @petrpus/legal-docs — live theme/locale/format and Clause diff over the sample catalog.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^6.0.3",
+    "vite": "^6.0.0",
+    "zod": "^4.4.3"
+  }
+}
