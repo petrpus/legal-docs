@@ -112,6 +112,11 @@ export class Catalog {
     }
   }
 
+  /** The locales a Clause version is authored in. */
+  clauseLocales(id: string, version: number): Promise<string[]> {
+    return this.store.clauseLocales(id, version);
+  }
+
   private async latestVersion(id: string): Promise<number> {
     const versions = await this.store.clauseVersions(id);
     const latest = versions.at(-1);

@@ -23,6 +23,8 @@ export interface CatalogStore {
   loadVariant(family: string, variant: string): Promise<Variant>;
   /** All versions of a Clause that exist, ascending. */
   clauseVersions(id: string): Promise<number[]>;
+  /** The locales a Clause version is authored in (ascending). */
+  clauseLocales(id: string, version: number): Promise<string[]>;
   /** Load a specific Clause version for a locale. */
   loadClause(id: string, version: number, locale: string): Promise<Clause>;
 }

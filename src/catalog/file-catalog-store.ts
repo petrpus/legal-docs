@@ -99,6 +99,17 @@ export class FileCatalogStore implements CatalogStore {
     return [...versions].sort((a, b) => a - b);
   }
 
+  async clauseLocales(id: string, version: number): Promise<string[]> {
+    const entries = await readdir(this.clauseDir(id)).catch(() => [] as string[]);
+    const locales = new Set<string>();
+    const pattern = new RegExp(`^v${version}\\.([^.]+)\\.ya?ml$`);
+    for (const file of entries) {
+      const locale = pattern.exec(file)?.[1];
+      if (locale !== undefined) locales.add(locale);
+    }
+    return [...locales].sort();
+  }
+
   async loadClause(id: string, version: number, locale: string): Promise<Clause> {
     const file = await this.resolveClauseFile(id, version, locale);
     const raw = await readFile(file, "utf8");

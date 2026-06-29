@@ -1,0 +1,5 @@
+template: bilingual-doc
+version: 1
+locale: en
+body:
+  - clause: "bilingual@v1"

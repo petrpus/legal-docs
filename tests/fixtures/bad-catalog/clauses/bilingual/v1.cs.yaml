@@ -1,0 +1,6 @@
+clause: bilingual
+version: 1
+locale: cs
+vars:
+  extra: { type: string }
+text: "Dvojjazyčná poznámka: {{extra}}."

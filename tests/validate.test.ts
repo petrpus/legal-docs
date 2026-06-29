@@ -52,6 +52,21 @@ describe("Catalog.validate", () => {
     );
   });
 
+  it("lints a Clause in every locale it is authored in (catches a broken translation)", async () => {
+    const catalog = await Catalog.fromDir(badDir);
+
+    const result = await catalog.validate();
+    const find = (re: RegExp) => result.findings.find((f) => re.test(f.message));
+
+    // `bilingual-doc` (locale en) references `bilingual@v1`; the cs file requires `extra`, the en one
+    // does not. Only the locale-aware lint catches the missing var in the Czech translation.
+    expect(find(/clause "bilingual" requires var "extra"/)?.path).toMatch(
+      /templates\/bilingual-doc › body\[0\] \[cs\]/,
+    );
+    // The en file (no vars) must not be over-reported — only the cs translation is flagged.
+    expect(result.findings.filter((f) => /clause "bilingual"/.test(f.message))).toHaveLength(1);
+  });
+
   it("reports unresolved and cyclic includes as findings", async () => {
     const catalog = await Catalog.fromDir(badDir);
 
