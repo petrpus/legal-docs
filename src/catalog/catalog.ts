@@ -21,8 +21,9 @@ export interface ClauseDiffOptions {
 }
 
 /**
- * The in-memory model of all authored content, loaded through a CatalogStore. The walking skeleton
- * exposes template loading; `validate()` and clause diffing arrive with later slices.
+ * The in-memory model of all authored content (Templates, families/Variants, Clauses, Includes),
+ * loaded through a CatalogStore. Exposes template/variant resolution, `validate()` (integrity lint)
+ * and `clauses.diff(...)`.
  */
 export class Catalog {
   private constructor(private readonly store: CatalogStore) {}

@@ -8,10 +8,19 @@
   "engines": {
     "node": ">=20"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/petrpus/legal-docs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/petrpus/legal-docs/issues"
+  },
+  "homepage": "https://github.com/petrpus/legal-docs#readme",
   "keywords": [
     "legal",
     "documents",
     "pdf",
+    "html",
     "docx",
     "templates",
     "react-pdf",

@@ -1,7 +1,8 @@
 /**
  * The renderer-agnostic document tree — the seam between a Template and the renderers.
  * A DocumentNode is an evaluated instance node; renderers visit it to emit PDF / HTML / DOCX.
- * The Core node set grows one slice at a time; the walking skeleton covers `title` and `paragraph`.
+ * The Core node set is closed (adding a kind is a breaking change across all renderers, enforced by
+ * TS exhaustiveness); anything outside it goes through the `custom` escape hatch.
  */
 
 import type { RichTextV1 } from "./rich-text";
