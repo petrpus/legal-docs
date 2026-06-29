@@ -125,7 +125,8 @@ function pinnedResolver(pins: ClausePin[], catalog: Catalog): ClauseResolver {
       throw new Error(`Snapshot has no pin for clause "${ref}" (${locale}) — cannot re-render`);
     }
     try {
-      return await catalog.getClause(`${pin.clause}@v${pin.version}`, locale);
+      // Load the exact locale file that originally resolved (not a re-run of the store's fallback).
+      return await catalog.getClause(`${pin.clause}@v${pin.version}`, pin.resolvedLocale ?? locale);
     } catch (cause) {
       const reason = cause instanceof Error ? cause.message : String(cause);
       throw new Error(

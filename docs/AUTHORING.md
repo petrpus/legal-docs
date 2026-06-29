@@ -136,6 +136,22 @@ text: |
   templates that pin `@vN` keep the old wording until updated. Either way, a generated document's
   **Snapshot** freezes the exact version used.
 
+## Locale
+
+Clauses are **locale-aware**: a version is stored per language as `clauses/<id>/v<N>.<locale>.yaml`
+(e.g. `welcome-note/v1.en.yaml` and `welcome-note/v1.cs.yaml`). A Template declares a default `locale`,
+but a consumer can **override it per render**:
+
+```ts
+renderDocument({ catalog, template: "localized", format: "html" });               // template's locale
+renderDocument({ catalog, template: "localized", locale: "cs", format: "html" }); // → Czech clauses
+```
+
+The requested locale drives Clause resolution. If a Clause has no file for that locale, it **falls
+back** to an available locale of the same version (so a partially-translated catalog still renders).
+The **Snapshot** freezes the locale that was requested, so re-render stays deterministic. The same
+Theme drives every locale — translation is content, not styling.
+
 ## Derivations
 
 When a value must be *computed* from the payload, declare it as a **Derivation** — a named, pure

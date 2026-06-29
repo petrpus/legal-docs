@@ -18,6 +18,8 @@ export interface RenderDocumentInput {
   template: string;
   /** Selects a family member: the `template` is resolved as a family and this Variant is composed. */
   variant?: string;
+  /** Overrides the Template's locale for Clause resolution (with the store's fallback). */
+  locale?: string;
   data?: unknown;
   /** Code-side payload schemas, looked up by a Template's `payloadSchema` reference. */
   schemas?: PayloadSchemaRegistry;
@@ -71,6 +73,9 @@ export function renderDocument(input: RenderDocumentInput): Promise<RenderDocume
 export async function renderDocument(input: RenderDocumentInput): Promise<RenderDocumentResult> {
   // A `variant` resolves `template` as a family and composes that member into a concrete Template.
   const template = await input.catalog.getTemplate(input.template, input.variant);
+  // A `locale` override resolves Clauses in the requested language (falling back per the store);
+  // otherwise the Template's own locale applies. The resolved locale is what the Snapshot freezes.
+  const locale = input.locale ?? template.locale;
   // Expand Includes into a concrete, include-free body before tree assembly.
   const body = await expandIncludes(template.body, (id) => input.catalog.loadInclude(id));
   const concrete = { ...template, body };
@@ -83,19 +88,20 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
   const tree = await assembleTree(concrete, {
     scope,
     helpers: input.helpers,
-    clauses: async (ref, locale) => {
-      const clause = await input.catalog.getClause(ref, locale);
-      pins.push({ ref, clause: clause.clause, version: clause.version, locale });
+    clauses: async (ref, clauseLocale) => {
+      const clause = await input.catalog.getClause(ref, clauseLocale);
+      // Record both the requested locale (for re-render keying) and the one that actually loaded.
+      pins.push({ ref, clause: clause.clause, version: clause.version, locale: clauseLocale, resolvedLocale: clause.locale });
       return clause;
     },
-    locale: template.locale,
+    locale,
   });
   const snapshot = buildSnapshot(
     {
       template: template.template,
       version: template.version,
       ...(template.variant !== undefined ? { variant: template.variant } : {}),
-      locale: template.locale,
+      locale,
       payload: input.data,
       resolved: scope,
       pins,

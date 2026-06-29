@@ -121,6 +121,7 @@ const samples = {
       securityClause: (p) => (p.parties.length >= 3 ? "counterparts@v2" : "counterparts@v1"),
     },
   },
+  localized: {},
   "signature-grid": {
     data: {
       signatories: [
@@ -132,6 +133,9 @@ const samples = {
     customBlocks: { "signature-grid": signatureGrid },
   },
 };
+
+// The same template rendered in a second locale, to show the per-render `locale` override.
+const localeSamples = [{ name: "localized-cs", template: "localized", locale: "cs" }];
 
 const hasPdftoppm = (() => {
   try {
@@ -185,6 +189,10 @@ for (const id of await catalog.templateIds()) {
 
 for (const config of variantSamples) {
   await render(`${config.template}-${config.variant}`, config);
+}
+
+for (const { name, ...config } of localeSamples) {
+  await render(name, config);
 }
 
 console.log(`\nWrote samples to ${outDir}${hasPdftoppm ? "" : "  (install poppler-utils for .png too)"}`);
