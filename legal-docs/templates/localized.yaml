@@ -1,0 +1,6 @@
+template: localized
+version: 1
+locale: en
+body:
+  - title: "NOTICE"
+  - clause: "welcome-note@v1"

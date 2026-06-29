@@ -20,8 +20,13 @@ export interface ClausePin {
   clause: string;
   /** The concrete version frozen. */
   version: number;
-  /** The locale the Clause was resolved for. */
+  /** The locale the assembly requested (the document's resolved locale). */
   locale: string;
+  /**
+   * The locale of the Clause file that actually loaded — equal to `locale` unless the store fell back.
+   * Pinned so a `pins`-mode re-render loads the exact file, not a re-run of the (order-dependent) fallback.
+   */
+  resolvedLocale?: string;
 }
 
 /**

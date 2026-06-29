@@ -97,6 +97,7 @@ describe("renderDocument snapshots", () => {
       clause: "pledge-security",
       version: 1,
       locale: "en",
+      resolvedLocale: "en",
     });
     expect(snapshot.tree?.length).toBeGreaterThan(0);
   });

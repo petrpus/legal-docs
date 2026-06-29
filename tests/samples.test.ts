@@ -56,6 +56,7 @@ const samples: Record<string, SampleConfig> = {
         (p as typeof termsData).parties.length >= 3 ? "counterparts@v2" : "counterparts@v1",
     },
   },
+  localized: {},
   "signature-grid": {
     data: {
       signatories: [
