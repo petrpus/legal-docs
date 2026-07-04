@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Format = "html" | "pdf" | "docx";
 
+interface TemplateInfo {
+  id: string;
+  variants?: string[];
+  data?: unknown;
+}
 interface Meta {
-  templates: string[];
+  templates: TemplateInfo[];
   locales: string[];
   defaultTheme: Record<string, unknown>;
   diff: { clause: string; from: number; to: number };
-  dataTemplates: Record<string, unknown>;
 }
 
 const MIME: Record<string, string> = {
@@ -42,7 +46,8 @@ export function App() {
 }
 
 function RenderTab({ meta }: { meta: Meta }) {
-  const [template, setTemplate] = useState("agreement");
+  const [templateId, setTemplateId] = useState("parties");
+  const [variant, setVariant] = useState("");
   const [locale, setLocale] = useState("en");
   const [format, setFormat] = useState<Format>("html");
   const [theme, setTheme] = useState(meta.defaultTheme);
@@ -51,10 +56,14 @@ function RenderTab({ meta }: { meta: Meta }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const needsData = template === "greeting";
+  const template = useMemo(() => meta.templates.find((t) => t.id === templateId), [meta, templateId]);
+  const needsData = template?.data !== undefined;
+
+  // Reset variant + prefill the sample payload whenever the template changes.
   useEffect(() => {
-    setDataText(needsData ? JSON.stringify(meta.dataTemplates[template] ?? {}, null, 2) : "{}");
-  }, [template, needsData, meta]);
+    setVariant(template?.variants?.[0] ?? "");
+    setDataText(template?.data !== undefined ? JSON.stringify(template.data, null, 2) : "{}");
+  }, [template]);
 
   async function render() {
     setBusy(true);
@@ -64,7 +73,7 @@ function RenderTab({ meta }: { meta: Meta }) {
       const res = await fetch("/api/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ template, locale, theme, format, data }),
+        body: JSON.stringify({ template: templateId, variant: variant || undefined, locale, theme, format, data }),
       }).then((r) => r.json());
       if (res.error) {
         setError(res.error);
@@ -72,7 +81,7 @@ function RenderTab({ meta }: { meta: Meta }) {
       } else if (format === "html") {
         setHtml(res.html);
       } else {
-        download(res.base64, `${template}.${format}`, MIME[format]!);
+        download(res.base64, `${templateId}${variant ? "-" + variant : ""}.${format}`, MIME[format]!);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -85,10 +94,17 @@ function RenderTab({ meta }: { meta: Meta }) {
     <div style={S.cols}>
       <section style={S.panel}>
         <Field label="Template">
-          <select value={template} onChange={(e) => setTemplate(e.target.value)} style={S.input}>
-            {meta.templates.map((t) => <option key={t}>{t}</option>)}
+          <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} style={S.input}>
+            {meta.templates.map((t) => <option key={t.id}>{t.id}</option>)}
           </select>
         </Field>
+        {template?.variants && (
+          <Field label="Variant">
+            <select value={variant} onChange={(e) => setVariant(e.target.value)} style={S.input}>
+              {template.variants.map((v) => <option key={v}>{v}</option>)}
+            </select>
+          </Field>
+        )}
         <Field label="Locale (used by `localized`)">
           <select value={locale} onChange={(e) => setLocale(e.target.value)} style={S.input}>
             {meta.locales.map((l) => <option key={l}>{l}</option>)}
@@ -103,7 +119,7 @@ function RenderTab({ meta }: { meta: Meta }) {
         </Field>
         {needsData && (
           <Field label="Payload (typed — invalid data fails validation)">
-            <textarea value={dataText} onChange={(e) => setDataText(e.target.value)} rows={6} style={{ ...S.input, fontFamily: "monospace" }} />
+            <textarea value={dataText} onChange={(e) => setDataText(e.target.value)} rows={8} style={{ ...S.input, fontFamily: "monospace" }} />
           </Field>
         )}
         <h3 style={S.h3}>Theme</h3>
@@ -155,31 +171,77 @@ function DiffTab({ meta }: { meta: Meta }) {
   );
 }
 
+/**
+ * A generic Theme editor: walks the whole Theme object and renders an input per leaf token
+ * (number / colour / text / number[]) so every token is editable — not just a hand-picked few.
+ */
 function ThemeEditor({ theme, onChange, onReset }: { theme: Record<string, unknown>; onChange: (t: Record<string, unknown>) => void; onReset: () => void }) {
-  // A few representative tokens; the full Theme has many more (see docs/THEMING.md).
-  const set = (path: [string, string], value: unknown) => {
+  const set = (path: string[], value: unknown) => {
     const next = structuredClone(theme);
-    (next[path[0]] as Record<string, unknown>)[path[1]] = value;
+    let node = next as Record<string, unknown>;
+    for (let i = 0; i < path.length - 1; i++) node = node[path[i]!] as Record<string, unknown>;
+    node[path[path.length - 1]!] = value;
     onChange(next);
   };
-  const num = (g: string, k: string) => (theme[g] as Record<string, number>)[k];
-  const str = (g: string, k: string) => (theme[g] as Record<string, string>)[k];
   return (
     <>
-      <Field label="Title size (pt)"><input type="number" value={num("fontSize", "title")} onChange={(e) => set(["fontSize", "title"], Number(e.target.value))} style={S.input} /></Field>
-      <Field label="Paragraph size (pt)"><input type="number" value={num("fontSize", "paragraph")} onChange={(e) => set(["fontSize", "paragraph"], Number(e.target.value))} style={S.input} /></Field>
-      <Field label="Text colour"><input type="color" value={str("color", "text")} onChange={(e) => set(["color", "text"], e.target.value)} /></Field>
-      <Field label="Table border colour"><input type="color" value={str("table", "borderColor")} onChange={(e) => set(["table", "borderColor"], e.target.value)} /></Field>
-      <Field label="Signature role colour"><input type="color" value={str("signatures", "roleColor")} onChange={(e) => set(["signatures", "roleColor"], e.target.value)} /></Field>
-      <button style={S.tab} onClick={onReset}>Reset theme</button>
+      {Object.entries(theme).map(([group, value]) => (
+        <details key={group} style={S.group}>
+          <summary style={S.summary}>{group}</summary>
+          <div style={{ paddingTop: 8 }}>
+            <Leaf label="" value={value} path={[group]} set={set} />
+          </div>
+        </details>
+      ))}
+      <button style={{ ...S.tab, marginTop: 6 }} onClick={onReset}>Reset theme</button>
     </>
   );
+}
+
+function Leaf({ label, value, path, set }: { label: string; value: unknown; path: string[]; set: (p: string[], v: unknown) => void }) {
+  // Nested group (e.g. fontSize.title) — recurse.
+  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+    return (
+      <>
+        {Object.entries(value as Record<string, unknown>).map(([k, v]) => (
+          <Leaf key={k} label={k} value={v} path={[...path, k]} set={set} />
+        ))}
+      </>
+    );
+  }
+  // number[] (e.g. article.headingFontSize) — one number input per entry.
+  if (Array.isArray(value)) {
+    return (
+      <Field label={label}>
+        <div style={{ display: "flex", gap: 6 }}>
+          {value.map((n, i) => (
+            <input
+              key={i}
+              type="number"
+              value={n as number}
+              onChange={(e) => set(path, value.map((x, j) => (j === i ? Number(e.target.value) : x)))}
+              style={{ ...S.input, width: 64 }}
+            />
+          ))}
+        </div>
+      </Field>
+    );
+  }
+  if (typeof value === "number") {
+    return <Field label={label}><input type="number" value={value} onChange={(e) => set(path, Number(e.target.value))} style={S.input} /></Field>;
+  }
+  if (typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value)) {
+    // `<input type="color">` only round-trips 6-char #rrggbb; anything else falls through to text.
+    return <Field label={label}><input type="color" value={value} onChange={(e) => set(path, e.target.value)} /></Field>;
+  }
+  // Any other string (e.g. page.size "A4").
+  return <Field label={label}><input type="text" value={String(value)} onChange={(e) => set(path, e.target.value)} style={S.input} /></Field>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label style={{ display: "block", marginBottom: 10 }}>
-      <div style={{ fontSize: 12, color: "#555", marginBottom: 3 }}>{label}</div>
+      {label && <div style={{ fontSize: 12, color: "#555", marginBottom: 3 }}>{label}</div>}
       {children}
     </label>
   );
@@ -198,7 +260,7 @@ function download(base64: string, name: string, mime: string) {
 const S: Record<string, React.CSSProperties> = {
   page: { maxWidth: 1100, margin: "0 auto", padding: 24, fontFamily: "system-ui, sans-serif", color: "#111" },
   muted: { color: "#666" },
-  cols: { display: "grid", gridTemplateColumns: "340px 1fr", gap: 20, alignItems: "start" },
+  cols: { display: "grid", gridTemplateColumns: "360px 1fr", gap: 20, alignItems: "start" },
   panel: { border: "1px solid #ddd", borderRadius: 8, padding: 16 },
   preview: { border: "1px solid #ddd", borderRadius: 8, padding: 16, minHeight: 300, background: "#fff" },
   input: { width: "100%", padding: "6px 8px", border: "1px solid #ccc", borderRadius: 4, boxSizing: "border-box" },
@@ -206,5 +268,7 @@ const S: Record<string, React.CSSProperties> = {
   tabOn: { padding: "6px 12px", border: "1px solid #111", borderRadius: 6, background: "#111", color: "#fff", cursor: "pointer" },
   primary: { marginTop: 10, padding: "8px 16px", border: "none", borderRadius: 6, background: "#0a7", color: "#fff", cursor: "pointer", fontWeight: 600 },
   h3: { fontSize: 14, margin: "14px 0 8px" },
+  group: { border: "1px solid #eee", borderRadius: 6, padding: "6px 10px", marginBottom: 6 },
+  summary: { cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#333" },
   error: { whiteSpace: "pre-wrap", color: "#b00020", background: "#fff0f2", padding: 8, borderRadius: 4, marginTop: 10 },
 };

@@ -9,6 +9,9 @@ import { escapeHtml, eighths, halfPoints, twips, type CustomBlock } from "../src
  * a special layout the single-row core `signatures` node cannot express. A consumer registers it
  * code-side (`renderDocument({ customBlocks: { "signature-grid": signatureGrid } })`) and references
  * it from a template with `custom: { component: "signature-grid", props: { signatories, columns } }`.
+ *
+ * NOTE: `examples/demo/vite.config.ts` inlines an equivalent of this block (createElement instead of
+ * JSX) so the demo server can register it — keep the two in sync.
  */
 export const signatureGridSchema = z.object({
   signatories: z.array(z.object({ name: z.string(), role: z.string().optional() })),
