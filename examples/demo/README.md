@@ -1,19 +1,21 @@
 # legal-docs demo
 
-A minimal **Vite + React** app to try `@petrpus/legal-docs` hands-on: pick a template, switch locale
-and format, restyle live via a few **Theme** tokens, edit a typed payload (and watch validation fail),
-and view a **Clause diff** rendered to HTML.
+A minimal **Vite + React** app to try `@petrpus/legal-docs` hands-on: pick a template (and variant),
+switch locale and format, restyle live via the **whole Theme** token surface, edit a typed payload
+(and watch validation fail), and view a **Clause diff** rendered to HTML.
 
 ## How it works
 
 PDF, DOCX and the file Catalog are **Node-side**, so rendering runs in the Vite **dev server** (a tiny
-API in `vite.config.ts`); the browser only sends `{ template, locale, theme, data, format }` and
-displays the returned **HTML** (or downloads the **PDF/DOCX** binary). This is the seam a real app puts
-behind its own server — the React client never imports the library.
+API in `vite.config.ts`); the browser only sends `{ template, variant, locale, theme, data, format }`
+and displays the returned **HTML** (or downloads the **PDF/DOCX** binary). This is the seam a real app
+puts behind its own server — the React client never imports the library. The server also holds the
+code-side pieces some templates need (payload **schemas**, **derivations**, and the signature-grid
+**Custom block**), keyed by template.
 
 ```
-React UI ──POST /api/render {template, locale, theme, data, format}──▶ dev-server (Node) ─▶ renderDocument
-        ◀──────────────── { html }  or  { base64 } (pdf/docx) ──────────────────────────┘
+React UI ──POST /api/render {template, variant, locale, theme, data, format}──▶ dev-server (Node) ─▶ renderDocument
+        ◀──────────────────── { html }  or  { base64 } (pdf/docx) ──────────────────────────────┘
 ```
 
 ## Run
@@ -37,21 +39,30 @@ npm run dev        # → http://localhost:5173
 
 ## What you can try
 
-- **Templates** — `hello`, `agreement`, `contract`, `greeting` (typed payload), `localized` (locale-aware).
-- **Theme** — change the title/paragraph size and a few colours; re-render and see all formats restyle
-  from the one Theme (full token surface in [`../../docs/THEMING.md`](../../docs/THEMING.md)).
+- **Templates** — a broader catalog: `hello` / `agreement` / `contract` (static prose), `greeting` and
+  `parties` (typed payloads with a key/value table), `signoff` (a `signatures` block), `terms`
+  (`for`/`if` control flow + code-side **derivations** that pick a Clause version by party count),
+  `localized` (locale-aware), and `signature-grid` (a **Custom block**).
+- **Variants** — `pledge-agreement` is a Variant **family**: pick `two-party` / `three-party` and the
+  `security` slot resolves to a different Clause version.
+- **Theme** — the editor walks the **whole Theme** object, so every token is editable (sizes, spacing,
+  indents, colours, table & signature styling); re-render and see all formats restyle from the one
+  Theme (reference in [`../../docs/THEMING.md`](../../docs/THEMING.md)).
 - **Locale** — render `localized` in `en` vs `cs` (the per-render `locale` override).
-- **Fields & validation** — edit `greeting`'s payload JSON; invalid data fails schema validation and the
+- **Fields & validation** — edit any typed payload's JSON; invalid data fails schema validation and the
   error is shown.
+- **Custom block** — `signature-grid` shows the escape hatch: a multi-column signature grid the core
+  `signatures` node can't express, rendered across html/pdf/docx (source: [`../signature-grid.tsx`](../signature-grid.tsx)).
 - **Formats** — `html` previews inline; `pdf` / `docx` download.
 - **Clause diff** — diff two versions of the `counterparts` Clause, rendered via `renderClauseDiff`.
 
 ## A note on safety
 
 The preview uses `dangerouslySetInnerHTML` on the library's HTML output. That is safe **here** because
-the renderer escapes all core-emitted text (incl. the payload you type) and only sample templates with
-no Custom blocks are used. If you register an HTML Custom block (its output is trusted and inserted
-raw) or feed user-authored templates, you reintroduce an XSS surface — sanitize accordingly.
+the renderer escapes all core-emitted text (incl. the payload you type), and the one Custom block in
+this demo (`signature-grid`) escapes its own data with the library's `escapeHtml`. A Custom block's
+HTML output is inserted **raw** and trusted — if you register one that emits unescaped user input, or
+feed user-authored templates, you reintroduce an XSS surface. Sanitize accordingly.
 
 ## What this demo does NOT include
 
