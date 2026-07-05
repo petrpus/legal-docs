@@ -19,6 +19,15 @@ const MIME: Record<string, string> = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 };
 
+// Known enum Theme tokens, rendered as a <select> in the editor (matched by the token's current value).
+// Safe because the Theme has no free-form string tokens today (every string leaf is a #rrggbb colour or
+// one of these enums); a free-form string token whose value equalled "left"/"A4"/… would need path-based
+// detection instead.
+const ENUMS: readonly string[][] = [
+  ["left", "center", "right", "justify"], // align.title / align.paragraph
+  ["A4", "LETTER"], // page.size
+];
+
 export function App() {
   const [meta, setMeta] = useState<Meta>();
   const [tab, setTab] = useState<"render" | "diff">("render");
@@ -234,7 +243,18 @@ function Leaf({ label, value, path, set }: { label: string; value: unknown; path
     // `<input type="color">` only round-trips 6-char #rrggbb; anything else falls through to text.
     return <Field label={label}><input type="color" value={value} onChange={(e) => set(path, e.target.value)} /></Field>;
   }
-  // Any other string (e.g. page.size "A4").
+  // Enum tokens (alignment, page size) render as a <select>, detected by the current value.
+  const options = ENUMS.find((o) => o.includes(value as string));
+  if (typeof value === "string" && options) {
+    return (
+      <Field label={label}>
+        <select value={value} onChange={(e) => set(path, e.target.value)} style={S.input}>
+          {options.map((o) => <option key={o}>{o}</option>)}
+        </select>
+      </Field>
+    );
+  }
+  // Any other free-form string.
   return <Field label={label}><input type="text" value={String(value)} onChange={(e) => set(path, e.target.value)} style={S.input} /></Field>;
 }
 

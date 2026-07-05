@@ -42,12 +42,16 @@ npm run dev        # → http://localhost:5173
 - **Templates** — a broader catalog: `hello` / `agreement` / `contract` (static prose), `greeting` and
   `parties` (typed payloads with a key/value table), `signoff` (a `signatures` block), `terms`
   (`for`/`if` control flow + code-side **derivations** that pick a Clause version by party count),
-  `localized` (locale-aware), and `signature-grid` (a **Custom block**).
+  `localized` (locale-aware), `signature-grid` (a **Custom block**), and `styled` (per-block
+  **alignment + indentation**, ADR-0008).
 - **Variants** — `pledge-agreement` is a Variant **family**: pick `two-party` / `three-party` and the
   `security` slot resolves to a different Clause version.
 - **Theme** — the editor walks the **whole Theme** object, so every token is editable (sizes, spacing,
-  indents, colours, table & signature styling); re-render and see all formats restyle from the one
-  Theme (reference in [`../../docs/THEMING.md`](../../docs/THEMING.md)).
+  alignment, indents, colours, table & signature styling); enum tokens (alignment, page size) render as
+  a dropdown. Re-render and see all formats restyle from the one Theme (reference in
+  [`../../docs/THEMING.md`](../../docs/THEMING.md)).
+- **Block styling** — the `styled` template shows per-block **alignment** (centre / right / justify) and
+  **indentation** (block left + first-line); tweak `theme.align`/`theme.indent` to change the defaults.
 - **Locale** — render `localized` in `en` vs `cs` (the per-render `locale` override).
 - **Fields & validation** — edit any typed payload's JSON; invalid data fails schema validation and the
   error is shown.
