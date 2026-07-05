@@ -4,6 +4,18 @@ export { FileCatalogStore } from "./catalog/file-catalog-store";
 export { diffRichText } from "./core/clause-diff";
 export type { ClauseDiff, ClauseDiffChange } from "./core/clause-diff";
 export type { CatalogStore } from "./catalog/catalog-store";
+export { isEditableStore } from "./catalog/editable-catalog-store";
+export type {
+  EditableCatalogStore,
+  Actor,
+  ElementStatus,
+  ElementRef,
+  ElementContent,
+  DraftRef,
+  DraftHandle,
+  PublishResult,
+} from "./catalog/editable-catalog-store";
+export type { AuditEntry, AuditAction } from "./catalog/audit";
 export type {
   ValidationResult,
   ValidationFinding,

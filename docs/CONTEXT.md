@@ -130,8 +130,19 @@ same interface — not a rewrite. The store only loads/resolves/lists; **diff, i
 `validate()` live in the Catalog layer above it**.
 
 **FileCatalogStore**:
-The file/bundle implementation of **CatalogStore** — the only store today. Versioning and diff come
-from files + Git.
+The file/bundle implementation of **CatalogStore** — the read-only, Git-gated store. Versioning and
+diff come from files + Git.
+
+**EditableCatalogStore**:
+The **write** seam (ADR-0009): a **CatalogStore** that *also* supports drafting, a status workflow, and
+an edit audit — the adapter a runtime editing API (DB-backed) implements. It **extends** CatalogStore,
+never mutates it. Invariant: the read methods surface **only Published** content, so drafts are
+invisible to `@latest` and to every existing reader.
+
+**Draft / In-review / Published**:
+The three **statuses** of an editable revision. `Draft` → `In-review` (submit) → `Published` (publish);
+`Published` is terminal and **immutable**. Editing wording = a new **Draft** version; a translation is
+an additive locale row. _Avoid_: "unpublished" as a synonym — say `Draft` or `In-review`.
 
 **Helper registry** / **Custom-block registry** / **Theme registry** / **Font registry**:
 Code-side registrations, **not** part of the **Catalog**. The Helper registry whitelists pure
@@ -140,6 +151,12 @@ renderer-native implementations for `kind: custom`; Theme/Font registries hold c
 styling assets. "Registry" is never used bare — always qualified.
 
 ### Snapshot & audit
+
+**Content audit** vs **Edit audit**:
+Two orthogonal trails. The **content audit** (the **Snapshot**'s `ClausePin`s) freezes *which element
+versions went into a rendered document* — "what was in this document". The **edit audit**
+(`AuditEntry`, written by an **EditableCatalogStore**) records *who changed the catalog, when, and
+through which status transition* — "who changed the content". Never conflate the two.
 
 **Snapshot**:
 The immutable, serializable record a generation produces for audit and deterministic re-render. Its

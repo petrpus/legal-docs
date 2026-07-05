@@ -3,8 +3,14 @@ import type { Clause } from "../core/clause";
 
 /**
  * The persistence seam: how the Catalog loads authored content. The default implementation is
- * FileCatalogStore (files + Git); a future DB-backed editing API is another adapter of this same
- * interface.
+ * FileCatalogStore (files + Git); a DB-backed editing API is another adapter of this same interface
+ * (see `EditableCatalogStore`, ADR-0009).
+ *
+ * INVARIANT (ADR-0009): every method here surfaces **only published** content. Drafts are reachable
+ * exclusively through `EditableCatalogStore`. This is what makes `@latest` resolve to the newest
+ * *published* clause version (`clauseVersions` returns only published versions) without any change to
+ * `Catalog.latestVersion`. For `FileCatalogStore` this holds trivially: files are Git-gated, so every
+ * present row is published.
  */
 export interface CatalogStore {
   /** Ids of all templates available in the store. */
