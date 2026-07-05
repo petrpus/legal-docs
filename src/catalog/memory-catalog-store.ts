@@ -42,13 +42,19 @@ export class MemoryCatalogStore implements CatalogStore {
       for (const v of f.variants ?? []) vs.set(v.variant, v);
       this.variants.set(f.base.base, vs);
     }
-    for (const c of seed.clauses ?? []) {
-      const byVersion = this.clauses.get(c.clause) ?? new Map<number, Map<string, Clause>>();
-      const byLocale = byVersion.get(c.version) ?? new Map<string, Clause>();
-      byLocale.set(c.locale, c);
-      byVersion.set(c.version, byLocale);
-      this.clauses.set(c.clause, byVersion);
-    }
+    for (const c of seed.clauses ?? []) this.putClause(c);
+  }
+
+  /**
+   * Insert (or overwrite) one published clause locale row. `protected` so an editable subclass can
+   * write a published row on publish (ADR-0009) — the sole way the published clause set grows.
+   */
+  protected putClause(c: Clause): void {
+    const byVersion = this.clauses.get(c.clause) ?? new Map<number, Map<string, Clause>>();
+    const byLocale = byVersion.get(c.version) ?? new Map<string, Clause>();
+    byLocale.set(c.locale, c);
+    byVersion.set(c.version, byLocale);
+    this.clauses.set(c.clause, byVersion);
   }
 
   templateIds(): Promise<string[]> {
