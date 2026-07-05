@@ -66,6 +66,29 @@ describe("catalog.editing — publish gate (ADR-0009)", () => {
   });
 });
 
+describe("catalog.editing — template publish gate", () => {
+  const tRef: ElementRef = { kind: "template", id: "doc" };
+  const templateContent = (body: Template["body"]): ElementContent => ({ kind: "template", template: { template: "doc", version: 0, locale: "en", body } });
+
+  it("blocks publishing a template draft that references a missing clause", async () => {
+    const store = new MemoryEditableCatalogStore({}, { now: () => "2026-01-01T00:00:00Z" });
+    const cat = Catalog.fromStore(store);
+    const h = await cat.editing.createDraft({ ref: tRef, content: templateContent([{ clause: "ghost@latest" }]), actor });
+    await cat.editing.submitForReview(h.draft, actor);
+    await expect(cat.editing.publish(h.draft, actor)).rejects.toBeInstanceOf(PublishValidationError);
+    expect(await store.templateIds()).toEqual([]); // nothing published
+  });
+
+  it("publishes a clean template draft through the gate", async () => {
+    const store = new MemoryEditableCatalogStore({}, { now: () => "2026-01-01T00:00:00Z" });
+    const cat = Catalog.fromStore(store);
+    const h = await cat.editing.createDraft({ ref: tRef, content: templateContent([{ paragraph: "hi" }]), actor });
+    await cat.editing.submitForReview(h.draft, actor);
+    await expect(cat.editing.publish(h.draft, actor)).resolves.toMatchObject({ version: 1 });
+    expect(await store.templateIds()).toEqual(["doc"]);
+  });
+});
+
 describe("catalog.editing — review + access", () => {
   it("previews the diff of a draft against the published latest", async () => {
     const store = new MemoryEditableCatalogStore(

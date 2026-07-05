@@ -34,8 +34,8 @@ export class MemoryCatalogStore implements CatalogStore {
   private readonly clauses = new Map<string, Map<number, Map<string, Clause>>>();
 
   constructor(seed: MemoryCatalogSeed = {}) {
-    for (const t of seed.templates ?? []) this.templates.set(t.template, t);
-    for (const i of seed.includes ?? []) this.includes.set(i.id, i);
+    for (const t of seed.templates ?? []) this.putTemplate(t);
+    for (const i of seed.includes ?? []) this.putInclude(i);
     for (const f of seed.families ?? []) {
       this.bases.set(f.base.base, f.base);
       const vs = new Map<string, Variant>();
@@ -55,6 +55,16 @@ export class MemoryCatalogStore implements CatalogStore {
     byLocale.set(c.locale, c);
     byVersion.set(c.version, byLocale);
     this.clauses.set(c.clause, byVersion);
+  }
+
+  /** Insert (or overwrite) the published Template. `protected` so an editable subclass can publish. */
+  protected putTemplate(t: Template): void {
+    this.templates.set(t.template, t);
+  }
+
+  /** Insert (or overwrite) the published Include. `protected` so an editable subclass can publish. */
+  protected putInclude(i: Include): void {
+    this.includes.set(i.id, i);
   }
 
   templateIds(): Promise<string[]> {
