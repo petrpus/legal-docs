@@ -20,6 +20,8 @@ export type {
   PublishResult,
 } from "./catalog/editable-catalog-store";
 export type { AuditEntry, AuditAction } from "./catalog/audit";
+export { PublishValidationError } from "./catalog/editing-facade";
+export type { EditingApi } from "./catalog/editing-facade";
 export type {
   ValidationResult,
   ValidationFinding,
