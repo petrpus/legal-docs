@@ -48,8 +48,12 @@ It is **feature-complete and publish-ready** but not yet published to npm.
 ### Block-level styling (ADR-0008)
 - **Text alignment** on `title`/`paragraph` — `left | center | right | justify` — as both a Theme
   default (`theme.align.{title,paragraph}`) and a per-block authoring override that wins over it.
-- Authoring gains an object form: `- title: { text, align }` (the string shorthand is unchanged and
-  equivalent). Applied consistently across PDF (`textAlign`), HTML (class CSS + inline override) and
-  DOCX (`AlignmentType`). `defaultTheme` stays all-`left`, so existing output is unchanged.
+- **Indentation** on `title`/`paragraph` — first-line (`firstLineIndent`) and block left (`indent`),
+  in design points — with Theme paragraph defaults (`theme.indent.{firstLine,block}`) and per-block
+  overrides. PDF `textIndent`/`marginLeft`, HTML `text-indent`/`margin-left`, DOCX `w:ind` (twips).
+- Authoring gains an object form: `- title: { text, align, indent, firstLineIndent }` (the string
+  shorthand is unchanged and equivalent); styling props are guarded to their types at assembly (engine
+  throw + catalog-lint finding). `defaultTheme` stays all-`left`/zero-indent, so existing output is
+  unchanged.
 
 [Unreleased]: https://github.com/petrpus/legal-docs

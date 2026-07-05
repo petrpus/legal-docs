@@ -10,7 +10,9 @@ export function themeCss(t: Theme): string {
   return [
     `.legal-doc{color:${t.color.text};font-family:serif;font-size:${t.fontSize.paragraph}px;}`,
     `.legal-doc .title{font-size:${t.fontSize.title}px;font-weight:bold;margin:0 0 ${t.spacing.title}px;text-align:${t.align.title};}`,
-    `.legal-doc p{margin:0 0 ${t.spacing.paragraph}px;text-align:${t.align.paragraph};}`,
+    // Paragraph defaults incl. block indent (left margin) and first-line indent; a per-block override
+    // emits an inline style that wins over this rule (ADR-0008).
+    `.legal-doc p{margin:0 0 ${t.spacing.paragraph}px ${t.indent.block}px;text-align:${t.align.paragraph};text-indent:${t.indent.firstLine}px;}`,
     `.legal-doc .article{margin-bottom:${t.article.gap}px;}`,
     `.legal-doc .article[data-level="2"],.legal-doc .article[data-level="3"]{margin-left:${t.article.indentPerLevel}px;}`,
     `.legal-doc .article__heading{font-weight:bold;margin-bottom:${t.spacing.paragraph}px;}`,

@@ -19,6 +19,14 @@ export function isAlign(value: unknown): value is Align {
   return typeof value === "string" && (ALIGN_VALUES as readonly string[]).includes(value);
 }
 
+/** Per-block indentation override (design points); an absent side inherits the Theme default (ADR-0008). */
+export interface BlockIndent {
+  /** First-line indent. */
+  firstLine?: number;
+  /** Left edge shift of the whole block. */
+  left?: number;
+}
+
 export interface PartyIdentification {
   name: string;
   kind?: "person" | "company";
@@ -37,10 +45,10 @@ export interface SignaturePlace {
 }
 
 export type DocumentNode =
-  // `align` carries an authored per-block override (ADR-0008); when absent the renderer applies the
-  // Theme default (`theme.align.title` / `theme.align.paragraph`).
-  | { kind: "title"; text: InlineRich; align?: Align }
-  | { kind: "paragraph"; text: InlineRich; align?: Align }
+  // `align`/`indent` carry authored per-block overrides (ADR-0008); when absent the renderer applies
+  // the Theme default (`theme.align.*`, `theme.indent.*`). `indent` is in design points.
+  | { kind: "title"; text: InlineRich; align?: Align; indent?: BlockIndent }
+  | { kind: "paragraph"; text: InlineRich; align?: Align; indent?: BlockIndent }
   | { kind: "richText"; value: RichTextV1 }
   | { kind: "article"; no: string; level: number; heading?: InlineRich; body: DocumentNode[] }
   | { kind: "numberedList"; items: DocumentNode[][] }

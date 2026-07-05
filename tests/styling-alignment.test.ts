@@ -4,6 +4,7 @@ import { assembleTree } from "../src/core/engine";
 import type { Template } from "../src/core/template";
 import { renderTreeToHtml } from "../src/render-html/render-html";
 import { renderTreeToDocx } from "../src/render-docx/render-docx";
+import { renderTreeToBuffer } from "../src/render-pdf/render-pdf";
 import { defaultTheme } from "../src/render-pdf/theme";
 import type { DocumentTree } from "../src/core/document-tree";
 
@@ -53,6 +54,26 @@ describe("block-level alignment (ADR-0008)", () => {
       const body = [{ paragraph: { text: "X", align: "centre" } }] as unknown as Template["body"];
       await expect(assembleTree(tmpl(body))).rejects.toThrow(/Invalid paragraph align "centre"/);
     });
+
+    it("maps authoring indent/firstLineIndent onto the node's { left, firstLine }", async () => {
+      expect(
+        await assembleTree(tmpl([{ paragraph: { text: "X", indent: 24, firstLineIndent: 18 } }])),
+      ).toEqual([{ kind: "paragraph", text: "X", indent: { firstLine: 18, left: 24 } }]);
+    });
+
+    it("omits indent on the node when neither is authored", async () => {
+      expect(await assembleTree(tmpl([{ paragraph: "X" }]))).toEqual([{ kind: "paragraph", text: "X" }]);
+    });
+
+    it("rejects a non-numeric indent at assembly", async () => {
+      const body = [{ paragraph: { text: "X", indent: "wide" } }] as unknown as Template["body"];
+      await expect(assembleTree(tmpl(body))).rejects.toThrow(/Invalid paragraph indent "wide"; expected a non-negative number/);
+    });
+
+    it("rejects a negative indent at assembly (non-negative only in v1)", async () => {
+      const body = [{ paragraph: { text: "X", firstLineIndent: -5 } }] as unknown as Template["body"];
+      await expect(assembleTree(tmpl(body))).rejects.toThrow(/Invalid paragraph firstLineIndent "-5"; expected a non-negative number/);
+    });
   });
 
   describe("HTML renderer", () => {
@@ -84,6 +105,36 @@ describe("block-level alignment (ADR-0008)", () => {
       const html = renderTreeToHtml([{ kind: "paragraph", text: "Y" }], defaultTheme);
       expect(html).toContain("<p>Y</p>");
     });
+
+    it("emits Theme paragraph indent defaults in the class CSS", () => {
+      const themed = { ...defaultTheme, indent: { firstLine: 18, block: 24 } };
+      const html = renderTreeToHtml([{ kind: "paragraph", text: "X" }], themed);
+      expect(html).toContain("text-indent:18px");
+      expect(html).toContain("margin:0 0 8px 24px"); // spacing bottom + block indent left
+    });
+
+    it("emits inline text-indent/margin-left for a per-block indent override", () => {
+      const html = renderTreeToHtml(
+        [{ kind: "paragraph", text: "X", indent: { firstLine: 12, left: 30 } }],
+        defaultTheme,
+      );
+      expect(html).toContain(`<p style="text-indent:12px;margin-left:30px">`);
+    });
+
+    it("combines align and indent overrides in one inline style", () => {
+      const html = renderTreeToHtml([{ kind: "title", text: "T", align: "center", indent: { left: 10 } }], defaultTheme);
+      expect(html).toContain(`style="text-align:center;margin-left:10px"`);
+    });
+  });
+
+  describe("PDF renderer", () => {
+    it("renders a per-block align + indent (incl. textIndent) to a valid PDF without throwing", async () => {
+      const buffer = await renderTreeToBuffer([
+        { kind: "title", text: "T", align: "center" },
+        { kind: "paragraph", text: "P", align: "justify", indent: { firstLine: 18, left: 24 } },
+      ]);
+      expect(buffer.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+    });
   });
 
   describe("DOCX renderer", () => {
@@ -111,6 +162,20 @@ describe("block-level alignment (ADR-0008)", () => {
         await renderTreeToDocx([{ kind: "partyHeader", party: { name: "Acme" }, roleLabel: "Lender" }], themed),
       );
       expect(xml).not.toContain("<w:jc");
+    });
+
+    it("emits no <w:ind> for the zero-indent default", async () => {
+      const xml = await docXml(await renderTreeToDocx([{ kind: "paragraph", text: "P" }]));
+      expect(xml).not.toContain("<w:ind");
+    });
+
+    it("emits <w:ind> for a per-block indent override (left + firstLine → twips)", async () => {
+      const xml = await docXml(
+        await renderTreeToDocx([{ kind: "paragraph", text: "P", indent: { firstLine: 18, left: 24 } }]),
+      );
+      // 24pt → 480 twips (left), 18pt → 360 twips (firstLine).
+      expect(xml).toContain('w:left="480"');
+      expect(xml).toContain('w:firstLine="360"');
     });
   });
 });

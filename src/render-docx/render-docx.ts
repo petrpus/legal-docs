@@ -63,11 +63,19 @@ function nodeToDocx(node: DocumentNode, ctx: DocxCtx): (Paragraph | Table)[] {
           children: [run(node.text, ctx.theme.fontSize.title, { bold: true })],
           spacing: { after: twips(ctx.theme.spacing.title) },
           ...alignment(node.align ?? ctx.theme.align.title),
-          ...indent(ctx),
+          // Titles have no Theme indent default (0); only a per-block override indents them.
+          ...blockIndent(ctx, node.indent?.firstLine ?? 0, node.indent?.left ?? 0),
         }),
       ];
     case "paragraph":
-      return [textParagraph(node.text, ctx, node.align ?? ctx.theme.align.paragraph)];
+      return [
+        new Paragraph({
+          children: [run(node.text, ctx.theme.fontSize.paragraph)],
+          spacing: { after: twips(ctx.theme.spacing.paragraph) },
+          ...alignment(node.align ?? ctx.theme.align.paragraph),
+          ...blockIndent(ctx, node.indent?.firstLine ?? ctx.theme.indent.firstLine, node.indent?.left ?? ctx.theme.indent.block),
+        }),
+      ];
     case "richText":
       return node.value.blocks.map((block) => richParagraph(block, ctx));
     case "article":
@@ -105,6 +113,21 @@ function run(text: string, sizePt: number, opts: { bold?: boolean; italics?: boo
  */
 function indent(ctx: DocxCtx): { indent?: { left: number } } {
   return ctx.depth > 0 ? { indent: { left: twips(ctx.theme.article.indentPerLevel * ctx.depth) } } : {};
+}
+
+/**
+ * Title/paragraph indent (twips): the nesting depth's left indent plus the effective block-left and
+ * first-line indents (ADR-0008). Emitted only when non-zero, so the all-default case adds no XML.
+ */
+function blockIndent(ctx: DocxCtx, firstLinePt: number, leftPt: number): { indent?: { left?: number; firstLine?: number } } {
+  const depthLeft = ctx.depth > 0 ? twips(ctx.theme.article.indentPerLevel * ctx.depth) : 0;
+  const left = depthLeft + twips(leftPt);
+  const firstLine = twips(firstLinePt);
+  const out: { left?: number; firstLine?: number } = {
+    ...(left > 0 ? { left } : {}),
+    ...(firstLine > 0 ? { firstLine } : {}),
+  };
+  return "left" in out || "firstLine" in out ? { indent: out } : {};
 }
 
 const ALIGN: Record<Align, (typeof AlignmentType)[keyof typeof AlignmentType]> = {

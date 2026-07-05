@@ -1,5 +1,6 @@
 import type {
   Align,
+  BlockIndent,
   DocumentNode,
   DocumentTree,
   KeyValueRow,
@@ -41,12 +42,12 @@ export function renderTreeToHtml(
 function nodeToHtml(node: DocumentNode, cx: HtmlCtx): string {
   switch (node.kind) {
     case "title":
-      // A per-block `align` overrides the class default via inline style. `align` is guarded to the
-      // closed `Align` enum at assembly (engine `textNode` + catalog lint), so it is safe unescaped;
+      // Per-block `align`/`indent` override the class default via inline style. Both are guarded at
+      // assembly (`align` to the closed enum, `indent` to finite numbers), so they are safe unescaped;
       // `text` is still escaped.
-      return `<h1 class="title"${alignStyle(node.align)}>${escapeHtml(node.text)}</h1>`;
+      return `<h1 class="title"${blockStyle(node)}>${escapeHtml(node.text)}</h1>`;
     case "paragraph":
-      return `<p${alignStyle(node.align)}>${escapeHtml(node.text)}</p>`;
+      return `<p${blockStyle(node)}>${escapeHtml(node.text)}</p>`;
     case "richText":
       return richTextHtml(node.value);
     case "article": {
@@ -79,9 +80,13 @@ function nodeToHtml(node: DocumentNode, cx: HtmlCtx): string {
   }
 }
 
-/** Inline `style` for a per-block alignment override, or "" to fall back to the Theme's class CSS. */
-function alignStyle(align: Align | undefined): string {
-  return align === undefined ? "" : ` style="text-align:${align}"`;
+/** Inline `style` for per-block alignment/indent overrides, or "" to fall back to the Theme's class CSS. */
+function blockStyle(node: { align?: Align; indent?: BlockIndent }): string {
+  const parts: string[] = [];
+  if (node.align !== undefined) parts.push(`text-align:${node.align}`);
+  if (node.indent?.firstLine !== undefined) parts.push(`text-indent:${node.indent.firstLine}px`);
+  if (node.indent?.left !== undefined) parts.push(`margin-left:${node.indent.left}px`);
+  return parts.length === 0 ? "" : ` style="${parts.join(";")}"`;
 }
 
 function richTextHtml(value: RichTextV1): string {

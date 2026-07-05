@@ -1,5 +1,5 @@
 import type { ArticleItem, BodyItem, KeyValueRows, SignaturePlaceSpec, Template, TextSpec } from "./template";
-import type { DocumentNode, DocumentTree, KeyValueRow, SignaturePlace } from "./document-tree";
+import type { BlockIndent, DocumentNode, DocumentTree, KeyValueRow, SignaturePlace } from "./document-tree";
 import { ALIGN_VALUES, isAlign } from "./document-tree";
 import type { Clause } from "./clause";
 import { evaluate, evaluatePath, evaluatePredicate, type EvalContext } from "./expression";
@@ -123,13 +123,40 @@ async function toNode(item: BodyItem, frame: Frame, level: number): Promise<Docu
  */
 function textNode(kind: "title" | "paragraph", spec: string | TextSpec, frame: Frame): DocumentNode {
   const text = interpolate(typeof spec === "string" ? spec : spec.text, frame.evalCtx);
-  const align = typeof spec === "string" ? undefined : spec.align;
-  // The body is authored YAML (cast, not zod-validated), so guard the enum here — the single choke
-  // point every template flows through. This makes `node.align` a closed enum for every renderer.
+  if (typeof spec === "string") return { kind, text };
+  // The body is authored YAML (cast, not zod-validated), so guard the styling here — the single choke
+  // point every template flows through. This makes `align`/`indent` well-formed for every renderer.
+  const { align } = spec;
   if (align !== undefined && !isAlign(align)) {
     throw new Error(`Invalid ${kind} align "${String(align)}"; expected one of ${ALIGN_VALUES.join(", ")}`);
   }
-  return align === undefined ? { kind, text } : { kind, text, align };
+  const indent = buildIndent(kind, spec);
+  return {
+    kind,
+    text,
+    ...(align !== undefined ? { align } : {}),
+    ...(indent !== undefined ? { indent } : {}),
+  };
+}
+
+/** Map the authoring `indent`/`firstLineIndent` (points) onto the node's `{ firstLine, left }`, or undefined. */
+function buildIndent(kind: string, spec: TextSpec): BlockIndent | undefined {
+  const num = (value: unknown, name: string): number | undefined => {
+    if (value === undefined) return undefined;
+    // v1 is non-negative only; negative (hanging/outdent) is a deferred feature (ADR-0008) — rejecting
+    // it here keeps all three renderers consistent (they'd otherwise diverge on a negative value).
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+      throw new Error(`Invalid ${kind} ${name} "${String(value)}"; expected a non-negative number (design points)`);
+    }
+    return value;
+  };
+  const firstLine = num(spec.firstLineIndent, "firstLineIndent");
+  const left = num(spec.indent, "indent");
+  if (firstLine === undefined && left === undefined) return undefined;
+  return {
+    ...(firstLine !== undefined ? { firstLine } : {}),
+    ...(left !== undefined ? { left } : {}),
+  };
 }
 
 /** Build a Custom block node, deep-binding its props. The engine never touches the (code-side) registry. */
