@@ -1,0 +1,14 @@
+template: styled
+version: 1
+locale: en
+# Showcase for block-level styling (ADR-0008): per-block alignment + indentation, static text.
+body:
+  - title: { text: "STYLED DOCUMENT", align: center }
+  - paragraph:
+      text: "This recital is justified and left-indented, with an indented first line — showing block-level styling applied consistently across the PDF, HTML and DOCX renderers."
+      align: justify
+      indent: 24
+      firstLineIndent: 18
+  - paragraph: { text: "Signed at the place and on the date first written above.", align: right }
+  - title: { text: "SCHEDULE 1", align: left }
+  - paragraph: "A plain paragraph inherits the Theme defaults (left, no indent)."

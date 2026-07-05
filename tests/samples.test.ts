@@ -57,6 +57,7 @@ const samples: Record<string, SampleConfig> = {
     },
   },
   localized: {},
+  styled: {},
   "signature-grid": {
     data: {
       signatories: [

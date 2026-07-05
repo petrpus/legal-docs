@@ -119,6 +119,7 @@ async function buildSamples(l: Awaited<ReturnType<typeof loadLib>>): Promise<Sam
     agreement: {},
     contract: {},
     localized: {},
+    styled: {}, // showcase: per-block alignment + indentation (ADR-0008)
     greeting: {
       schemas: { "greeting@1": z.object({ name: z.string(), loan }) },
       data: { name: "Alice", loan: { principal: { amount: 1000, currency: "EUR" } } },
