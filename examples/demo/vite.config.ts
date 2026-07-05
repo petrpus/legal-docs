@@ -27,10 +27,16 @@ type Samples = Record<string, TemplateConfig>;
  * browser); the React client only sends template/variant/locale/theme/data and displays the returned
  * HTML or downloads the binary. This is the seam a real app would put behind its own server.
  */
+/** A fixed actor for the demo's edit audit (a real app would use the signed-in user). */
+const DEMO_ACTOR = { id: "demo", name: "Demo Editor" };
+
 function legalDocsApi(): Plugin {
   let lib: Awaited<ReturnType<typeof loadLib>> | undefined;
   let catalog: Awaited<ReturnType<typeof loadCatalog>> | undefined;
   let samples: Promise<Samples> | undefined;
+  // The editable catalog (in-memory reference store) backing the editor tab. Persists for the dev
+  // server's lifetime; the node:sqlite adapter (adapters/sqlite/) is the persistent alternative.
+  let editing: { store: EditStore; cat: EditCatalog; ids: Set<string> } | undefined;
 
   async function loadLib() {
     return import(/* @vite-ignore */ libUrl);
@@ -41,6 +47,21 @@ function legalDocsApi(): Plugin {
   }
   function getSamples(l: Awaited<ReturnType<typeof loadLib>>): Promise<Samples> {
     return (samples ??= buildSamples(l));
+  }
+  function loadEditing(l: Awaited<ReturnType<typeof loadLib>>) {
+    if (!editing) {
+      const store = new l.MemoryEditableCatalogStore({
+        clauses: [
+          { clause: "welcome", version: 1, locale: "en", vars: {}, text: "Welcome to our service." },
+          { clause: "welcome", version: 1, locale: "cs", vars: {}, text: "Vítejte v naší službě." },
+          { clause: "notice", version: 1, locale: "en", vars: {}, text: "This notice applies to all users." },
+        ],
+        // A template consuming welcome@latest, so publishing runs the validate() gate against a real consumer.
+        templates: [{ template: "letter", version: 1, locale: "en", body: [{ title: "LETTER" }, { clause: "welcome@latest" }] }],
+      });
+      editing = { store, cat: l.Catalog.fromStore(store), ids: new Set(["welcome", "notice"]) };
+    }
+    return editing;
   }
 
   return {
@@ -93,6 +114,45 @@ function legalDocsApi(): Plugin {
             const { clause, from, to } = (await readBody(req)) as DiffBody;
             const diff = await cat.clauses.diff(clause, { from, to });
             return json(res, { html: l.renderClauseDiff(diff) });
+          }
+
+          // --- Editor (ADR-0009 runtime editing API over an in-memory editable store) ---
+          if (url.startsWith("/editing")) {
+            const e = loadEditing(l);
+            if (req.method === "GET" && url === "/editing/state") {
+              return json(res, await editingState(e));
+            }
+            const b = (await readBody(req)) as EditBody;
+            const draft = { ref: { kind: "clause" as const, id: b.id }, version: b.version };
+            if (url === "/editing/create") {
+              const h = await e.cat.editing.createDraft({ ref: draft.ref, content: clauseContent(b), actor: DEMO_ACTOR });
+              e.ids.add(b.id); // only after a successful create — no phantom id on failure
+              return json(res, { draft: summary(h) });
+            }
+            if (url === "/editing/update") {
+              const h = await e.cat.editing.updateDraft({ draft, content: clauseContent(b), actor: DEMO_ACTOR });
+              return json(res, { draft: summary(h) });
+            }
+            if (url === "/editing/submit") return json(res, { draft: summary(await e.cat.editing.submitForReview(draft, DEMO_ACTOR)) });
+            if (url === "/editing/withdraw") return json(res, { draft: summary(await e.cat.editing.withdraw(draft, DEMO_ACTOR)) });
+            if (url === "/editing/delete") {
+              await e.cat.editing.deleteDraft(draft, DEMO_ACTOR);
+              return json(res, { ok: true });
+            }
+            if (url === "/editing/publish") {
+              try {
+                const published = await e.cat.editing.publish(draft, DEMO_ACTOR);
+                return json(res, { ok: true, published });
+              } catch (err) {
+                // A blocked publish is a normal result (findings), not a server error.
+                if (err instanceof l.PublishValidationError) return json(res, { ok: false, findings: err.findings });
+                throw err;
+              }
+            }
+            if (url === "/editing/diff") {
+              const diff = await e.cat.editing.previewDiff(draft, { locale: b.locale });
+              return json(res, { html: l.renderClauseDiff(diff) });
+            }
           }
           next();
         } catch (error) {
@@ -282,6 +342,51 @@ interface DiffBody {
   clause: string;
   from: number;
   to: number;
+}
+interface EditBody {
+  id: string;
+  version?: number;
+  locale: string;
+  text?: string;
+}
+
+// Loose structural types for the dynamically-loaded (dist) editable store/catalog — the demo isn't typechecked.
+type EditStore = {
+  clauseVersions(id: string): Promise<number[]>;
+  loadClause(id: string, version: number, locale: string): Promise<{ text: string }>;
+};
+type DraftLike = { draft: { ref: { kind: string; id: string }; version?: number }; status: string; content: { clause: { locale: string } }[] };
+type EditCatalog = {
+  editing: {
+    createDraft(x: unknown): Promise<DraftLike>;
+    updateDraft(x: unknown): Promise<DraftLike>;
+    submitForReview(d: unknown, a: unknown): Promise<DraftLike>;
+    withdraw(d: unknown, a: unknown): Promise<DraftLike>;
+    deleteDraft(d: unknown, a: unknown): Promise<void>;
+    publish(d: unknown, a: unknown): Promise<unknown>;
+    previewDiff(d: unknown, o: unknown): Promise<unknown>;
+    listDrafts(): Promise<DraftLike[]>;
+    auditLog(): Promise<unknown[]>;
+  };
+};
+
+function clauseContent(b: EditBody) {
+  return { kind: "clause" as const, clause: { clause: b.id, version: b.version ?? 0, locale: b.locale, vars: {}, text: b.text ?? "" } };
+}
+function summary(h: DraftLike) {
+  return { id: h.draft.ref.id, version: h.draft.version, status: h.status, locales: h.content.map((c) => c.clause.locale) };
+}
+async function editingState(e: { store: EditStore; cat: EditCatalog; ids: Set<string> }) {
+  const clauses = [];
+  for (const id of [...e.ids].sort()) {
+    const versions = await e.store.clauseVersions(id);
+    const latest = versions.at(-1);
+    const c = latest !== undefined ? await e.store.loadClause(id, latest, "en").catch(() => undefined) : undefined;
+    clauses.push({ id, versions, latestVersion: latest ?? null, latestText: c?.text ?? null });
+  }
+  const drafts = (await e.cat.editing.listDrafts()).map(summary);
+  const audit = await e.cat.editing.auditLog();
+  return { clauses, drafts, audit, actor: DEMO_ACTOR };
 }
 
 // Demo-only: reads the whole body as a string with no size limit / Content-Type check. Do not lift
