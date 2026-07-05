@@ -1,4 +1,5 @@
 import type {
+  Align,
   DocumentNode,
   DocumentTree,
   KeyValueRow,
@@ -40,9 +41,12 @@ export function renderTreeToHtml(
 function nodeToHtml(node: DocumentNode, cx: HtmlCtx): string {
   switch (node.kind) {
     case "title":
-      return `<h1 class="title">${escapeHtml(node.text)}</h1>`;
+      // A per-block `align` overrides the class default via inline style. `align` is guarded to the
+      // closed `Align` enum at assembly (engine `textNode` + catalog lint), so it is safe unescaped;
+      // `text` is still escaped.
+      return `<h1 class="title"${alignStyle(node.align)}>${escapeHtml(node.text)}</h1>`;
     case "paragraph":
-      return `<p>${escapeHtml(node.text)}</p>`;
+      return `<p${alignStyle(node.align)}>${escapeHtml(node.text)}</p>`;
     case "richText":
       return richTextHtml(node.value);
     case "article": {
@@ -73,6 +77,11 @@ function nodeToHtml(node: DocumentNode, cx: HtmlCtx): string {
       throw new Error(`Unsupported node kind: ${JSON.stringify(unhandled)}`);
     }
   }
+}
+
+/** Inline `style` for a per-block alignment override, or "" to fall back to the Theme's class CSS. */
+function alignStyle(align: Align | undefined): string {
+  return align === undefined ? "" : ` style="text-align:${align}"`;
 }
 
 function richTextHtml(value: RichTextV1): string {

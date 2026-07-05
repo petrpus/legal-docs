@@ -9,6 +9,7 @@ import { expressionTokens } from "../core/interpolate";
 import { expandIncludes, IncludeError } from "../core/includes";
 import { CompositionError } from "../core/compose";
 import { parseClauseRef } from "../core/clause-ref";
+import { ALIGN_VALUES, isAlign } from "../core/document-tree";
 
 export interface ValidationFinding {
   path: string;
@@ -129,6 +130,20 @@ async function lintBody(template: Template, path: string, ctx: LintContext): Pro
   await lintItems(body, `${path} › body`, ctx);
 }
 
+/** The interpolatable text of a title/paragraph body item (string shorthand or `TextSpec` object). */
+function textOf(spec: string | { text: string }): string {
+  return typeof spec === "string" ? spec : spec.text;
+}
+
+/** Report an invalid `align` on a title/paragraph object form as an integrity finding. */
+function checkAlign(spec: string | { align?: unknown }, path: string, ctx: LintContext): void {
+  if (typeof spec === "string" || spec.align === undefined || isAlign(spec.align)) return;
+  ctx.findings.push({
+    path,
+    message: `invalid align "${String(spec.align)}"; expected one of ${ALIGN_VALUES.join(", ")}`,
+  });
+}
+
 async function lintItems(items: BodyItem[], path: string, ctx: LintContext): Promise<void> {
   for (const [i, item] of items.entries()) {
     await lintItem(item, `${path}[${i}]`, ctx);
@@ -136,8 +151,16 @@ async function lintItems(items: BodyItem[], path: string, ctx: LintContext): Pro
 }
 
 async function lintItem(item: BodyItem, path: string, ctx: LintContext): Promise<void> {
-  if ("title" in item) return checkString(item.title, path, ctx);
-  if ("paragraph" in item) return checkString(item.paragraph, path, ctx);
+  // title/paragraph accept a string shorthand or a `{ text, align, … }` object (ADR-0008); lint the
+  // interpolated text and, for the object form, the static `align` enum (a typo would else fail at render).
+  if ("title" in item) {
+    checkAlign(item.title, path, ctx);
+    return checkString(textOf(item.title), path, ctx);
+  }
+  if ("paragraph" in item) {
+    checkAlign(item.paragraph, path, ctx);
+    return checkString(textOf(item.paragraph), path, ctx);
+  }
   if ("clause" in item) return lintClause(item, path, ctx);
   if ("article" in item) {
     if (item.article.heading !== undefined) checkString(item.article.heading, path, ctx);

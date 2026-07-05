@@ -9,8 +9,8 @@ export function themeCss(t: Theme): string {
   // `list.markerGap` is intentionally unused: HTML uses native <ol>/<ul> markers, not a manual gap.
   return [
     `.legal-doc{color:${t.color.text};font-family:serif;font-size:${t.fontSize.paragraph}px;}`,
-    `.legal-doc .title{font-size:${t.fontSize.title}px;font-weight:bold;margin:0 0 ${t.spacing.title}px;}`,
-    `.legal-doc p{margin:0 0 ${t.spacing.paragraph}px;}`,
+    `.legal-doc .title{font-size:${t.fontSize.title}px;font-weight:bold;margin:0 0 ${t.spacing.title}px;text-align:${t.align.title};}`,
+    `.legal-doc p{margin:0 0 ${t.spacing.paragraph}px;text-align:${t.align.paragraph};}`,
     `.legal-doc .article{margin-bottom:${t.article.gap}px;}`,
     `.legal-doc .article[data-level="2"],.legal-doc .article[data-level="3"]{margin-left:${t.article.indentPerLevel}px;}`,
     `.legal-doc .article__heading{font-weight:bold;margin-bottom:${t.spacing.paragraph}px;}`,

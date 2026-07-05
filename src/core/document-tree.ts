@@ -10,6 +10,15 @@ import type { RichTextV1 } from "./rich-text";
 /** Inline text model. Minimal for now; structured rich text uses RichTextV1 (`richText` node). */
 export type InlineRich = string;
 
+/** Horizontal text alignment for block-level styling (ADR-0008). */
+export const ALIGN_VALUES = ["left", "center", "right", "justify"] as const;
+export type Align = (typeof ALIGN_VALUES)[number];
+
+/** Runtime guard for the `Align` enum (authored YAML is cast, not zod-validated — see engine/lint). */
+export function isAlign(value: unknown): value is Align {
+  return typeof value === "string" && (ALIGN_VALUES as readonly string[]).includes(value);
+}
+
 export interface PartyIdentification {
   name: string;
   kind?: "person" | "company";
@@ -28,8 +37,10 @@ export interface SignaturePlace {
 }
 
 export type DocumentNode =
-  | { kind: "title"; text: InlineRich }
-  | { kind: "paragraph"; text: InlineRich }
+  // `align` carries an authored per-block override (ADR-0008); when absent the renderer applies the
+  // Theme default (`theme.align.title` / `theme.align.paragraph`).
+  | { kind: "title"; text: InlineRich; align?: Align }
+  | { kind: "paragraph"; text: InlineRich; align?: Align }
   | { kind: "richText"; value: RichTextV1 }
   | { kind: "article"; no: string; level: number; heading?: InlineRich; body: DocumentNode[] }
   | { kind: "numberedList"; items: DocumentNode[][] }

@@ -30,6 +30,7 @@ The `Theme` type (all sizes are **design points**; see units below):
 | `page` | `size` (`"A4"` \| `"LETTER"`), `padding` | Page geometry (PDF). |
 | `fontSize` | `title`, `paragraph` | Title and body text size. |
 | `color` | `text` | Base text colour (hex). |
+| `align` | `title`, `paragraph` (`"left"` \| `"center"` \| `"right"` \| `"justify"`) | Default text alignment; a per-block `align` override wins (see AUTHORING.md, ADR-0008). |
 | `spacing` | `paragraph`, `title` | Bottom margin after paragraphs / the title. |
 | `article` | `headingFontSize` (by level 1–3), `indentPerLevel`, `gap` | Article heading size, nesting indent, block gap. |
 | `list` | `indent`, `markerGap`, `gap` | List indent, marker gap, item gap. |

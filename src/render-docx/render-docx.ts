@@ -1,4 +1,5 @@
 import {
+  AlignmentType,
   BorderStyle,
   Document,
   Packer,
@@ -10,6 +11,7 @@ import {
   WidthType,
 } from "docx";
 import type {
+  Align,
   DocumentNode,
   DocumentTree,
   KeyValueRow,
@@ -60,11 +62,12 @@ function nodeToDocx(node: DocumentNode, ctx: DocxCtx): (Paragraph | Table)[] {
         new Paragraph({
           children: [run(node.text, ctx.theme.fontSize.title, { bold: true })],
           spacing: { after: twips(ctx.theme.spacing.title) },
+          ...alignment(node.align ?? ctx.theme.align.title),
           ...indent(ctx),
         }),
       ];
     case "paragraph":
-      return [textParagraph(node.text, ctx)];
+      return [textParagraph(node.text, ctx, node.align ?? ctx.theme.align.paragraph)];
     case "richText":
       return node.value.blocks.map((block) => richParagraph(block, ctx));
     case "article":
@@ -104,10 +107,32 @@ function indent(ctx: DocxCtx): { indent?: { left: number } } {
   return ctx.depth > 0 ? { indent: { left: twips(ctx.theme.article.indentPerLevel * ctx.depth) } } : {};
 }
 
-function textParagraph(text: string, ctx: DocxCtx): Paragraph {
+const ALIGN: Record<Align, (typeof AlignmentType)[keyof typeof AlignmentType]> = {
+  left: AlignmentType.LEFT,
+  center: AlignmentType.CENTER,
+  right: AlignmentType.RIGHT,
+  justify: AlignmentType.JUSTIFIED, // note: JUSTIFIED serializes to OOXML `w:jc w:val="both"`.
+};
+
+/**
+ * Paragraph alignment property. Omitted for `left` — Word's default — so the common case adds no XML
+ * (existing golden output stays clean); `center`/`right`/`justify` emit `alignment` (ADR-0008).
+ */
+function alignment(a: Align): { alignment?: (typeof AlignmentType)[keyof typeof AlignmentType] } {
+  return a === "left" ? {} : { alignment: ALIGN[a] };
+}
+
+/**
+ * `align` defaults to `left` — NOT the paragraph Theme default — because the non-node callers
+ * (`partyDocx`) are own-layout nodes that ADR-0008 keeps out of scope; a themed paragraph alignment
+ * must not leak into them. The genuine `paragraph` node passes `node.align ?? theme.align.paragraph`
+ * explicitly, so real paragraphs are unaffected.
+ */
+function textParagraph(text: string, ctx: DocxCtx, align: Align = "left"): Paragraph {
   return new Paragraph({
     children: [run(text, ctx.theme.fontSize.paragraph)],
     spacing: { after: twips(ctx.theme.spacing.paragraph) },
+    ...alignment(align),
     ...indent(ctx),
   });
 }
@@ -147,7 +172,9 @@ function listDocx(items: DocumentNode[][], ctx: DocxCtx, marker: (i: number) => 
   return items.flatMap((item, i) => {
     if (item.every(isTextNode)) {
       // Common case: a plain-text item → one paragraph with the manual marker prefix (ADR-0007
-      // flat-model approximation; inline formatting within the item is flattened to text).
+      // flat-model approximation; inline formatting within the item is flattened to text). Known
+      // limitation: a per-block `align` on a list-item paragraph is not carried here (lists are
+      // out of ADR-0008 scope); PDF/HTML do honour it. Item-level alignment can be added later.
       return [
         new Paragraph({
           children: [run(`${marker(i)}${plainText(item)}`, ctx.theme.fontSize.paragraph)],

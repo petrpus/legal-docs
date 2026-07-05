@@ -1,5 +1,6 @@
-import type { ArticleItem, BodyItem, KeyValueRows, SignaturePlaceSpec, Template } from "./template";
+import type { ArticleItem, BodyItem, KeyValueRows, SignaturePlaceSpec, Template, TextSpec } from "./template";
 import type { DocumentNode, DocumentTree, KeyValueRow, SignaturePlace } from "./document-tree";
+import { ALIGN_VALUES, isAlign } from "./document-tree";
 import type { Clause } from "./clause";
 import { evaluate, evaluatePath, evaluatePredicate, type EvalContext } from "./expression";
 import { deepBind } from "./deep-bind";
@@ -91,10 +92,8 @@ async function assembleFor(
 }
 
 async function toNode(item: BodyItem, frame: Frame, level: number): Promise<DocumentNode> {
-  if ("title" in item) return { kind: "title", text: interpolate(item.title, frame.evalCtx) };
-  if ("paragraph" in item) {
-    return { kind: "paragraph", text: interpolate(item.paragraph, frame.evalCtx) };
-  }
+  if ("title" in item) return textNode("title", item.title, frame);
+  if ("paragraph" in item) return textNode("paragraph", item.paragraph, frame);
   if ("clause" in item) return clauseNode(item, frame);
   if ("article" in item) return articleNode(item.article, frame, level);
   if ("numberedList" in item) {
@@ -114,6 +113,23 @@ async function toNode(item: BodyItem, frame: Frame, level: number): Promise<Docu
     throw new Error(`Unfilled slot "${item.slot}" reached tree assembly — compose a Variant first`);
   }
   throw new Error(`Unsupported body item: ${JSON.stringify(item)}`);
+}
+
+/**
+ * Normalize a `title`/`paragraph` body item (string shorthand or `TextSpec` object) into its node.
+ * The `text` is interpolated; an authored `align` override is carried onto the node. When no override
+ * is given the node omits `align` (identical to the pre-styling shape), so the renderer applies the
+ * Theme default and existing snapshots/golden output are unchanged (ADR-0008).
+ */
+function textNode(kind: "title" | "paragraph", spec: string | TextSpec, frame: Frame): DocumentNode {
+  const text = interpolate(typeof spec === "string" ? spec : spec.text, frame.evalCtx);
+  const align = typeof spec === "string" ? undefined : spec.align;
+  // The body is authored YAML (cast, not zod-validated), so guard the enum here — the single choke
+  // point every template flows through. This makes `node.align` a closed enum for every renderer.
+  if (align !== undefined && !isAlign(align)) {
+    throw new Error(`Invalid ${kind} align "${String(align)}"; expected one of ${ALIGN_VALUES.join(", ")}`);
+  }
+  return align === undefined ? { kind, text } : { kind, text, align };
 }
 
 /** Build a Custom block node, deep-binding its props. The engine never touches the (code-side) registry. */
