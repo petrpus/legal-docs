@@ -63,9 +63,14 @@ part of the same operation as the state change, so it can never drift from the c
 element versions went into a rendered document); the two are orthogonal and `ClausePin` is untouched.
 
 **The concrete DB adapter and the editor UI live OUTSIDE the core package.** The core depends only on
-the `EditableCatalogStore` interface. A better-sqlite3 adapter (`adapters/sqlite/`, its own deps) and a
+the `EditableCatalogStore` interface. A SQLite adapter (`adapters/sqlite/`) and a
 demo editor UI (`examples/demo/`) consume it. A guard keeps `src/**` from importing any DB driver, so
 the published package stays product-agnostic and dependency-light.
+
+> Implementation note: the SQLite adapter uses Node's **built-in `node:sqlite`** (`DatabaseSync`,
+> synchronous) rather than the originally-planned `better-sqlite3` — the same SQLite engine with **no
+> native/external dependency and no build step**. The synchronous API fits the workflow's sync-write
+> seam, and the adapter is out-of-package so its experimental-API status never reaches consumers.
 
 ## Consequences
 
