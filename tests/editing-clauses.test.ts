@@ -121,11 +121,11 @@ describe("MemoryEditableCatalogStore — clauses (ADR-0009)", () => {
     );
   });
 
-  it("rejects editing a non-clause element in this slice", async () => {
+  it("rejects editing a variant element until the variants slice", async () => {
     const s = store();
-    const templateRef: ElementRef = { kind: "template", id: "doc" };
+    const variantRef: ElementRef = { kind: "variant", family: "pledge", variant: "two-party" };
     await expect(
-      s.createDraft({ ref: templateRef, content: { kind: "template", template: { template: "doc", version: 1, locale: "en", body: [] } }, actor }),
+      s.createDraft({ ref: variantRef, content: { kind: "variant", variant: { variant: "two-party", extends: "pledge" } }, actor }),
     ).rejects.toThrow(/not yet supported/);
   });
 });

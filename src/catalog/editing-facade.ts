@@ -79,15 +79,11 @@ export function createEditingApi(store: EditableCatalogStore, validate: Validate
   };
 }
 
-/** A read store presenting `handle`'s clause rows as published over `store`'s real published set. */
+/** A read store presenting `handle`'s draft content as published over `store`'s real published set. */
 function draftPublishOverlay(store: EditableCatalogStore, handle: DraftHandle): CatalogStore {
   const ref = handle.draft.ref;
-  if (ref.kind !== "clause") return store; // non-clause overlay lands with those editing slices (#5/#6)
-  const id = ref.id;
-  const version = handle.draft.version ?? 0;
-  const rows = clauseRows(handle);
-  const locales = rows.map((r) => r.locale);
-  return {
+  // Every method delegates to the store; per-kind overrides below layer the draft in as "published".
+  const base: CatalogStore = {
     templateIds: () => store.templateIds(),
     loadTemplate: (tid) => store.loadTemplate(tid),
     loadInclude: (iid) => store.loadInclude(iid),
@@ -95,29 +91,57 @@ function draftPublishOverlay(store: EditableCatalogStore, handle: DraftHandle): 
     variantIds: (family) => store.variantIds(family),
     loadBase: (family) => store.loadBase(family),
     loadVariant: (family, variant) => store.loadVariant(family, variant),
-    clauseVersions: async (cid) => {
-      const base = await store.clauseVersions(cid);
-      return cid === id ? [...new Set([...base, version])].sort((a, b) => a - b) : base;
-    },
-    clauseLocales: async (cid, v) => {
-      const base = await store.clauseLocales(cid, v);
-      return cid === id && v === version ? [...new Set([...base, ...locales])].sort() : base;
-    },
-    loadClause: async (cid, v, locale) => {
-      if (cid === id && v === version) {
-        const exact = rows.find((r) => r.locale === locale);
-        if (exact) return exact;
-        // A new-version draft has no published rows for this version yet, so mirror the store's
-        // in-version sibling-locale fallback among the draft's OWN rows. (For an additive draft on an
-        // already-published version, fall through to the store, which holds the published rows and its
-        // own fallback.)
-        if (rows.length > 0 && (await store.clauseLocales(id, version)).length === 0) {
-          return [...rows].sort((a, b) => a.locale.localeCompare(b.locale))[0]!;
-        }
-      }
-      return store.loadClause(cid, v, locale);
-    },
+    clauseVersions: (cid) => store.clauseVersions(cid),
+    clauseLocales: (cid, v) => store.clauseLocales(cid, v),
+    loadClause: (cid, v, locale) => store.loadClause(cid, v, locale),
   };
+
+  if (ref.kind === "clause") {
+    const id = ref.id;
+    const version = handle.draft.version ?? 0;
+    const rows = clauseRows(handle);
+    const locales = rows.map((r) => r.locale);
+    return {
+      ...base,
+      clauseVersions: async (cid) => {
+        const versions = await store.clauseVersions(cid);
+        return cid === id ? [...new Set([...versions, version])].sort((a, b) => a - b) : versions;
+      },
+      clauseLocales: async (cid, v) => {
+        const ls = await store.clauseLocales(cid, v);
+        return cid === id && v === version ? [...new Set([...ls, ...locales])].sort() : ls;
+      },
+      loadClause: async (cid, v, locale) => {
+        if (cid === id && v === version) {
+          const exact = rows.find((r) => r.locale === locale);
+          if (exact) return exact;
+          // A new-version draft has no published rows yet, so mirror the store's in-version
+          // sibling-locale fallback among the draft's OWN rows. (An additive draft on a published
+          // version falls through to the store, which holds the published rows and its own fallback.)
+          if (rows.length > 0 && (await store.clauseLocales(id, version)).length === 0) {
+            return [...rows].sort((a, b) => a.locale.localeCompare(b.locale))[0]!;
+          }
+        }
+        return store.loadClause(cid, v, locale);
+      },
+    };
+  }
+
+  if (ref.kind === "template") {
+    const template = draftContent(handle, "template").template;
+    return {
+      ...base,
+      loadTemplate: (tid) => (tid === ref.id ? Promise.resolve(template) : store.loadTemplate(tid)),
+      templateIds: async () => [...new Set([...(await store.templateIds()), ref.id])].sort(),
+    };
+  }
+
+  if (ref.kind === "include") {
+    const include = draftContent(handle, "include").include;
+    return { ...base, loadInclude: (iid) => (iid === ref.id ? Promise.resolve(include) : store.loadInclude(iid)) };
+  }
+
+  return base; // base/variant overlay lands with the variants slice (#6)
 }
 
 async function clausePreviewDiff(store: EditableCatalogStore, handle: DraftHandle, locale: string): Promise<ClauseDiff> {
@@ -141,4 +165,11 @@ async function clausePreviewDiff(store: EditableCatalogStore, handle: DraftHandl
 
 function clauseRows(handle: DraftHandle): Clause[] {
   return handle.content.filter((c): c is Extract<ElementContent, { kind: "clause" }> => c.kind === "clause").map((c) => c.clause);
+}
+
+/** The sole draft content payload of the given kind (single-revision drafts). */
+function draftContent<K extends ElementContent["kind"]>(handle: DraftHandle, kind: K): Extract<ElementContent, { kind: K }> {
+  const found = handle.content.find((c) => c.kind === kind);
+  if (!found || found.kind !== kind) throw new Error(`Draft has no ${kind} content`);
+  return found as Extract<ElementContent, { kind: K }>;
 }

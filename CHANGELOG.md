@@ -59,7 +59,12 @@ It is **feature-complete and publish-ready** but not yet published to npm.
 ### Phase 7 — runtime editing API (in progress, ADR-0009)
 - The editing **contract**: `EditableCatalogStore` extends the read-only `CatalogStore` with drafting,
   a `draft → in_review → published` workflow, and an `AuditEntry` edit log. Read methods surface only
-  published content, so `@latest` = newest published with `FileCatalogStore` unchanged. `Catalog.fromStore`
-  gains its first test coverage (parity vs `fromDir`). Types only so far — behavior lands in later slices.
+  published content, so `@latest` = newest published with `FileCatalogStore` unchanged.
+- `MemoryCatalogStore` (in-memory read store) + `MemoryEditableCatalogStore` — the reference editable
+  store, covering **clauses** (versions-as-rows, per-locale, additive translations) and
+  **templates / includes** (single-revision; publish bumps a template's version). `Catalog.fromStore`
+  gains its first test coverage (parity vs `fromDir`).
+- `catalog.editing` — the runtime editing API with a **`validate()`-gated publish** (a draft that would
+  break a consuming template is blocked with `PublishValidationError`) and `previewDiff` review diffs.
 
 [Unreleased]: https://github.com/petrpus/legal-docs
