@@ -45,4 +45,11 @@ It is **feature-complete and publish-ready** but not yet published to npm.
 - Per-render **`locale`** override (with the store's fallback); pins freeze the resolved locale.
 - Rich README, `docs/THEMING.md`, packaging metadata, `CHANGELOG`, `CONTRIBUTING`.
 
+### Block-level styling (ADR-0008)
+- **Text alignment** on `title`/`paragraph` — `left | center | right | justify` — as both a Theme
+  default (`theme.align.{title,paragraph}`) and a per-block authoring override that wins over it.
+- Authoring gains an object form: `- title: { text, align }` (the string shorthand is unchanged and
+  equivalent). Applied consistently across PDF (`textAlign`), HTML (class CSS + inline override) and
+  DOCX (`AlignmentType`). `defaultTheme` stays all-`left`, so existing output is unchanged.
+
 [Unreleased]: https://github.com/petrpus/legal-docs

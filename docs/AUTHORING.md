@@ -72,6 +72,22 @@ body:
   # - custom: { component: "landscape-grid-note", props: $note }
 ```
 
+### Styling a title or paragraph (alignment)
+
+`title` and `paragraph` accept either the string shorthand or an object form that adds per-block
+style. The object's `text` is still interpolated; the style props are static (ADR-0008):
+
+```yaml
+body:
+  - title: "PLEDGE AGREEMENT"                              # shorthand — left by default
+  - title:     { text: "PLEDGE AGREEMENT", align: center } # centred heading
+  - paragraph: { text: "{{ $recital }}", align: justify }  # justified body prose
+```
+
+`align` is `left | center | right | justify`. Omit it to inherit the Theme default
+(`theme.align.title` / `theme.align.paragraph`); a per-block `align` overrides that default. The same
+alignment is applied across PDF, HTML and DOCX.
+
 ### Expression syntax
 
 - **Values:** `$path.to.value` (from the payload), `$derived.name` (from the Resolve phase),

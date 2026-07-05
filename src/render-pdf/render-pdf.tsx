@@ -30,7 +30,7 @@ function nodeToElement(
       return (
         <Text
           key={key}
-          style={{ fontSize: theme.fontSize.title, marginBottom: theme.spacing.title }}
+          style={{ fontSize: theme.fontSize.title, marginBottom: theme.spacing.title, textAlign: node.align ?? theme.align.title }}
         >
           {node.text}
         </Text>
@@ -39,7 +39,7 @@ function nodeToElement(
       return (
         <Text
           key={key}
-          style={{ fontSize: theme.fontSize.paragraph, marginBottom: theme.spacing.paragraph }}
+          style={{ fontSize: theme.fontSize.paragraph, marginBottom: theme.spacing.paragraph, textAlign: node.align ?? theme.align.paragraph }}
         >
           {node.text}
         </Text>

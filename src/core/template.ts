@@ -4,10 +4,22 @@
  * (`if`/`for`), Includes, Slots and the `custom` escape hatch — bound against the payload at assembly.
  */
 
+import type { Align } from "./document-tree";
+
 export interface ArticleItem {
   no: string;
   heading?: string;
   body: BodyItem[];
+}
+
+/**
+ * The object form of a `title`/`paragraph` body item, carrying per-block style overrides (ADR-0008).
+ * `text` is interpolated (`{{ }}`); the style props are static. The bare string shorthand
+ * (`- title: "…"`) stays the common case and is equivalent to `{ text: "…" }`.
+ */
+export interface TextSpec {
+  text: string;
+  align?: Align;
 }
 
 /** Key-value rows: either authored literally (label/value, interpolatable) or built by a helper. */
@@ -16,8 +28,8 @@ export type KeyValueRows =
   | { fn: string; args?: unknown[] };
 
 export type BodyItem =
-  | { title: string }
-  | { paragraph: string }
+  | { title: string | TextSpec }
+  | { paragraph: string | TextSpec }
   | { clause: string; vars?: Record<string, unknown> }
   | { article: ArticleItem }
   | { numberedList: BodyItem[][] }
