@@ -15,6 +15,14 @@ interface CustomCtx {
   onDegrade?: OnDegrade;
 }
 
+/** react-pdf indent style for a title/paragraph, emitting a prop only when non-zero (ADR-0008). */
+function indentStyle(firstLine: number, left: number): { textIndent?: number; marginLeft?: number } {
+  return {
+    ...(firstLine ? { textIndent: firstLine } : {}),
+    ...(left ? { marginLeft: left } : {}),
+  };
+}
+
 /**
  * The PDF Renderer: a visitor over the DocumentTree. The switch is exhaustive over the Core node
  * set, so adding a node kind is a compile error here until this renderer handles it.
@@ -30,7 +38,13 @@ function nodeToElement(
       return (
         <Text
           key={key}
-          style={{ fontSize: theme.fontSize.title, marginBottom: theme.spacing.title, textAlign: node.align ?? theme.align.title }}
+          style={{
+            fontSize: theme.fontSize.title,
+            marginBottom: theme.spacing.title,
+            textAlign: node.align ?? theme.align.title,
+            // Titles have no Theme indent default (0); only a per-block override indents them.
+            ...indentStyle(node.indent?.firstLine ?? 0, node.indent?.left ?? 0),
+          }}
         >
           {node.text}
         </Text>
@@ -39,7 +53,12 @@ function nodeToElement(
       return (
         <Text
           key={key}
-          style={{ fontSize: theme.fontSize.paragraph, marginBottom: theme.spacing.paragraph, textAlign: node.align ?? theme.align.paragraph }}
+          style={{
+            fontSize: theme.fontSize.paragraph,
+            marginBottom: theme.spacing.paragraph,
+            textAlign: node.align ?? theme.align.paragraph,
+            ...indentStyle(node.indent?.firstLine ?? theme.indent.firstLine, node.indent?.left ?? theme.indent.block),
+          }}
         >
           {node.text}
         </Text>

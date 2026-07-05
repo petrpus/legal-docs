@@ -31,6 +31,7 @@ The `Theme` type (all sizes are **design points**; see units below):
 | `fontSize` | `title`, `paragraph` | Title and body text size. |
 | `color` | `text` | Base text colour (hex). |
 | `align` | `title`, `paragraph` (`"left"` \| `"center"` \| `"right"` \| `"justify"`) | Default text alignment; a per-block `align` override wins (see AUTHORING.md, ADR-0008). |
+| `indent` | `firstLine`, `block` | Default paragraph indentation (first-line / block left); a per-block `indent`/`firstLineIndent` override wins. Titles have no indent default. |
 | `spacing` | `paragraph`, `title` | Bottom margin after paragraphs / the title. |
 | `article` | `headingFontSize` (by level 1–3), `indentPerLevel`, `gap` | Article heading size, nesting indent, block gap. |
 | `list` | `indent`, `markerGap`, `gap` | List indent, marker gap, item gap. |

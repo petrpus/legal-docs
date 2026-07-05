@@ -10,6 +10,11 @@ export interface Theme {
   color: { text: string };
   /** Default text alignment per block kind; a per-block `align` override wins (ADR-0008). */
   align: { title: Align; paragraph: Align };
+  /**
+   * Default paragraph indentation (pt): `firstLine` indents the first line, `block` shifts the whole
+   * paragraph's left edge. Titles have no indent default (0); a per-block override wins (ADR-0008).
+   */
+  indent: { firstLine: number; block: number };
   spacing: { paragraph: number; title: number };
   article: {
     /** Heading font size by level (1-based, capped at 3). */
@@ -36,6 +41,7 @@ export const defaultTheme: Theme = {
   fontSize: { title: 18, paragraph: 11 },
   color: { text: "#111111" },
   align: { title: "left", paragraph: "left" },
+  indent: { firstLine: 0, block: 0 },
   spacing: { paragraph: 8, title: 16 },
   article: { headingFontSize: [13, 12, 11], indentPerLevel: 14, gap: 6 },
   list: { indent: 14, markerGap: 6, gap: 4 },

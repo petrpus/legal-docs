@@ -20,6 +20,10 @@ export interface ArticleItem {
 export interface TextSpec {
   text: string;
   align?: Align;
+  /** Block left indent in design points (shifts the whole block). */
+  indent?: number;
+  /** First-line indent in design points. */
+  firstLineIndent?: number;
 }
 
 /** Key-value rows: either authored literally (label/value, interpolatable) or built by a helper. */

@@ -72,21 +72,27 @@ body:
   # - custom: { component: "landscape-grid-note", props: $note }
 ```
 
-### Styling a title or paragraph (alignment)
+### Styling a title or paragraph (alignment & indentation)
 
 `title` and `paragraph` accept either the string shorthand or an object form that adds per-block
 style. The object's `text` is still interpolated; the style props are static (ADR-0008):
 
 ```yaml
 body:
-  - title: "PLEDGE AGREEMENT"                              # shorthand — left by default
-  - title:     { text: "PLEDGE AGREEMENT", align: center } # centred heading
-  - paragraph: { text: "{{ $recital }}", align: justify }  # justified body prose
+  - title: "PLEDGE AGREEMENT"                                     # shorthand — left, no indent
+  - title:     { text: "PLEDGE AGREEMENT", align: center }        # centred heading
+  - paragraph: { text: "{{ $recital }}", align: justify,          # justified…
+                 indent: 24, firstLineIndent: 18 }                # …left-indented 24pt, first line +18pt
 ```
 
-`align` is `left | center | right | justify`. Omit it to inherit the Theme default
-(`theme.align.title` / `theme.align.paragraph`); a per-block `align` overrides that default. The same
-alignment is applied across PDF, HTML and DOCX.
+- **`align`** — `left | center | right | justify`.
+- **`indent`** — block left indent in **design points** (shifts the whole paragraph). Non-negative.
+- **`firstLineIndent`** — first-line indent in design points. Non-negative (negative outdent is deferred).
+
+Omit any of them to inherit the Theme default (`theme.align.*`, `theme.indent.{firstLine,block}` —
+titles have no indent default). A per-block value overrides the default. All three apply consistently
+across PDF, HTML and DOCX. (Alignment/indent on a list-item paragraph is honoured by PDF and HTML but
+not by DOCX, whose flat list model doesn't carry it — see ADR-0007/0008.)
 
 ### Expression syntax
 

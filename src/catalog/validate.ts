@@ -135,13 +135,23 @@ function textOf(spec: string | { text: string }): string {
   return typeof spec === "string" ? spec : spec.text;
 }
 
-/** Report an invalid `align` on a title/paragraph object form as an integrity finding. */
-function checkAlign(spec: string | { align?: unknown }, path: string, ctx: LintContext): void {
-  if (typeof spec === "string" || spec.align === undefined || isAlign(spec.align)) return;
-  ctx.findings.push({
-    path,
-    message: `invalid align "${String(spec.align)}"; expected one of ${ALIGN_VALUES.join(", ")}`,
-  });
+/** Report invalid `align`/`indent` styling on a title/paragraph object form as integrity findings (ADR-0008). */
+function checkTextStyle(
+  spec: string | { align?: unknown; indent?: unknown; firstLineIndent?: unknown },
+  path: string,
+  ctx: LintContext,
+): void {
+  if (typeof spec === "string") return;
+  if (spec.align !== undefined && !isAlign(spec.align)) {
+    ctx.findings.push({ path, message: `invalid align "${String(spec.align)}"; expected one of ${ALIGN_VALUES.join(", ")}` });
+  }
+  for (const name of ["indent", "firstLineIndent"] as const) {
+    const value = spec[name];
+    // Non-negative only in v1 (mirrors the engine guard; negative outdent is deferred — ADR-0008).
+    if (value !== undefined && (typeof value !== "number" || !Number.isFinite(value) || value < 0)) {
+      ctx.findings.push({ path, message: `invalid ${name} "${String(value)}"; expected a non-negative number (design points)` });
+    }
+  }
 }
 
 async function lintItems(items: BodyItem[], path: string, ctx: LintContext): Promise<void> {
@@ -154,11 +164,11 @@ async function lintItem(item: BodyItem, path: string, ctx: LintContext): Promise
   // title/paragraph accept a string shorthand or a `{ text, align, … }` object (ADR-0008); lint the
   // interpolated text and, for the object form, the static `align` enum (a typo would else fail at render).
   if ("title" in item) {
-    checkAlign(item.title, path, ctx);
+    checkTextStyle(item.title, path, ctx);
     return checkString(textOf(item.title), path, ctx);
   }
   if ("paragraph" in item) {
-    checkAlign(item.paragraph, path, ctx);
+    checkTextStyle(item.paragraph, path, ctx);
     return checkString(textOf(item.paragraph), path, ctx);
   }
   if ("clause" in item) return lintClause(item, path, ctx);

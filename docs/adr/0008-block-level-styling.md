@@ -80,5 +80,8 @@ existing tokens):
   and unthemeable. Rejected.
 - **Expression-valued align/indent** (`align: "{{ … }}"`). Deferred — static covers the cases; can be
   layered on later without changing the node/renderer contract.
+- **Negative indent (hanging indent / outdent).** Deferred — v1 rejects negative `indent`/
+  `firstLineIndent` at assembly so the three renderers stay consistent (DOCX would need `w:ind` sign
+  handling that PDF/HTML express differently). Revisit when a document needs a hanging indent.
 - **Extend to all nodes now** (lists, tables, signatures). Deferred — those own richer layout; widening
   the contract to them is a separate, larger decision.
