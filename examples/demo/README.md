@@ -59,6 +59,13 @@ npm run dev        # → http://localhost:5173
   `signatures` node can't express, rendered across html/pdf/docx (source: [`../signature-grid.tsx`](../signature-grid.tsx)).
 - **Formats** — `html` previews inline; `pdf` / `docx` download.
 - **Clause diff** — diff two versions of the `counterparts` Clause, rendered via `renderClauseDiff`.
+- **Editor (Phase 7 / ADR-0009)** — a runtime **Clause editor** over the library's editing API
+  (`catalog.editing`): create a draft new version, **submit → publish** through the `draft → in_review
+  → published` workflow, see the **old→new review diff** (`previewDiff`) and the **edit audit log**.
+  Publishing runs the `validate()` **gate** (a draft that would break a consuming template is blocked
+  with findings). Backed by the in-memory `MemoryEditableCatalogStore` (state resets when the dev
+  server restarts); the persistent alternative is the `node:sqlite` adapter in
+  [`../../adapters/sqlite/`](../../adapters/sqlite/), which passes the same conformance suite.
 
 ## A note on safety
 
