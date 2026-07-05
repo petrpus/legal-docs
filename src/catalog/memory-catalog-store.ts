@@ -37,10 +37,8 @@ export class MemoryCatalogStore implements CatalogStore {
     for (const t of seed.templates ?? []) this.putTemplate(t);
     for (const i of seed.includes ?? []) this.putInclude(i);
     for (const f of seed.families ?? []) {
-      this.bases.set(f.base.base, f.base);
-      const vs = new Map<string, Variant>();
-      for (const v of f.variants ?? []) vs.set(v.variant, v);
-      this.variants.set(f.base.base, vs);
+      this.putBase(f.base);
+      for (const v of f.variants ?? []) this.putVariant(f.base.base, v);
     }
     for (const c of seed.clauses ?? []) this.putClause(c);
   }
@@ -65,6 +63,18 @@ export class MemoryCatalogStore implements CatalogStore {
   /** Insert (or overwrite) the published Include. `protected` so an editable subclass can publish. */
   protected putInclude(i: Include): void {
     this.includes.set(i.id, i);
+  }
+
+  /** Insert (or overwrite) the published Base template. `protected` so an editable subclass can publish. */
+  protected putBase(b: BaseTemplate): void {
+    this.bases.set(b.base, b);
+  }
+
+  /** Insert (or overwrite) a published Variant of a family. `protected` so an editable subclass can publish. */
+  protected putVariant(family: string, v: Variant): void {
+    const vs = this.variants.get(family) ?? new Map<string, Variant>();
+    vs.set(v.variant, v);
+    this.variants.set(family, vs);
   }
 
   templateIds(): Promise<string[]> {
