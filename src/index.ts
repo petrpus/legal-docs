@@ -3,6 +3,8 @@ export type { ClauseDiffOptions } from "./catalog/catalog";
 export { FileCatalogStore } from "./catalog/file-catalog-store";
 export { MemoryCatalogStore } from "./catalog/memory-catalog-store";
 export type { MemoryCatalogSeed, MemoryFamily } from "./catalog/memory-catalog-store";
+export { MemoryEditableCatalogStore } from "./catalog/memory-editable-catalog-store";
+export type { MemoryEditableOptions } from "./catalog/memory-editable-catalog-store";
 export { diffRichText } from "./core/clause-diff";
 export type { ClauseDiff, ClauseDiffChange } from "./core/clause-diff";
 export type { CatalogStore } from "./catalog/catalog-store";
