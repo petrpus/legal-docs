@@ -1,14 +1,15 @@
 import type { Clause } from "../core/clause";
 import { MemoryCatalogStore } from "./memory-catalog-store";
-import type {
-  Actor,
-  DraftHandle,
-  DraftRef,
-  EditableCatalogStore,
-  ElementContent,
-  ElementRef,
-  ElementStatus,
-  PublishResult,
+import {
+  describeRef,
+  type Actor,
+  type DraftHandle,
+  type DraftRef,
+  type EditableCatalogStore,
+  type ElementContent,
+  type ElementRef,
+  type ElementStatus,
+  type PublishResult,
 } from "./editable-catalog-store";
 import type { AuditAction, AuditEntry } from "./audit";
 
@@ -246,10 +247,6 @@ function sameRef(a: ElementRef, b: ElementRef): boolean {
   if (a.kind === "clause" || a.kind === "template" || a.kind === "include") return a.id === (b as typeof a).id;
   if (a.kind === "base") return a.family === (b as typeof a).family;
   return a.family === (b as typeof a).family && a.variant === (b as typeof a).variant;
-}
-
-function describeRef(ref: ElementRef): string {
-  return ref.kind === "base" || ref.kind === "variant" ? `${ref.kind} ${ref.family}` : `${ref.kind} ${ref.id}`;
 }
 
 function notSupported(kind: string): Error {

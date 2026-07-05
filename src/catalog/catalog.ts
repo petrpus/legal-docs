@@ -1,5 +1,7 @@
 import { FileCatalogStore } from "./file-catalog-store";
 import type { CatalogStore } from "./catalog-store";
+import { isEditableStore } from "./editable-catalog-store";
+import { createEditingApi, type EditingApi } from "./editing-facade";
 import {
   validateCatalog,
   type ValidateOptions,
@@ -127,5 +129,20 @@ export class Catalog {
   /** Integrity lint: returns path-precise findings for unresolved refs, unregistered helpers, etc. */
   validate(options?: ValidateOptions): Promise<ValidationResult> {
     return validateCatalog(this, options);
+  }
+
+  private editingApi?: EditingApi;
+
+  /**
+   * The runtime editing API (ADR-0009) — drafting, the draft→in_review→published workflow, a
+   * validate()-gated publish, and review diffs. Available only when the underlying store is editable
+   * (implements `EditableCatalogStore`); throws otherwise. A stable object across accesses.
+   */
+  get editing(): EditingApi {
+    if (!isEditableStore(this.store)) {
+      throw new Error("This Catalog's store is not editable — build it over an EditableCatalogStore (e.g. MemoryEditableCatalogStore)");
+    }
+    const store = this.store;
+    return (this.editingApi ??= createEditingApi(store, (overlay, options) => Catalog.fromStore(overlay).validate(options)));
   }
 }

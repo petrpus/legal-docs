@@ -112,3 +112,8 @@ export interface EditableCatalogStore extends CatalogStore {
 export function isEditableStore(store: CatalogStore): store is EditableCatalogStore {
   return typeof (store as Partial<EditableCatalogStore>).createDraft === "function";
 }
+
+/** A short human-readable label for an element ref (for error messages). */
+export function describeRef(ref: ElementRef): string {
+  return ref.kind === "base" || ref.kind === "variant" ? `${ref.kind} ${ref.family}` : `${ref.kind} ${ref.id}`;
+}
