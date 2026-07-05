@@ -65,10 +65,10 @@ describe("MemoryEditableCatalogStore — templates & includes (ADR-0009)", () =>
     expect(log.at(-1)).toMatchObject({ to: "published", element: { kind: "template", id: "g" }, revision: { version: 1 } });
   });
 
-  it("rejects editing a base element until the variants slice", async () => {
+  it("rejects content whose kind does not match the template ref", async () => {
     const s = new MemoryEditableCatalogStore({}, { now });
     await expect(
-      s.createDraft({ ref: { kind: "base", family: "fam" }, content: { kind: "base", base: { base: "fam", version: 1, locale: "en", body: [] } }, actor }),
-    ).rejects.toThrow(/not yet supported/);
+      s.createDraft({ ref: tRef("g"), content: includeContent("g", []), actor }),
+    ).rejects.toThrow(/does not match template ref/);
   });
 });

@@ -141,7 +141,23 @@ function draftPublishOverlay(store: EditableCatalogStore, handle: DraftHandle): 
     return { ...base, loadInclude: (iid) => (iid === ref.id ? Promise.resolve(include) : store.loadInclude(iid)) };
   }
 
-  return base; // base/variant overlay lands with the variants slice (#6)
+  if (ref.kind === "base") {
+    const baseTemplate = draftContent(handle, "base").base;
+    return {
+      ...base,
+      loadBase: (family) => (family === ref.family ? Promise.resolve(baseTemplate) : store.loadBase(family)),
+      familyIds: async () => [...new Set([...(await store.familyIds()), ref.family])].sort(),
+    };
+  }
+
+  // variant — present the draft variant as published so validate() composes the family with it.
+  const variant = draftContent(handle, "variant").variant;
+  return {
+    ...base,
+    loadVariant: (family, v) => (family === ref.family && v === ref.variant ? Promise.resolve(variant) : store.loadVariant(family, v)),
+    variantIds: async (family) =>
+      family === ref.family ? [...new Set([...(await store.variantIds(family)), ref.variant])].sort() : store.variantIds(family),
+  };
 }
 
 async function clausePreviewDiff(store: EditableCatalogStore, handle: DraftHandle, locale: string): Promise<ClauseDiff> {
