@@ -56,4 +56,10 @@ It is **feature-complete and publish-ready** but not yet published to npm.
   throw + catalog-lint finding). `defaultTheme` stays all-`left`/zero-indent, so existing output is
   unchanged.
 
+### Phase 7 — runtime editing API (in progress, ADR-0009)
+- The editing **contract**: `EditableCatalogStore` extends the read-only `CatalogStore` with drafting,
+  a `draft → in_review → published` workflow, and an `AuditEntry` edit log. Read methods surface only
+  published content, so `@latest` = newest published with `FileCatalogStore` unchanged. `Catalog.fromStore`
+  gains its first test coverage (parity vs `fromDir`). Types only so far — behavior lands in later slices.
+
 [Unreleased]: https://github.com/petrpus/legal-docs
