@@ -9,11 +9,11 @@ import { resolvePayload, type DerivationRegistry } from "../core/resolve";
 import type { HelperRegistry } from "../core/helpers";
 import { buildSnapshot, type ClausePin, type Snapshot, type SnapshotMode } from "../core/snapshot";
 import { renderTreeToPdf } from "../render-pdf/render-pdf";
-import type { RenderTreeOptions } from "../render-pdf/custom-block";
+import type { RenderTreeOptions } from "../custom-block";
 import { renderTreeToHtml } from "../render-html/render-html";
 import { renderTreeToDocx } from "../render-docx/render-docx";
-import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../render-pdf/custom-block";
-import type { Theme } from "../render-pdf/theme";
+import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../custom-block";
+import type { Theme } from "../theme";
 
 export interface RenderDocumentInput {
   catalog: Catalog;

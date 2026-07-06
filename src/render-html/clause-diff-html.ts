@@ -1,6 +1,6 @@
 import { LegalDocsError } from "../core/errors";
 import type { ClauseDiff, ClauseDiffChange } from "../core/clause-diff";
-import { defaultTheme, type Theme } from "../render-pdf/theme";
+import { defaultTheme, type Theme } from "../theme";
 import { escapeHtml } from "./escape";
 
 /**

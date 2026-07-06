@@ -1,4 +1,4 @@
-import { LegalDocsError } from "../core/errors";
+import { LegalDocsError } from "./core/errors";
 import type { ReactElement } from "react";
 import type { Paragraph, Table } from "docx";
 import type { ZodType } from "zod";
@@ -23,9 +23,14 @@ export type DocxCustomBlock = (props: unknown, ctx: CustomBlockContext) => (Para
  * required; `html`/`docx` are optional (a missing one triggers the Degradation contract). An optional
  * `schema` validates `props` at render dispatch. A Custom block is a leaf — it renders its own layout.
  */
+/**
+ * A Custom block's per-format implementations (ADR-0005). **All three are optional** — register only
+ * the formats you render; a format with no implementation degrades per the {@link DegradationMode}
+ * (so an HTML-only app needn't author a react-pdf `pdf` impl). Register at least one.
+ */
 export interface CustomBlock {
   schema?: ZodType;
-  pdf: PdfCustomBlock;
+  pdf?: PdfCustomBlock;
   html?: HtmlCustomBlock;
   docx?: DocxCustomBlock;
 }

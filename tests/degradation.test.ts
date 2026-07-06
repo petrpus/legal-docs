@@ -8,8 +8,8 @@ import { createElement } from "react";
 import { Text } from "@react-pdf/renderer";
 import { renderTreeToHtml } from "../src/render-html/render-html";
 import { renderTreeToDocx } from "../src/render-docx/render-docx";
-import { defaultTheme } from "../src/render-pdf/theme";
-import type { CustomBlock, CustomBlockRegistry, DegradationEvent } from "../src/render-pdf/custom-block";
+import { defaultTheme } from "../src/theme";
+import type { CustomBlock, CustomBlockRegistry, DegradationEvent } from "../src/custom-block";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const catalogDir = path.join(here, "fixtures", "custom");

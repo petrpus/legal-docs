@@ -8,7 +8,9 @@ import { z } from "zod";
 import { Catalog } from "../src/catalog/catalog";
 import { assembleTree } from "../src/core/engine";
 import { renderDocument } from "../src/facade/render-document";
-import type { CustomBlockRegistry } from "../src/render-pdf/custom-block";
+import { renderTreeToHtml } from "../src/render-html/render-html";
+import { renderTreeToPdf } from "../src/render-pdf/render-pdf";
+import type { CustomBlockRegistry } from "../src/custom-block";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const catalogDir = path.join(here, "fixtures", "custom");
@@ -88,5 +90,14 @@ describe("custom block — render", () => {
     });
 
     expect(await text(buffer)).toContain("MARK");
+  });
+
+  it("supports an HTML-only Custom block (pdf is optional) — degrades in PDF without a pdf impl", async () => {
+    const htmlOnly: CustomBlockRegistry = { note: { html: () => "<b class='note'>NOTE</b>" } };
+    const tree = [{ kind: "custom" as const, component: "note", props: undefined }];
+    // HTML: the block renders; no `pdf` implementation is required to construct the block.
+    expect(renderTreeToHtml(tree, { customBlocks: htmlOnly })).toContain("NOTE");
+    // PDF: no pdf impl → degrades to a visible placeholder (not a type error, not a crash).
+    expect(await text(await renderTreeToPdf(tree, { customBlocks: htmlOnly }))).toContain("[unsupported block: note in pdf]");
   });
 });

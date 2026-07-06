@@ -71,6 +71,14 @@ It is **feature-complete and publish-ready** but not yet published to npm.
   behind both stores, pinned by a conformance suite run against both. A guard keeps `src/**` DB-free.
 - A **runtime Clause editor** in the demo (`examples/demo/` Editor tab).
 
+### Module layout & Custom block
+- **`Theme` and the `CustomBlock` contract moved out of `render-pdf/`** to top-level `src/theme.ts` and
+  `src/custom-block.ts` — they are cross-renderer concerns, so the HTML/DOCX renderers no longer import
+  from the PDF module (the dependency inversion is gone). Public imports are unchanged (both re-exported
+  from the package root).
+- **`CustomBlock.pdf` is now optional** — all three format slots are optional; register only the formats
+  you render (a missing one degrades). An HTML-only app no longer has to author a react-pdf `pdf` impl.
+
 ### Renderer API
 - The three tree renderers now share a coherent triad and a single options object: **`renderTreeToPdf`**
   (renamed from the return-type-named `renderTreeToBuffer` and now **exported**), `renderTreeToHtml`,
