@@ -28,6 +28,7 @@ The `Theme` type (all sizes are **design points**; see units below):
 | Group | Tokens | Drives |
 |---|---|---|
 | `page` | `size` (`"A4"` \| `"LETTER"`), `padding` | Page geometry (PDF). |
+| `font` | `family` | Font family (see **Fonts & diacritics** below). |
 | `fontSize` | `title`, `paragraph` | Title and body text size. |
 | `color` | `text` | Base text colour (hex). |
 | `align` | `title`, `paragraph` (`"left"` \| `"center"` \| `"right"` \| `"justify"`) | Default text alignment; a per-block `align` override wins (see AUTHORING.md, ADR-0008). |
@@ -38,6 +39,37 @@ The `Theme` type (all sizes are **design points**; see units below):
 | `partyHeader` | `roleFontSize`, `gap` | Party role label size and block gap. |
 | `table` | `borderColor`, `cellPadding`, `labelWidth`, `fontSize` | Key-value table styling. |
 | `signatures` | `lineWidth`, `lineColor`, `lineSpace`, `columnGap`, `gap`, `fontSize`, `roleColor` | Signature lines and labels. |
+
+## Fonts & diacritics
+
+`theme.font.family` names the font. The three renderers resolve fonts very differently:
+
+- **PDF** embeds its own font. react-pdf's built-in Helvetica is WinAnsi-only and **mangles
+  Latin-Extended diacritics** — *"Příliš žluťoučký kůň"* comes out as *"PYíliš žlueou ký koH"*. So the
+  library **bundles a diacritics-safe serif (Liberation Serif, SIL OFL)** and registers it under the
+  default family `"LegalDocs Serif"` automatically. Czech (and the rest of Latin-Extended) renders
+  correctly out of the box.
+- **HTML** uses the viewer's fonts — the CSS is `font-family: "<family>", Georgia, "Times New Roman", serif`.
+- **DOCX** sets the document-default run font to `<family>`; the reader (Word, …) substitutes if absent.
+
+**Using your own font in PDF** — register it, then point the theme at it:
+
+```ts
+import { Font, renderDocument, defaultTheme } from "@petrpus/legal-docs";
+
+Font.register({ family: "Brand Serif", fonts: [
+  { src: "./fonts/Brand-Regular.ttf" },
+  { src: "./fonts/Brand-Bold.ttf", fontWeight: "bold" },
+]});
+
+await renderDocument({
+  catalog, template: "…", format: "pdf",
+  theme: { ...defaultTheme, font: { family: "Brand Serif" } },
+});
+```
+
+Register a bold and italic face so bold/italic runs keep their diacritics. `registerBundledFonts()` (the
+default) is idempotent and re-registerable.
 
 ## How each renderer interprets the tokens
 

@@ -1,11 +1,20 @@
 import type { Align } from "../core/document-tree";
 
 /**
+ * The default font family. The PDF renderer registers a bundled diacritics-safe serif (Liberation
+ * Serif, OFL) under this name; HTML/DOCX fall back to the viewer's fonts. Defined here (not in the
+ * react-pdf font module) so `Theme` stays renderer-independent.
+ */
+export const DEFAULT_FONT_FAMILY = "LegalDocs Serif";
+
+/**
  * Theme tokens read by every renderer (PDF / HTML / DOCX). The consumer can override the theme;
  * renderers never read hard-coded styling. See docs/THEMING.md for how each renderer maps the tokens.
  */
 export interface Theme {
   page: { size: "A4" | "LETTER"; padding: number };
+  /** Font family. PDF needs it registered (bundled by default, or `Font.register` your own); HTML/DOCX use the viewer's fonts. */
+  font: { family: string };
   fontSize: { title: number; paragraph: number };
   color: { text: string };
   /** Default text alignment per block kind; a per-block `align` override wins (ADR-0008). */
@@ -38,6 +47,7 @@ export interface Theme {
 
 export const defaultTheme: Theme = {
   page: { size: "A4", padding: 48 },
+  font: { family: DEFAULT_FONT_FAMILY },
   fontSize: { title: 18, paragraph: 11 },
   color: { text: "#111111" },
   align: { title: "left", paragraph: "left" },

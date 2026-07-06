@@ -51,7 +51,11 @@ export async function renderTreeToDocx(
   // a rejected promise rather than a sync throw.
   const ctx: DocxCtx = { theme, blocks: customBlocks, degradation, onDegrade, depth: 0 };
   const children = tree.flatMap((node) => nodeToDocx(node, ctx));
-  const doc = new Document({ sections: [{ children }] });
+  // Set the document-default run font (the reader's app substitutes if it lacks the family).
+  const doc = new Document({
+    styles: { default: { document: { run: { font: theme.font.family } } } },
+    sections: [{ children }],
+  });
   return Packer.toBuffer(doc);
 }
 
