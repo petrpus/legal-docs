@@ -45,8 +45,23 @@ const docx = await renderDocument({ catalog, template: "agreement", data, format
 //    → { format: "docx", buffer, stream, snapshot, snapshotId }
 ```
 
+A template that declares a `payloadSchema` (or code-side `derivations`, `helpers`, or a `custom`
+block) needs the matching **code-side registry** passed in — these live in code, not the catalog
+(ADR-0004):
+
+```ts
+import { z } from "zod";
+await renderDocument({
+  catalog, template: "greeting", data, format: "pdf",
+  schemas: { "greeting@1": z.object({ name: z.string() }) }, // keyed by the template's payloadSchema
+  // derivations: { … }, customBlocks: { … }               // if the template uses them
+});
+```
+
 The consumer owns data fetching, persisting the output, and delivery. The library owns validation,
-tree assembly, rendering, the file catalog, versioning, diff, and Snapshots.
+tree assembly, rendering, the file catalog, versioning, diff, and Snapshots. **Czech / Latin-Extended
+diacritics render correctly in PDF out of the box** (a diacritics-safe font is bundled — see
+[Theming](#theming)).
 
 ## The authoring model
 
@@ -142,18 +157,45 @@ it per render, with fallback for a partially-translated catalog:
 await renderDocument({ catalog, template: "notice", locale: "cs", format: "html" }); // Czech clauses
 ```
 
+## Editing at runtime
+
+Beyond the file catalog, content can be edited **at runtime** through a `draft → in_review → published`
+workflow with an audit trail (ADR-0009). It's an adapter of the same `CatalogStore` seam, so the core
+stays DB-free:
+
+```ts
+import { Catalog, MemoryEditableCatalogStore } from "@petrpus/legal-docs";
+
+const catalog = Catalog.fromStore(new MemoryEditableCatalogStore(seed)); // or a persistent adapter
+const ref = { kind: "clause", id: "aml.intro" } as const;
+
+const draft = await catalog.editing.createDraft({ ref, content: { kind: "clause", clause: newVersion }, actor });
+await catalog.editing.submitForReview(draft.draft, actor);
+await catalog.editing.publish(draft.draft, actor); // runs validate() first; throws PublishValidationError if a
+                                                    // consuming template would break — @latest advances only on success
+```
+
+Drafts are invisible to `@latest` until published; published rows are immutable; `catalog.editing.previewDiff`
+renders the old→new review diff. A `node:sqlite` reference adapter lives in
+[`adapters/sqlite/`](adapters/sqlite/) (outside the published package). See the runnable
+[`examples/demo/`](examples/demo/) — Render / Clause-diff / **Editor** tabs.
+
 ## Theming
 
-Every renderer reads a configurable **Theme**; pass `renderDocument({ theme })` to restyle. See
-[`docs/THEMING.md`](docs/THEMING.md) for the token surface and how each renderer interprets units.
+Every renderer reads a configurable **Theme**; pass `renderDocument({ theme })` to restyle. Tokens cover
+sizes, spacing, colours, **block-level alignment & indentation** (per-block overrides too, ADR-0008),
+tables, signatures, and the **font**. The PDF renderer bundles a diacritics-safe serif by default, and
+`Font` is re-exported so you can register your own. See [`docs/THEMING.md`](docs/THEMING.md) for the full
+token surface, the fonts recipe, and how each renderer maps units.
 
 ## Documentation
 
-- [`docs/AUTHORING.md`](docs/AUTHORING.md) — write templates, clauses, variants, derivations, locale.
+- [`docs/AUTHORING.md`](docs/AUTHORING.md) — write templates, clauses, variants, derivations, styling, locale.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the renderer-agnostic tree, modules, data flow.
 - [`docs/CONTEXT.md`](docs/CONTEXT.md) — the ubiquitous-language glossary.
-- [`docs/THEMING.md`](docs/THEMING.md) — theme tokens and per-renderer units.
-- [`docs/adr/`](docs/adr/) — Architecture Decision Records.
+- [`docs/THEMING.md`](docs/THEMING.md) — theme tokens, fonts, per-renderer units.
+- [`docs/adr/`](docs/adr/) — Architecture Decision Records (0009 = the editing API).
+- [`examples/demo/`](examples/demo/) — a runnable Vite + React demo (render, diff, editor).
 - [`CHANGELOG.md`](CHANGELOG.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md)
 
 ## License

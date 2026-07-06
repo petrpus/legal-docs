@@ -75,8 +75,10 @@ this demo (`signature-grid`) escapes its own data with the library's `escapeHtml
 HTML output is inserted **raw** and trusted — if you register one that emits unescaped user input, or
 feed user-authored templates, you reintroduce an XSS surface. Sanitize accordingly.
 
-## What this demo does NOT include
+## Notes
 
-Live editing of clauses/templates from the UI (CRUD, draft → publish) is the future **DB-backed
-`CatalogStore` + runtime editing API** (roadmap Phase 7). Today the catalog is the file-based sample
-catalog; an app could also implement an in-memory `CatalogStore` via `Catalog.fromStore(...)`.
+- The **Render** and **Clause diff** tabs read the file-based sample catalog (`Catalog.fromDir`).
+- The **Editor** tab uses a separate in-memory editable catalog (`MemoryEditableCatalogStore` via
+  `Catalog.fromStore`), so its edits are isolated from the sample catalog and reset when the dev server
+  restarts. The persistent alternative is the `node:sqlite` adapter in
+  [`../../adapters/sqlite/`](../../adapters/sqlite/).

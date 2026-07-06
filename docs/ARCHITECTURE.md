@@ -48,8 +48,12 @@ touching the other:
    each **Renderer** is an exhaustive *visitor* over it. Author the structure once, render it to PDF,
    HTML, and DOCX. This is why layout must be abstracted away from react-pdf (today it is fused in).
 2. **`CatalogStore` — between content storage and everything above it.** The **Catalog** loads
-   authored content through this interface. Today the only implementation is **FileCatalogStore**
-   (files + Git); a future DB-backed editing API is another adapter, not a rewrite.
+   authored content through this interface. **FileCatalogStore** (files + Git) is the read-only default;
+   **`EditableCatalogStore`** extends it with a runtime editing API (drafting, a `draft → in_review →
+   published` workflow, an audit log — ADR-0009), implemented by `MemoryEditableCatalogStore` and a
+   `node:sqlite` adapter (`adapters/sqlite/`, outside the package). Both share one `EditingWorkflow`, so
+   the core stays DB-free. `catalog.editing` surfaces it (a `validate()`-gated publish); `Catalog.fromStore`
+   is the seam.
 
 ## Module layout
 

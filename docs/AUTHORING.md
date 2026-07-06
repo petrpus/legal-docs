@@ -39,38 +39,49 @@ legal-docs/
 │   └── aml.intro/
 │       ├── v1.cs.yaml
 │       └── v2.cs.yaml               # versioned, locale-tagged
-└── includes/
+└── partials/                          # shared Includes (referenced via `include:`)
     └── party-block-set.yaml
 ```
 
 ## Writing a Template
 
-A Template is a declarative tree. Its `body` is a list of items; each item references a Block, a
-Clause, an Include, inline text, or a control structure.
+A Template is a declarative tree. Its `body` is a list of items; each item is inline text
+(`title`/`paragraph`), a `clause` reference, an `article`, a list, a Block (`partyHeader`,
+`keyValueTable`, `signatures`), a control structure (`if`/`for`), an `include`, a `slot`, or the
+`custom` escape hatch. (These are fixed body-item kinds — there is no separate "block registry".)
 
 ```yaml
-template: debtor-declaration
-version: 3
-locale: cs
-payloadSchema: debtor-declaration        # the versioned zod schema this document expects
+template: loan-notice
+version: 1
+locale: en
+payloadSchema: loan-notice@1              # code-side zod schema this document validates against (optional)
+derivations: [counterpartsCount]          # names of code-side Derivations → $derived.*
 body:
-  - block: docTitle    text: "DECLARATION AND CONFIRMATION"   # inline literal text
-  - block: partyHeader  party: $borrower   roleLabel: "Borrower"
-  - clause: declaration.intro@v2           # pinned clause version
+  - title: "LOAN NOTICE"                                    # inline literal (string shorthand)
+  - title: { text: "SCHEDULE 1", align: center }            # object form adds per-block style (ADR-0008)
+  - partyHeader: { party: "$borrower", roleLabel: "Borrower" }
+  - paragraph: "Executed in {{ $derived.counterpartsCount }} counterparts."  # $derived.* from a Derivation
+  - clause: "declaration.intro@v2"                          # pinned clause version
   - article:
       no: "1."
-      clause: loan.request@latest          # always the newest published version
-      vars: { Loan: $loan }
-  - for: { each: $warranties, as: w }       # loop over a payload list
-      article: { no: "2.{{index+1}}", body: [{ clause: $w }] }
-  - if: $borrowerType == "SOLE_TRADER"      # condition — direct field read only
-      then:
-        - article: { no: "3.", clause: sole.warranties.lead@v1 }
-  - signatures: { places: [{ party: $borrower, role: "Borrower" }] }
+      heading: "Definitions"
+      body:
+        - clause: "loan.request@latest"                     # newest published version
+          vars: { loan: "$loan" }                           # map a payload slice into the clause's vars
+  - for: { each: "$warranties", as: w }                     # loop a payload list; $index is the counter
+    body:
+      - paragraph: "Warranty {{ $index + 1 }}: {{ $w }}."
+  - if: "$borrowerType == 'SOLE_TRADER'"                    # condition — comparison / logical ops
+    then:
+      - clause: "sole.warranties.lead@v1"
+  - signatures: { places: [{ party: "$borrower", role: "Borrower" }] }
 
-  # Special-layout document: drop into a renderer-native component
-  # - custom: { component: "landscape-grid-note", props: $note }
+  # Special-layout document: drop into a renderer-native Custom block (ADR-0005)
+  # - custom: { component: "landscape-grid-note", props: "$note" }
 ```
+
+`for` and `if` take a sibling `body:` / `then:`(+`else:`) list; the loop variable is `$<as>` and the
+counter is `$index`. A `clause`/`article` item carries its `vars`/`body` as sibling keys.
 
 ### Styling a title or paragraph (alignment & indentation)
 
@@ -99,7 +110,7 @@ not by DOCX, whose flat list model doesn't carry it — see ADR-0007/0008.)
 - **Values:** `$path.to.value` (from the payload), `$derived.name` (from the Resolve phase),
   `{{ expr }}` inside text.
 - **Conditionals:** `if: … then: … else: …`, inline `{{ flag ? a : b }}`.
-- **Loops:** `for: { each: $list, as: item }`; `{{index}}` is available inside.
+- **Loops:** `for: { each: $list, as: item }` with a sibling `body:`; `{{ $index }}` is the counter.
 - **Operators:** comparison (`== != < <= > >=`, where `==` means a *strict* equality), logical
   (`&& || !`), nullish (`??`), arithmetic (`+ - * / %`), and a ternary `? :`. Optional chaining
   (`$a?.b`) short-circuits on a missing value.
@@ -147,10 +158,10 @@ locale: cs
 vars:                                    # this clause's own typed mini-schema
   count: { type: integer, min: 1 }
 text: |
-  This document is executed in {{count}} counterparts, each party receiving one.
+  This document is executed in **{{ $count }}** counterparts, each party receiving one.
 ```
 
-- Content is **rich-text** (`RichTextV1`) with `{{placeholder}}` tokens; a trivial clause is just one
+- Content is **rich-text** (`RichTextV1`) with `{{ $placeholder }}` tokens; a trivial clause is just one
   paragraph.
 - Each Clause declares the schema for **its own `vars`**; the template maps a payload slice into them,
   and the integrity lint checks the mapping is type-correct.
