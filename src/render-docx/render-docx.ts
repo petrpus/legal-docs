@@ -3,14 +3,21 @@ import {
   AlignmentType,
   BorderStyle,
   Document,
+  Footer,
+  Header,
   Packer,
+  PageNumber,
   Paragraph,
   Table,
   TableCell,
   TableRow,
+  TabStopType,
+  TabStopPosition,
   TextRun,
   WidthType,
 } from "docx";
+import { PAGE_NUMBER_SENTINEL, PAGE_TOTAL_SENTINEL } from "../core/document-tree";
+import type { PageFurniture } from "../core/document-tree";
 import type {
   Align,
   DocumentBody,
@@ -49,13 +56,17 @@ export async function renderTreeToDocx(input: DocumentTree | DocumentBody, optio
   const tree = asDocumentTree(input);
   const theme = mergeTheme(options.theme);
   const ctx: DocxCtx = { theme, blocks: options.customBlocks ?? {}, degradation: options.degradation ?? "placeholder", onDegrade: options.onDegrade, depth: 0 };
-  // Header/footer furniture (`tree.header`/`tree.footer`) is wired into the DOCX section in a later
-  // slice (Wave 4 #4); this slice renders the body only.
   const children = tree.body.flatMap((node) => nodeToDocx(node, ctx));
   // Set the document-default run font (the reader's app substitutes if it lacks the family).
   const doc = new Document({
     styles: { default: { document: { run: { font: theme.font.family } } } },
-    sections: [{ children }],
+    sections: [
+      {
+        ...(tree.header ? { headers: { default: new Header({ children: [furnitureParagraph(tree.header, "header", theme)] }) } } : {}),
+        ...(tree.footer ? { footers: { default: new Footer({ children: [furnitureParagraph(tree.footer, "footer", theme)] }) } } : {}),
+        children,
+      },
+    ],
   });
   return Packer.toBuffer(doc);
 }
@@ -108,6 +119,39 @@ function nodeToDocx(node: DocumentNode, ctx: DocxCtx): (Paragraph | Table)[] {
 
 function run(text: string, sizePt: number, opts: { bold?: boolean; italics?: boolean; color?: string } = {}): TextRun {
   return new TextRun({ text, size: halfPoints(sizePt), ...opts });
+}
+
+/**
+ * A header/footer paragraph: a classic Word three-column layout via center + right tab stops. Each
+ * slot's page-number sentinels are split into `PageNumber` field runs (which Word fills per page); the
+ * text between them becomes plain runs. `theme.header`/`footer` drives size and colour.
+ */
+function furnitureParagraph(furniture: PageFurniture, kind: "header" | "footer", theme: Theme): Paragraph {
+  const style = kind === "header" ? theme.header : theme.footer;
+  const runOpts = { size: halfPoints(style.fontSize), color: hex(style.color) };
+  // Fresh tab run per position — a docx node should not be shared across two slots in the graph.
+  const tab = (): TextRun => new TextRun({ text: "\t", ...runOpts });
+  return new Paragraph({
+    tabStops: [
+      { type: TabStopType.CENTER, position: TabStopPosition.MAX / 2 },
+      { type: TabStopType.RIGHT, position: TabStopPosition.MAX },
+    ],
+    children: [...slotRuns(furniture.left, runOpts), tab(), ...slotRuns(furniture.center, runOpts), tab(), ...slotRuns(furniture.right, runOpts)],
+  });
+}
+
+/** Split a resolved furniture slot on the page-number sentinels into text runs + `PageNumber` field runs. */
+function slotRuns(slot: string | undefined, runOpts: { size: number; color: string }): TextRun[] {
+  if (!slot) return [];
+  const escape = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const parts = slot.split(new RegExp(`(${escape(PAGE_NUMBER_SENTINEL)}|${escape(PAGE_TOTAL_SENTINEL)})`));
+  return parts
+    .filter((part) => part !== "")
+    .map((part) => {
+      if (part === PAGE_NUMBER_SENTINEL) return new TextRun({ children: [PageNumber.CURRENT], ...runOpts });
+      if (part === PAGE_TOTAL_SENTINEL) return new TextRun({ children: [PageNumber.TOTAL_PAGES], ...runOpts });
+      return new TextRun({ text: part, ...runOpts });
+    });
 }
 
 /**
