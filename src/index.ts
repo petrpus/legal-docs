@@ -91,6 +91,8 @@ export { resolvePayload } from "./core/resolve";
 export type { Derivation, DerivationRegistry, ResolvedPayload } from "./core/resolve";
 export { money, loan, party } from "./core/schema-fragments";
 export type { Money, Loan, Party } from "./core/schema-fragments";
+export { exportPayloadSchema, exportPayloadSchemas } from "./core/json-schema";
+export type { JsonSchema, JsonSchemaTarget, JsonSchemaOptions } from "./core/json-schema";
 export { defaultHelpers } from "./core/helpers";
 export type { Helper, HelperRegistry } from "./core/helpers";
 

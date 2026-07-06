@@ -86,6 +86,14 @@ It is **feature-complete and publish-ready** but not yet published to npm.
   `{ theme?, customBlocks?, degradation?, onDegrade? }` (was five positional params). A consumer holding
   a `DocumentTree` can now render all three advertised formats.
 
+### JSON Schema export
+- **Payload schemas can be exported to JSON Schema** for external tooling (form builders, validators,
+  API gateways) that shouldn't depend on zod. `exportPayloadSchema(schema, opts?)` converts one zod
+  schema; `exportPayloadSchemas(registry, opts?)` converts a whole `PayloadSchemaRegistry`, keyed by the
+  same names Templates reference. Built on zod v4's native `z.toJSONSchema`. Defaults to **draft-7**
+  (broadest tooling support); pass `{ target: "draft-2020-12" }` for the modern dialect. A schema zod
+  can't represent (e.g. one with a transform) fails with a `LegalDocsError` naming the offending key.
+
 ### Malformed-YAML handling
 - **A syntactically-broken catalog YAML file now fails with a typed `LegalDocsError`** that names the
   offending file (`Malformed YAML in <path>: <reason>`), instead of letting the `yaml` library's raw
