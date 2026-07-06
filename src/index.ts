@@ -111,6 +111,8 @@ export type {
   DegradationEvent,
   OnDegrade,
 } from "./render-pdf/custom-block";
+export type { RenderTreeOptions } from "./render-pdf/custom-block";
+export { renderTreeToPdf } from "./render-pdf/render-pdf";
 export { renderTreeToHtml } from "./render-html/render-html";
 export { escapeHtml } from "./render-html/escape";
 export { renderClauseDiff } from "./render-html/clause-diff-html";

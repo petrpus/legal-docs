@@ -8,7 +8,7 @@ import { validatePayload } from "../core/payload";
 import { defaultTheme, type Theme } from "./theme";
 import { registerBundledFonts } from "./fonts";
 import { reportDegradation } from "./custom-block";
-import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "./custom-block";
+import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "./custom-block";
 
 /** Render-time Custom-block context threaded through the visitor. */
 interface CustomCtx {
@@ -289,15 +289,9 @@ export function documentElement(
   );
 }
 
-export function renderTreeToBuffer(
-  tree: DocumentTree,
-  theme?: Theme,
-  customBlocks?: CustomBlockRegistry,
-  degradation?: DegradationMode,
-  onDegrade?: OnDegrade,
-): Promise<Buffer> {
+export function renderTreeToPdf(tree: DocumentTree, options: RenderTreeOptions = {}): Promise<Buffer> {
   // Register the bundled diacritics-safe font before rendering (idempotent). A consumer who sets a
   // different `theme.font.family` registers that family themselves via the re-exported `Font`.
   registerBundledFonts();
-  return renderToBuffer(documentElement(tree, theme, customBlocks, degradation, onDegrade));
+  return renderToBuffer(documentElement(tree, options.theme, options.customBlocks, options.degradation, options.onDegrade));
 }

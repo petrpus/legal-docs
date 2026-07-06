@@ -106,8 +106,7 @@ describe("renderTreeToDocx", () => {
     const degraded = await docXml(
       await renderTreeToDocx(
         [{ kind: "numberedList", items: [[{ kind: "custom", component: "pdfOnly", props: undefined }]] }],
-        defaultTheme,
-        customBlocks,
+        { theme: defaultTheme, customBlocks },
       ),
     );
     expect(degraded).toContain("[unsupported block: pdfOnly in docx]");
@@ -116,8 +115,7 @@ describe("renderTreeToDocx", () => {
     const rendered = await docXml(
       await renderTreeToDocx(
         [{ kind: "bulletList", items: [[{ kind: "custom", component: "box", props: undefined }]] }],
-        defaultTheme,
-        customBlocks,
+        { theme: defaultTheme, customBlocks },
       ),
     );
     expect(rendered).toContain("CUSTOM DOCX CONTENT");
@@ -125,7 +123,7 @@ describe("renderTreeToDocx", () => {
 
   it("renders a registered custom block's docx output", async () => {
     const xml = await docXml(
-      await renderTreeToDocx([{ kind: "custom", component: "box", props: undefined }], defaultTheme, customBlocks),
+      await renderTreeToDocx([{ kind: "custom", component: "box", props: undefined }], { theme: defaultTheme, customBlocks }),
     );
 
     expect(xml).toContain("CUSTOM DOCX CONTENT");
@@ -141,7 +139,7 @@ describe("renderTreeToDocx", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const xml = await docXml(
-      await renderTreeToDocx([{ kind: "custom", component: "pdfOnly", props: undefined }], defaultTheme, customBlocks),
+      await renderTreeToDocx([{ kind: "custom", component: "pdfOnly", props: undefined }], { theme: defaultTheme, customBlocks }),
     );
 
     expect(xml).toContain("[unsupported block: pdfOnly in docx]");
@@ -151,7 +149,7 @@ describe("renderTreeToDocx", () => {
 
   it("fails hard for a missing docx impl in throw mode", async () => {
     await expect(
-      renderTreeToDocx([{ kind: "custom", component: "pdfOnly", props: undefined }], defaultTheme, customBlocks, "throw"),
+      renderTreeToDocx([{ kind: "custom", component: "pdfOnly", props: undefined }], { theme: defaultTheme, customBlocks, degradation: "throw" }),
     ).rejects.toThrow(/Custom block "pdfOnly" cannot render in "docx"/);
   });
 });

@@ -12,7 +12,7 @@ import type { RichRun, RichTextV1 } from "../core/rich-text";
 import { validatePayload } from "../core/payload";
 import { defaultTheme, type Theme } from "../render-pdf/theme";
 import { reportDegradation } from "../render-pdf/custom-block";
-import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../render-pdf/custom-block";
+import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../render-pdf/custom-block";
 import { escapeHtml } from "./escape";
 import { themeCss } from "./theme-css";
 
@@ -28,14 +28,9 @@ interface HtmlCtx {
  * Output is a self-contained `<div class="legal-doc">` fragment with a scoped `<style>`. All
  * core-emitted text is escaped; a Custom block's HTML is trusted and inserted raw.
  */
-export function renderTreeToHtml(
-  tree: DocumentTree,
-  theme: Theme = defaultTheme,
-  customBlocks: CustomBlockRegistry = {},
-  degradation: DegradationMode = "placeholder",
-  onDegrade?: OnDegrade,
-): string {
-  const cx: HtmlCtx = { blocks: customBlocks, degradation, onDegrade, theme };
+export function renderTreeToHtml(tree: DocumentTree, options: RenderTreeOptions = {}): string {
+  const theme = options.theme ?? defaultTheme;
+  const cx: HtmlCtx = { blocks: options.customBlocks ?? {}, degradation: options.degradation ?? "placeholder", onDegrade: options.onDegrade, theme };
   const body = tree.map((node) => nodeToHtml(node, cx)).join("");
   return `<div class="legal-doc"><style>${themeCss(theme)}</style>${body}</div>`;
 }

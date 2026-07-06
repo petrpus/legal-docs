@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { PDFParse } from "pdf-parse";
-import { renderTreeToBuffer } from "../src/render-pdf/render-pdf";
+import { renderTreeToPdf } from "../src/render-pdf/render-pdf";
 import { parseRichText } from "../src/core/rich-text";
 
 async function pdfText(buffer: Buffer): Promise<string> {
@@ -16,18 +16,18 @@ describe("PDF fonts — diacritics (Wave 1)", () => {
   const czech = "Příliš žluťoučký kůň úpěl ďábelské ódy.";
 
   it("renders Czech diacritics correctly in a paragraph (default theme font)", async () => {
-    const text = await pdfText(await renderTreeToBuffer([{ kind: "paragraph", text: czech }]));
+    const text = await pdfText(await renderTreeToPdf([{ kind: "paragraph", text: czech }]));
     expect(text).toContain(czech);
   });
 
   it("renders Czech diacritics in a bold run (the family's bold face carries the glyphs)", async () => {
     const bold = "**žluťoučký kůň ďábelské**";
-    const text = await pdfText(await renderTreeToBuffer([{ kind: "richText", value: parseRichText(bold) }]));
+    const text = await pdfText(await renderTreeToPdf([{ kind: "richText", value: parseRichText(bold) }]));
     expect(text).toContain("žluťoučký kůň ďábelské");
   });
 
   it("renders a title's diacritics (font cascades from the Page)", async () => {
-    const text = await pdfText(await renderTreeToBuffer([{ kind: "title", text: "SMLOUVA O ZÁPŮJČCE" }]));
+    const text = await pdfText(await renderTreeToPdf([{ kind: "title", text: "SMLOUVA O ZÁPŮJČCE" }]));
     expect(text).toContain("SMLOUVA O ZÁPŮJČCE");
   });
 });

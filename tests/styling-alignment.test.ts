@@ -4,7 +4,7 @@ import { assembleTree } from "../src/core/engine";
 import type { Template } from "../src/core/template";
 import { renderTreeToHtml } from "../src/render-html/render-html";
 import { renderTreeToDocx } from "../src/render-docx/render-docx";
-import { renderTreeToBuffer } from "../src/render-pdf/render-pdf";
+import { renderTreeToPdf } from "../src/render-pdf/render-pdf";
 import { defaultTheme } from "../src/render-pdf/theme";
 import type { DocumentTree } from "../src/core/document-tree";
 
@@ -78,14 +78,14 @@ describe("block-level alignment (ADR-0008)", () => {
 
   describe("HTML renderer", () => {
     it("emits the Theme default alignment in the class CSS", () => {
-      const html = renderTreeToHtml([{ kind: "title", text: "X" }], defaultTheme);
+      const html = renderTreeToHtml([{ kind: "title", text: "X" }], { theme: defaultTheme });
       expect(html).toContain(".legal-doc .title{"); // class rule exists
       expect(html).toContain("text-align:left"); // default
     });
 
     it("reflects a themed default alignment", () => {
       const themed = { ...defaultTheme, align: { title: "center" as const, paragraph: "justify" as const } };
-      const html = renderTreeToHtml([{ kind: "paragraph", text: "X" }], themed);
+      const html = renderTreeToHtml([{ kind: "paragraph", text: "X" }], { theme: themed });
       expect(html).toContain("text-align:justify");
     });
 
@@ -95,20 +95,20 @@ describe("block-level alignment (ADR-0008)", () => {
           { kind: "title", text: "X", align: "center" },
           { kind: "paragraph", text: "Y", align: "right" },
         ],
-        defaultTheme,
+        { theme: defaultTheme },
       );
       expect(html).toContain(`<h1 class="title" style="text-align:center">`);
       expect(html).toContain(`<p style="text-align:right">`);
     });
 
     it("omits the inline style when there is no override", () => {
-      const html = renderTreeToHtml([{ kind: "paragraph", text: "Y" }], defaultTheme);
+      const html = renderTreeToHtml([{ kind: "paragraph", text: "Y" }], { theme: defaultTheme });
       expect(html).toContain("<p>Y</p>");
     });
 
     it("emits Theme paragraph indent defaults in the class CSS", () => {
       const themed = { ...defaultTheme, indent: { firstLine: 18, block: 24 } };
-      const html = renderTreeToHtml([{ kind: "paragraph", text: "X" }], themed);
+      const html = renderTreeToHtml([{ kind: "paragraph", text: "X" }], { theme: themed });
       expect(html).toContain("text-indent:18px");
       expect(html).toContain("margin:0 0 8px 24px"); // spacing bottom + block indent left
     });
@@ -116,20 +116,20 @@ describe("block-level alignment (ADR-0008)", () => {
     it("emits inline text-indent/margin-left for a per-block indent override", () => {
       const html = renderTreeToHtml(
         [{ kind: "paragraph", text: "X", indent: { firstLine: 12, left: 30 } }],
-        defaultTheme,
+        { theme: defaultTheme },
       );
       expect(html).toContain(`<p style="text-indent:12px;margin-left:30px">`);
     });
 
     it("combines align and indent overrides in one inline style", () => {
-      const html = renderTreeToHtml([{ kind: "title", text: "T", align: "center", indent: { left: 10 } }], defaultTheme);
+      const html = renderTreeToHtml([{ kind: "title", text: "T", align: "center", indent: { left: 10 } }], { theme: defaultTheme });
       expect(html).toContain(`style="text-align:center;margin-left:10px"`);
     });
   });
 
   describe("PDF renderer", () => {
     it("renders a per-block align + indent (incl. textIndent) to a valid PDF without throwing", async () => {
-      const buffer = await renderTreeToBuffer([
+      const buffer = await renderTreeToPdf([
         { kind: "title", text: "T", align: "center" },
         { kind: "paragraph", text: "P", align: "justify", indent: { firstLine: 18, left: 24 } },
       ]);
@@ -152,14 +152,14 @@ describe("block-level alignment (ADR-0008)", () => {
       expect(centered).toContain('w:jc w:val="center"');
 
       const themed = { ...defaultTheme, align: { title: "left" as const, paragraph: "justify" as const } };
-      const justified = await docXml(await renderTreeToDocx([{ kind: "paragraph", text: "P" }], themed));
+      const justified = await docXml(await renderTreeToDocx([{ kind: "paragraph", text: "P" }], { theme: themed }));
       expect(justified).toContain("<w:jc"); // JUSTIFIED serializes as w:val="both"
     });
 
     it("does not leak a themed paragraph alignment into partyHeader (out of ADR-0008 scope)", async () => {
       const themed = { ...defaultTheme, align: { title: "left" as const, paragraph: "justify" as const } };
       const xml = await docXml(
-        await renderTreeToDocx([{ kind: "partyHeader", party: { name: "Acme" }, roleLabel: "Lender" }], themed),
+        await renderTreeToDocx([{ kind: "partyHeader", party: { name: "Acme" }, roleLabel: "Lender" }], { theme: themed }),
       );
       expect(xml).not.toContain("<w:jc");
     });
