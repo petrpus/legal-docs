@@ -105,6 +105,25 @@ titles have no indent default). A per-block value overrides the default. All thr
 across PDF, HTML and DOCX. (Alignment/indent on a list-item paragraph is honoured by PDF and HTML but
 not by DOCX, whose flat list model doesn't carry it — see ADR-0007/0008.)
 
+### Page headers & footers (paged output)
+
+A Template may declare a `header` and/or `footer`, each with `left` / `center` / `right` slots. Slots
+are interpolated like body text, and two reserved tokens place page numbers:
+
+```yaml
+header:
+  left: "{{ $party.name }}"
+  right: "{{ $page.number }} / {{ $page.total }}"
+footer:
+  center: "Confidential"
+```
+
+- `{{ $page.number }}` / `{{ $page.total }}` are filled **per page** by the renderer; `$page` is a
+  reserved slot-scope name (it shadows a payload field literally named `page`, inside furniture only).
+- Presentation (`fontSize`, `color`, `margin`) lives in `theme.header` / `theme.footer`.
+- **Paged output only:** PDF renders furniture; the HTML fragment renderer ignores it (it has no pages),
+  exactly as it ignores `theme.page.*`. See ADR-0011.
+
 ### Expression syntax
 
 - **Values:** `$path.to.value` (from the payload), `$derived.name` (from the Resolve phase),

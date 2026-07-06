@@ -2,12 +2,14 @@ import { LegalDocsError } from "../core/errors";
 import type {
   Align,
   BlockIndent,
+  DocumentBody,
   DocumentNode,
   DocumentTree,
   KeyValueRow,
   PartyIdentification,
   SignaturePlace,
 } from "../core/document-tree";
+import { asDocumentTree } from "../core/document-tree";
 import type { RichRun, RichTextV1 } from "../core/rich-text";
 import { validatePayload } from "../core/payload";
 import { mergeTheme, type Theme } from "../theme";
@@ -28,10 +30,13 @@ interface HtmlCtx {
  * Output is a self-contained `<div class="legal-doc">` fragment with a scoped `<style>`. All
  * core-emitted text is escaped; a Custom block's HTML is trusted and inserted raw.
  */
-export function renderTreeToHtml(tree: DocumentTree, options: RenderTreeOptions = {}): string {
+export function renderTreeToHtml(input: DocumentTree | DocumentBody, options: RenderTreeOptions = {}): string {
+  const tree = asDocumentTree(input);
   const theme = mergeTheme(options.theme);
   const cx: HtmlCtx = { blocks: options.customBlocks ?? {}, degradation: options.degradation ?? "placeholder", onDegrade: options.onDegrade, theme };
-  const body = tree.map((node) => nodeToHtml(node, cx)).join("");
+  // HTML is a page-less fragment, so page header/footer furniture (`tree.header`/`tree.footer`) is
+  // intentionally ignored here — it is paged-output-only (PDF/DOCX), like `theme.page.*` (ADR-0011).
+  const body = tree.body.map((node) => nodeToHtml(node, cx)).join("");
   return `<div class="legal-doc"><style>${themeCss(theme)}</style>${body}</div>`;
 }
 

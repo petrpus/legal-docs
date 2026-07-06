@@ -49,7 +49,7 @@ export type {
 export { buildSnapshot, DEFAULT_SNAPSHOT_MODE, SNAPSHOT_SCHEMA_VERSION, SnapshotError, assertValidSnapshot } from "./core/snapshot";
 export type { Snapshot, SnapshotMode, ClausePin, SnapshotInput } from "./core/snapshot";
 
-export { assembleTree } from "./core/engine";
+export { assembleTree, assembleDocument } from "./core/engine";
 export type { AssembleContext, ClauseResolver } from "./core/engine";
 export type {
   Template,
@@ -60,13 +60,17 @@ export type {
   ArticleItem,
   KeyValueRows,
   SignaturePlaceSpec,
+  PageFurnitureSpec,
 } from "./core/template";
 export { expandIncludes, IncludeError } from "./core/includes";
 export type { IncludeLoader } from "./core/includes";
 export { composeTemplate, CompositionError } from "./core/compose";
+export { asDocumentTree, PAGE_NUMBER_SENTINEL, PAGE_TOTAL_SENTINEL } from "./core/document-tree";
 export type {
   DocumentNode,
   DocumentTree,
+  DocumentBody,
+  PageFurniture,
   InlineRich,
   PartyIdentification,
   KeyValueRow,

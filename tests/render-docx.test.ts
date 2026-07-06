@@ -6,7 +6,7 @@ import JSZip from "jszip";
 import { renderTreeToDocx } from "../src/render-docx/render-docx";
 import { parseRichText } from "../src/core/rich-text";
 import { defaultTheme } from "../src/theme";
-import type { DocumentTree } from "../src/core/document-tree";
+import type { DocumentBody } from "../src/core/document-tree";
 import type { CustomBlockRegistry } from "../src/custom-block";
 
 /** The raw word/document.xml of a .docx Buffer (text lives in <w:t> nodes). */
@@ -17,7 +17,7 @@ async function docXml(buffer: Buffer): Promise<string> {
   return file.async("string");
 }
 
-const tree: DocumentTree = [
+const tree: DocumentBody = [
   { kind: "title", text: "PLEDGE AGREEMENT" },
   { kind: "paragraph", text: "A plain paragraph." },
   { kind: "richText", value: parseRichText("This is **bold** text.") },

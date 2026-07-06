@@ -17,8 +17,11 @@ export const DEFAULT_SNAPSHOT_MODE: SnapshotMode = "full";
  * The snapshot format version. A {@link Snapshot} is a long-lived, persisted audit artifact, so its
  * shape is versioned: {@link renderFromSnapshot} rejects a snapshot whose `schemaVersion` it doesn't
  * understand instead of failing obscurely deep inside a renderer. Bump this on any breaking shape change.
+ *
+ * v2: `tree` changed from a bare `DocumentNode[]` to a `DocumentTree` object (`{ body, header?, footer? }`)
+ * so page furniture is frozen for re-render (ADR-0011). v1 snapshots (array `tree`) are rejected.
  */
-export const SNAPSHOT_SCHEMA_VERSION = 1;
+export const SNAPSHOT_SCHEMA_VERSION = 2;
 
 /** Thrown when a value handed to `renderFromSnapshot` is not a valid/known-version Snapshot. */
 export class SnapshotError extends LegalDocsError {
@@ -139,10 +142,14 @@ export function assertValidSnapshot(value: unknown): asserts value is Snapshot {
   if (typeof s.template !== "string" || typeof s.version !== "number" || typeof s.locale !== "string") {
     throw new SnapshotError("Malformed snapshot: missing one of template/version/locale");
   }
-  // Tree-bearing modes must actually carry an array tree, else the renderer fails deep (the very thing
-  // this guard exists to prevent).
-  if ((s.mode === "full" || s.mode === "tree") && !Array.isArray(s.tree)) {
-    throw new SnapshotError(`Malformed snapshot: ${s.mode}-mode snapshot has no tree array`);
+  // Tree-bearing modes must carry a DocumentTree whose `body` is an array, else the renderer fails deep
+  // (the very thing this guard exists to prevent). A v1 array-`tree` snapshot fails here after the
+  // schemaVersion check already rejected it.
+  if (s.mode === "full" || s.mode === "tree") {
+    const tree = s.tree as { body?: unknown } | undefined;
+    if (typeof tree !== "object" || tree === null || !Array.isArray(tree.body)) {
+      throw new SnapshotError(`Malformed snapshot: ${s.mode}-mode snapshot has no tree body array`);
+    }
   }
 }
 
@@ -154,7 +161,11 @@ function snapshotId(gen: SnapshotInput): string {
         version: gen.version,
         variant: gen.variant ?? null,
         locale: gen.locale,
-        tree: gen.tree,
+        // Hash the body under the `tree` key (as v1 did) so a document with no furniture keeps its
+        // v1 id; header/footer only perturb the id of documents that actually declare them.
+        tree: gen.tree.body,
+        ...(gen.tree.header !== undefined ? { header: gen.tree.header } : {}),
+        ...(gen.tree.footer !== undefined ? { footer: gen.tree.footer } : {}),
         payload: gen.payload ?? null,
       }),
     )

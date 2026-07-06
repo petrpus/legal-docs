@@ -1,7 +1,7 @@
 import { LegalDocsError, NotFoundError } from "../core/errors";
 import { Readable } from "node:stream";
 import type { Catalog } from "../catalog/catalog";
-import { assembleTree, type ClauseResolver } from "../core/engine";
+import { assembleDocument, type ClauseResolver } from "../core/engine";
 import { expandIncludes } from "../core/includes";
 import type { HelperRegistry } from "../core/helpers";
 import { assertValidSnapshot } from "../core/snapshot";
@@ -113,7 +113,7 @@ async function reassembleFromPins(
   }
   const template = await catalog.getTemplate(snapshot.template, snapshot.variant);
   const body = await expandIncludes(template.body, (id) => catalog.loadInclude(id));
-  return assembleTree(
+  return assembleDocument(
     { ...template, body },
     {
       scope: snapshot.resolved ?? {},

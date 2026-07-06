@@ -25,6 +25,9 @@ export interface Theme {
    */
   indent: { firstLine: number; block: number };
   spacing: { paragraph: number; title: number };
+  /** Page header/footer presentation (paged output only). `margin` is the distance (pt) from the page edge. */
+  header: { fontSize: number; color: string; margin: number };
+  footer: { fontSize: number; color: string; margin: number };
   article: {
     /** Heading font size by level (1-based, capped at 3). */
     headingFontSize: readonly [number, number, number];
@@ -53,6 +56,8 @@ export const defaultTheme: Theme = {
   align: { title: "left", paragraph: "left" },
   indent: { firstLine: 0, block: 0 },
   spacing: { paragraph: 8, title: 16 },
+  header: { fontSize: 9, color: "#666666", margin: 24 },
+  footer: { fontSize: 9, color: "#666666", margin: 24 },
   article: { headingFontSize: [13, 12, 11], indentPerLevel: 14, gap: 6 },
   list: { indent: 14, markerGap: 6, gap: 4 },
   partyHeader: { roleFontSize: 11, gap: 8 },

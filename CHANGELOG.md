@@ -86,6 +86,21 @@ It is **feature-complete and publish-ready** but not yet published to npm.
   `{ theme?, customBlocks?, degradation?, onDegrade? }` (was five positional params). A consumer holding
   a `DocumentTree` can now render all three advertised formats.
 
+### Page headers, footers & numbering (ADR-0011)
+- **Paged output (PDF) now supports running page headers/footers with page numbering.** A Template gains
+  optional `header` / `footer`, each a `{ left?, center?, right? }` of interpolated slots — bind the
+  payload (`{{ $party.name }}`) and place page numbers with the reserved `{{ $page.number }}` /
+  `{{ $page.total }}` tokens (*"Confidential — {{ $page.number }} / {{ $page.total }}"*). Presentation is
+  a new `theme.header` / `theme.footer` group (`fontSize`, `color`, `margin`).
+- **`DocumentTree` is now `{ body, header?, footer? }`** (was `DocumentNode[]`), so resolved furniture is
+  frozen in the Snapshot and re-renders deterministically. The tree renderers accept `DocumentTree | DocumentNode[]`
+  (a bare array is normalized via the new `asDocumentTree`), so a caller holding a node array is unaffected.
+  New engine entry `assembleDocument` resolves body + furniture (`assembleTree` still returns the body).
+- **`SNAPSHOT_SCHEMA_VERSION` → 2** (the `tree` field shape changed); a furniture-less document keeps its
+  v1 snapshot id (the digest only mixes in header/footer when present).
+- **HTML ignores furniture** — it is a page-less fragment, so headers/footers are paged-output-only
+  (PDF/DOCX), exactly as HTML already ignores `theme.page.*`. DOCX furniture lands in a follow-up slice.
+
 ### Locale-aware helpers (ADR-0010)
 - **New opt-in locale-aware helpers** — `formatDateLong` (`Intl.DateTimeFormat`, e.g. *"1. července 2026"*)
   and `formatMoney` (`Intl.NumberFormat` currency, e.g. *"1 000,00 €"*), formatted for the **render

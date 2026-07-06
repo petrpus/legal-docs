@@ -6,7 +6,7 @@ import { renderTreeToHtml } from "../src/render-html/render-html";
 import { renderTreeToDocx } from "../src/render-docx/render-docx";
 import { renderTreeToPdf } from "../src/render-pdf/render-pdf";
 import { defaultTheme } from "../src/theme";
-import type { DocumentTree } from "../src/core/document-tree";
+import type { DocumentBody } from "../src/core/document-tree";
 
 /** The raw word/document.xml of a .docx Buffer. */
 async function docXml(buffer: Buffer): Promise<string> {
@@ -139,7 +139,7 @@ describe("block-level alignment (ADR-0008)", () => {
 
   describe("DOCX renderer", () => {
     it("emits no <w:jc> for the all-left default", async () => {
-      const tree: DocumentTree = [
+      const tree: DocumentBody = [
         { kind: "title", text: "T" },
         { kind: "paragraph", text: "P" },
       ];
