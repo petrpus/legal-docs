@@ -69,6 +69,7 @@ function RenderTab({ meta }: { meta: Meta }) {
   const [html, setHtml] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [schemaJson, setSchemaJson] = useState("");
 
   const template = useMemo(() => meta.templates.find((t) => t.id === templateId), [meta, templateId]);
   const needsData = template?.data !== undefined;
@@ -77,7 +78,23 @@ function RenderTab({ meta }: { meta: Meta }) {
   useEffect(() => {
     setVariant(template?.variants?.[0] ?? "");
     setDataText(template?.data !== undefined ? JSON.stringify(template.data, null, 2) : "{}");
+    setSchemaJson("");
   }, [template]);
+
+  async function exportSchema() {
+    setError("");
+    try {
+      const res = await fetch("/api/schema", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ template: templateId }),
+      }).then((r) => r.json());
+      if (res.error) setError(res.error);
+      else setSchemaJson(JSON.stringify(res.schemas, null, 2));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
 
   async function render() {
     setBusy(true);
@@ -139,11 +156,19 @@ function RenderTab({ meta }: { meta: Meta }) {
         <h3 style={S.h3}>Theme</h3>
         <ThemeEditor theme={theme} onChange={setTheme} onReset={() => setTheme(meta.defaultTheme)} />
         <button style={S.primary} onClick={render} disabled={busy}>{busy ? "Rendering…" : "Render"}</button>
+        {needsData && (
+          <button style={S.secondary} onClick={exportSchema}>Export JSON Schema</button>
+        )}
         {error && <pre style={S.error}>{error}</pre>}
       </section>
       <section style={S.preview}>
-        {format === "html" ? (
-          html ? <div dangerouslySetInnerHTML={{ __html: html }} /> : <p style={S.muted}>Render to preview the HTML here.</p>
+        {schemaJson ? (
+          <>
+            <h3 style={S.h3}>Payload JSON Schema (draft-7)</h3>
+            <pre style={{ ...S.input, fontFamily: "monospace", whiteSpace: "pre", overflow: "auto", maxHeight: "70vh" }}>{schemaJson}</pre>
+          </>
+        ) : format === "html" ? (
+          html ? <div dangerouslySetInnerHTML={{ __html: html }} /> : <p style={S.muted}>Render to preview the HTML here. Headers/footers show only in the PDF/DOCX download (try the “nda-headed” template).</p>
         ) : (
           <p style={S.muted}>{format.toUpperCase()} downloads on render (binary — not previewable in the browser).</p>
         )}
@@ -395,6 +420,7 @@ const S: Record<string, React.CSSProperties> = {
   tab: { padding: "6px 12px", border: "1px solid #ccc", borderRadius: 6, background: "#f6f6f6", cursor: "pointer" },
   tabOn: { padding: "6px 12px", border: "1px solid #111", borderRadius: 6, background: "#111", color: "#fff", cursor: "pointer" },
   primary: { marginTop: 10, padding: "8px 16px", border: "none", borderRadius: 6, background: "#0a7", color: "#fff", cursor: "pointer", fontWeight: 600 },
+  secondary: { marginTop: 10, marginLeft: 8, padding: "8px 16px", border: "1px solid #0a7", borderRadius: 6, background: "#fff", color: "#0a7", cursor: "pointer", fontWeight: 600 },
   h3: { fontSize: 14, margin: "14px 0 8px" },
   badge: { fontSize: 11, padding: "1px 6px", borderRadius: 10, color: "#333" },
   group: { border: "1px solid #eee", borderRadius: 6, padding: "6px 10px", marginBottom: 6 },
