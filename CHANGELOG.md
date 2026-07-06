@@ -86,6 +86,15 @@ It is **feature-complete and publish-ready** but not yet published to npm.
   `{ theme?, customBlocks?, degradation?, onDegrade? }` (was five positional params). A consumer holding
   a `DocumentTree` can now render all three advertised formats.
 
+### Locale-aware helpers (ADR-0010)
+- **New opt-in locale-aware helpers** — `formatDateLong` (`Intl.DateTimeFormat`, e.g. *"1. července 2026"*)
+  and `formatMoney` (`Intl.NumberFormat` currency, e.g. *"1 000,00 €"*), formatted for the **render
+  locale**. The engine binds the resolved locale into the built-ins via a new `makeDefaultHelpers(locale)`
+  (also exported); the public `Helper`/`EvalContext` types are unchanged (locale is bound by closure, not
+  a new argument). The deterministic `formatDate` (ISO) / `formatCurrency` (naive) are **unchanged** and
+  remain the audit-stable default — the `Intl` helpers are kept out of byte-stable golden artifacts
+  because their output is locale- and ICU-version-dependent.
+
 ### JSON Schema export
 - **Payload schemas can be exported to JSON Schema** for external tooling (form builders, validators,
   API gateways) that shouldn't depend on zod. `exportPayloadSchema(schema, opts?)` converts one zod

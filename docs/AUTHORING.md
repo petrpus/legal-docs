@@ -114,8 +114,10 @@ not by DOCX, whose flat list model doesn't carry it — see ADR-0007/0008.)
 - **Operators:** comparison (`== != < <= > >=`, where `==` means a *strict* equality), logical
   (`&& || !`), nullish (`??`), arithmetic (`+ - * / %`), and a ternary `? :`. Optional chaining
   (`$a?.b`) short-circuits on a missing value.
-- **Helpers:** whitelisted pure functions only — `formatCurrency`, `formatDate`, row-builders. No
-  `eval`, no arbitrary code. Reading `__proto__` / `constructor` / `prototype` is blocked.
+- **Helpers:** whitelisted pure functions only — deterministic `formatCurrency` / `formatDate` (ISO,
+  audit-stable), locale-aware `formatMoney` / `formatDateLong` (`Intl`, formatted for the render locale),
+  row-builders. No `eval`, no arbitrary code. Reading `__proto__` / `constructor` / `prototype` is
+  blocked. See ADR-0010 for the deterministic-vs-locale-aware split.
 
 ### What may go inline vs in a Derivation
 

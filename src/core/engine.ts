@@ -10,7 +10,7 @@ import { parseRichText } from "./rich-text";
 import { validateVars } from "./vars-schema";
 import { validatePayload } from "./payload";
 import { party } from "./schema-fragments";
-import { defaultHelpers, type HelperRegistry } from "./helpers";
+import { makeDefaultHelpers, type HelperRegistry } from "./helpers";
 
 /** Resolves a Clause reference (`id@vN` | `id@latest`) to a concrete Clause for a locale. */
 export type ClauseResolver = (ref: string, locale: string) => Promise<Clause>;
@@ -44,10 +44,13 @@ export async function assembleTree(
   template: Template,
   context: AssembleContext = {},
 ): Promise<DocumentTree> {
+  const locale = context.locale ?? template.locale;
   const frame: Frame = {
-    evalCtx: { scope: context.scope ?? {}, helpers: { ...defaultHelpers, ...context.helpers } },
+    // Bind the render locale into the built-in helpers so `formatMoney`/`formatDateLong` format for it;
+    // consumer `helpers` win on name collision.
+    evalCtx: { scope: context.scope ?? {}, helpers: { ...makeDefaultHelpers(locale), ...context.helpers } },
     context,
-    locale: context.locale ?? template.locale,
+    locale,
   };
   return assembleItems(template.body, frame, 1);
 }

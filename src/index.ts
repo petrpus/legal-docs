@@ -93,7 +93,7 @@ export { money, loan, party } from "./core/schema-fragments";
 export type { Money, Loan, Party } from "./core/schema-fragments";
 export { exportPayloadSchema, exportPayloadSchemas } from "./core/json-schema";
 export type { JsonSchema, JsonSchemaTarget, JsonSchemaOptions } from "./core/json-schema";
-export { defaultHelpers } from "./core/helpers";
+export { defaultHelpers, makeDefaultHelpers } from "./core/helpers";
 export type { Helper, HelperRegistry } from "./core/helpers";
 
 export { defaultTheme, mergeTheme, DEFAULT_FONT_FAMILY } from "./theme";
