@@ -67,6 +67,11 @@ It is **feature-complete and publish-ready** but not yet published to npm.
 - `catalog.editing` — the runtime editing API with a **`validate()`-gated publish** (a draft that would
   break a consuming template is blocked with `PublishValidationError`) and `previewDiff` review diffs.
 
+### Snapshot format versioning
+- `Snapshot` now carries a **`schemaVersion`** (`SNAPSHOT_SCHEMA_VERSION`); `renderFromSnapshot`
+  validates it up front and rejects an unknown-version / malformed snapshot with a clear `SnapshotError`
+  instead of failing obscurely inside a renderer. Cheap insurance for a persisted legal-audit artifact.
+
 ### Fonts & diacritics
 - **PDF now renders Latin-Extended diacritics correctly.** react-pdf's built-in Helvetica mangled Czech
   (*"Příliš žluťoučký kůň"* → *"PYíliš žlueou ký koH"*); the library bundles a diacritics-safe serif

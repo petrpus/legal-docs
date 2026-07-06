@@ -2,9 +2,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
-import { buildSnapshot, type SnapshotInput } from "../src/core/snapshot";
+import { buildSnapshot, assertValidSnapshot, SnapshotError, SNAPSHOT_SCHEMA_VERSION, type Snapshot, type SnapshotInput } from "../src/core/snapshot";
 import { Catalog } from "../src/catalog/catalog";
 import { renderDocument } from "../src/facade/render-document";
+import { renderFromSnapshot } from "../src/facade/render-from-snapshot";
 import { party } from "../src/core/schema-fragments";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -50,6 +51,12 @@ describe("buildSnapshot", () => {
     expect(snap.tree).toBeUndefined();
   });
 
+  it("stamps the current schema version", () => {
+    expect(buildSnapshot(gen).schemaVersion).toBe(SNAPSHOT_SCHEMA_VERSION);
+    expect(buildSnapshot(gen, "tree").schemaVersion).toBe(SNAPSHOT_SCHEMA_VERSION);
+    expect(buildSnapshot(gen, "pins").schemaVersion).toBe(SNAPSHOT_SCHEMA_VERSION);
+  });
+
   it("computes a stable, mode-independent id", () => {
     const id = buildSnapshot(gen, "full").id;
 
@@ -72,6 +79,30 @@ describe("buildSnapshot", () => {
     const snap = buildSnapshot({ ...gen, pins: [b, a, b] }, "pins");
 
     expect(snap.pins).toEqual([a, b]);
+  });
+});
+
+describe("snapshot schema-version guard", () => {
+  const valid = buildSnapshot({ ...gen, tree: [{ kind: "paragraph", text: "hi" }] }, "tree");
+
+  it("accepts a well-formed current-version snapshot", () => {
+    expect(() => assertValidSnapshot(valid)).not.toThrow();
+  });
+
+  it("rejects a non-object, an unknown version, and a malformed snapshot", () => {
+    expect(() => assertValidSnapshot(null)).toThrow(SnapshotError);
+    expect(() => assertValidSnapshot({ ...valid, schemaVersion: 999 })).toThrow(/schemaVersion 999/);
+    const noVersion: Record<string, unknown> = { ...valid };
+    delete noVersion.schemaVersion;
+    expect(() => assertValidSnapshot(noVersion)).toThrow(SnapshotError);
+    expect(() => assertValidSnapshot({ ...valid, template: 123 })).toThrow(/Malformed/);
+    expect(() => assertValidSnapshot({ ...valid, mode: "bogus" })).toThrow(/unknown mode/);
+    expect(() => assertValidSnapshot({ ...valid, tree: null })).toThrow(/no tree array/);
+  });
+
+  it("blocks renderFromSnapshot on an unknown-version snapshot", async () => {
+    const stale = { ...valid, schemaVersion: 999 } as unknown as Snapshot;
+    await expect(renderFromSnapshot(stale, { format: "html" })).rejects.toThrow(SnapshotError);
   });
 });
 

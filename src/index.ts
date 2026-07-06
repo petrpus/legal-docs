@@ -44,7 +44,7 @@ export type {
   HtmlFromSnapshot,
   DocxFromSnapshot,
 } from "./facade/render-from-snapshot";
-export { buildSnapshot, DEFAULT_SNAPSHOT_MODE } from "./core/snapshot";
+export { buildSnapshot, DEFAULT_SNAPSHOT_MODE, SNAPSHOT_SCHEMA_VERSION, SnapshotError, assertValidSnapshot } from "./core/snapshot";
 export type { Snapshot, SnapshotMode, ClausePin, SnapshotInput } from "./core/snapshot";
 
 export { assembleTree } from "./core/engine";

@@ -3,6 +3,7 @@ import type { Catalog } from "../catalog/catalog";
 import { assembleTree, type ClauseResolver } from "../core/engine";
 import { expandIncludes } from "../core/includes";
 import type { HelperRegistry } from "../core/helpers";
+import { assertValidSnapshot } from "../core/snapshot";
 import type { ClausePin, Snapshot } from "../core/snapshot";
 import type { DocumentTree } from "../core/document-tree";
 import { renderTreeToBuffer } from "../render-pdf/render-pdf";
@@ -79,6 +80,9 @@ export async function renderFromSnapshot(
   snapshot: Snapshot,
   options: RenderFromSnapshotOptions = {},
 ): Promise<RenderFromSnapshotResult> {
+  // Snapshots are persisted audit artifacts; reject an unknown-version / malformed one up front with a
+  // clear error rather than failing obscurely inside a renderer (accepts a runtime-typed `unknown`).
+  assertValidSnapshot(snapshot);
   const tree = snapshot.tree ?? (await reassembleFromPins(snapshot, options));
   const format = options.format ?? "pdf";
   if (format === "html") {
