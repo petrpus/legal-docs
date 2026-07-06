@@ -1,0 +1,3 @@
+template: broken
+body:
+  - paragraph: "unterminated string

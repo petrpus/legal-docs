@@ -44,12 +44,12 @@ export class FileCatalogStore implements CatalogStore {
 
   async loadBase(family: string): Promise<BaseTemplate> {
     const file = await this.resolveFamilyFile(family, "base");
-    return toBase(parseYaml(await readFile(file, "utf8")), family);
+    return toBase(parseYamlFile(await readFile(file, "utf8"), file), family);
   }
 
   async loadVariant(family: string, variant: string): Promise<Variant> {
     const file = await this.resolveFamilyFile(family, variant);
-    return toVariant(parseYaml(await readFile(file, "utf8")), family, variant);
+    return toVariant(parseYamlFile(await readFile(file, "utf8"), file), family, variant);
   }
 
   private async hasBase(family: string): Promise<boolean> {
@@ -74,7 +74,7 @@ export class FileCatalogStore implements CatalogStore {
   async loadTemplate(id: string): Promise<Template> {
     const file = await this.resolveTemplateFile(id);
     const raw = await readFile(file, "utf8");
-    return toTemplate(parseYaml(raw), id);
+    return toTemplate(parseYamlFile(raw, file), id);
   }
 
   /** Resolve `<id>.yaml` or `<id>.yml`, mirroring what `templateIds()` discovers. */
@@ -89,7 +89,7 @@ export class FileCatalogStore implements CatalogStore {
   async loadInclude(id: string): Promise<Include> {
     for (const ext of [".yaml", ".yml"]) {
       const file = path.join(this.partialsDir(), `${id}${ext}`);
-      if (await fileExists(file)) return toInclude(parseYaml(await readFile(file, "utf8")), id);
+      if (await fileExists(file)) return toInclude(parseYamlFile(await readFile(file, "utf8"), file), id);
     }
     throw new NotFoundError("include", { id }, `Include "${id}" not found in ${this.partialsDir()}`);
   }
@@ -135,7 +135,7 @@ export class FileCatalogStore implements CatalogStore {
   async loadClause(id: string, version: number, locale: string): Promise<Clause> {
     const file = await this.resolveClauseFile(id, version, locale);
     const raw = await readFile(file, "utf8");
-    return toClause(parseYaml(raw), id, version);
+    return toClause(parseYamlFile(raw, file), id, version);
   }
 
   /** Prefer `v<N>.<locale>.yaml`; fall back to any locale of that version. */
@@ -185,6 +185,21 @@ async function fileExists(file: string): Promise<boolean> {
 function emptyIfMissing<T>(error: unknown): T[] {
   if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return [];
   throw error;
+}
+
+/**
+ * Parse a catalog YAML file, wrapping a syntactic `YAMLParseError` in a typed `LegalDocsError` that
+ * names the offending file. Without this a raw `yaml` parse error escapes untyped (a consumer catching
+ * `LegalDocsError` would miss it) and carries no file context. The shape converters
+ * (`toTemplate`/`toClause`/…) then handle structural validity on the parsed value.
+ */
+function parseYamlFile(raw: string, file: string): unknown {
+  try {
+    return parseYaml(raw);
+  } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    throw new LegalDocsError(`Malformed YAML in ${file}: ${reason}`, { cause });
+  }
 }
 
 function toTemplate(value: unknown, id: string): Template {
