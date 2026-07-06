@@ -25,6 +25,15 @@ describe("Catalog.fromStore parity with fromDir", () => {
     expect(await b.familyIds()).toEqual(await a.familyIds());
   });
 
+  it("enumerates the same clauses, includes, and clause versions", async () => {
+    const a = await viaDir();
+    const b = viaStore();
+    expect(await b.clauseIds()).toEqual(await a.clauseIds());
+    expect(await a.clauseIds()).toContain("counterparts"); // the sample catalog has it
+    expect(await b.includeIds()).toEqual(await a.includeIds());
+    expect(await b.clauseVersions("counterparts")).toEqual(await a.clauseVersions("counterparts"));
+  });
+
   it("resolves the same standalone template", async () => {
     const a = await viaDir();
     const b = viaStore();

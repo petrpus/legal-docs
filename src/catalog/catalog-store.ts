@@ -17,6 +17,10 @@ export interface CatalogStore {
   templateIds(): Promise<string[]>;
   /** Load a single standalone Template by id. */
   loadTemplate(id: string): Promise<Template>;
+  /** Ids of all Clauses available in the store (ascending). */
+  clauseIds(): Promise<string[]>;
+  /** Ids of all shared Includes available in the store (ascending). */
+  includeIds(): Promise<string[]>;
   /** Load a shared Include (Partial) by id. */
   loadInclude(id: string): Promise<Include>;
   /** Ids of all Template families (groups of a Base template + Variants). */

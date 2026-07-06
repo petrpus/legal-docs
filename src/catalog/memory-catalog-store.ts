@@ -86,6 +86,14 @@ export class MemoryCatalogStore implements CatalogStore {
     return this.require(this.templates.get(id), "template", { id });
   }
 
+  clauseIds(): Promise<string[]> {
+    return Promise.resolve([...this.clauses.keys()].sort());
+  }
+
+  includeIds(): Promise<string[]> {
+    return Promise.resolve([...this.includes.keys()].sort());
+  }
+
   loadInclude(id: string): Promise<Include> {
     return this.require(this.includes.get(id), "include", { id });
   }

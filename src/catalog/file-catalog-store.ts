@@ -94,6 +94,23 @@ export class FileCatalogStore implements CatalogStore {
     throw new NotFoundError("include", { id }, `Include "${id}" not found in ${this.partialsDir()}`);
   }
 
+  /** Each `clauses/<id>/` subdirectory is a Clause id. */
+  async clauseIds(): Promise<string[]> {
+    const entries = await readdir(this.clausesDir(), { withFileTypes: true }).catch(emptyIfMissing<Dirent>);
+    return entries
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort();
+  }
+
+  async includeIds(): Promise<string[]> {
+    const entries = await readdir(this.partialsDir()).catch(emptyIfMissing<string>);
+    return entries
+      .filter((f) => /\.ya?ml$/.test(f))
+      .map((f) => f.replace(/\.ya?ml$/, ""))
+      .sort();
+  }
+
   async clauseVersions(id: string): Promise<number[]> {
     const entries = await readdir(this.clauseDir(id)).catch(() => [] as string[]);
     const versions = new Set<number>();
@@ -144,6 +161,10 @@ export class FileCatalogStore implements CatalogStore {
 
   private familyDir(family: string): string {
     return path.join(this.templatesDir(), family);
+  }
+
+  private clausesDir(): string {
+    return path.join(this.dir, "clauses");
   }
 
   private clauseDir(id: string): string {

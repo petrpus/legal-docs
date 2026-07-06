@@ -53,6 +53,17 @@ function runEditableStoreContract(name: string, make: MakeStore): void {
       expect((await s.loadTemplate("doc")).version).toBe(2);
     });
 
+    it("enumerates clause and include ids after publish", async () => {
+      const s = make({ clauses: [clause(1, "en", "seed")] });
+      // A published seed clause is enumerable; a new-clause draft is not (until published).
+      expect(await s.clauseIds()).toEqual(["note"]);
+      const inc = await s.createDraft({ ref: { kind: "include", id: "foot" }, content: { kind: "include", include: { id: "foot", body: [] } }, actor });
+      expect(await s.includeIds()).toEqual([]); // draft, not published
+      await s.submitForReview(inc.draft, actor);
+      await s.publish(inc.draft, actor);
+      expect(await s.includeIds()).toEqual(["foot"]);
+    });
+
     it("publishes a versionless include", async () => {
       const s = make({});
       const h = await s.createDraft({ ref: { kind: "include", id: "foot" }, content: { kind: "include", include: { id: "foot", body: [{ paragraph: "f" }] } }, actor });

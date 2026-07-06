@@ -71,6 +71,11 @@ It is **feature-complete and publish-ready** but not yet published to npm.
   behind both stores, pinned by a conformance suite run against both. A guard keeps `src/**` DB-free.
 - A **runtime Clause editor** in the demo (`examples/demo/` Editor tab).
 
+### Catalog enumeration
+- `CatalogStore` and `Catalog` gain **`clauseIds()`** and **`includeIds()`**, and `Catalog.clauseVersions(id)`
+  is now public — you can list clauses/includes without already knowing their ids (implemented across the
+  file, memory, and sqlite stores). The demo editor drops its manual id-tracking workaround as a result.
+
 ### Error taxonomy
 - Every error the library throws now extends **`LegalDocsError`** — catch it to handle any library
   failure. **`NotFoundError`** (a subclass) carries a structured `{ kind, ref }` so a consumer can map a
