@@ -1,0 +1,7 @@
+template: badslot
+version: 1
+locale: en
+footer:
+  center: 123
+body:
+  - paragraph: "x"
