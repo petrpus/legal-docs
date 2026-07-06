@@ -86,6 +86,13 @@ It is **feature-complete and publish-ready** but not yet published to npm.
   `{ theme?, customBlocks?, degradation?, onDegrade? }` (was five positional params). A consumer holding
   a `DocumentTree` can now render all three advertised formats.
 
+### Malformed-YAML handling
+- **A syntactically-broken catalog YAML file now fails with a typed `LegalDocsError`** that names the
+  offending file (`Malformed YAML in <path>: <reason>`), instead of letting the `yaml` library's raw
+  `YAMLParseError` escape untyped and without file context. All five `FileCatalogStore` load paths
+  (template, base, variant, include, clause) route through one wrapper; the original parser error is
+  preserved as `cause`.
+
 ### Expression arithmetic safety
 - **Division/modulo by zero and non-finite arithmetic are now hard errors** (`ExpressionError`) instead
   of silently leaking. `$x / 0` (→ `Infinity`), `0 / 0` (→ `NaN`), and `$x % 0` previously flowed
