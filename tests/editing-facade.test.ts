@@ -5,7 +5,7 @@ import { MemoryEditableCatalogStore } from "../src/catalog/memory-editable-catal
 import { PublishValidationError } from "../src/catalog/editing-facade";
 import type { Actor, ElementContent, ElementRef } from "../src/catalog/editable-catalog-store";
 import type { Clause } from "../src/core/clause";
-import type { Template } from "../src/core/template";
+import type { BodyItem, Template } from "../src/core/template";
 
 const actor: Actor = { id: "u1", name: "Editor" };
 const noteRef: ElementRef = { kind: "clause", id: "note" };
@@ -86,6 +86,40 @@ describe("catalog.editing — template publish gate", () => {
     await cat.editing.submitForReview(h.draft, actor);
     await expect(cat.editing.publish(h.draft, actor)).resolves.toMatchObject({ version: 1 });
     expect(await store.templateIds()).toEqual(["doc"]);
+  });
+});
+
+describe("catalog.editing — include publish gate", () => {
+  const iRef: ElementRef = { kind: "include", id: "greeting" };
+  const includeContent = (body: BodyItem[]): ElementContent => ({ kind: "include", include: { id: "greeting", body } });
+  // A published template consumes the include, so a broken include is only reachable through it — the
+  // same asymmetry the clause gate has (includes are linted via a consuming template, never standalone).
+  const consumer: Template = { template: "doc", version: 1, locale: "en", body: [{ include: "greeting" }] };
+  const withConsumer = () => new MemoryEditableCatalogStore({ templates: [consumer] }, { now: () => "2026-01-01T00:00:00Z" });
+
+  it("blocks publishing an include draft that breaks the consuming template", async () => {
+    const store = withConsumer();
+    const cat = Catalog.fromStore(store);
+    // The include body references a clause that does not exist → the expanded template is unresolved.
+    const h = await cat.editing.createDraft({ ref: iRef, content: includeContent([{ clause: "ghost@latest" }]), actor });
+    await cat.editing.submitForReview(h.draft, actor);
+
+    const err = await cat.editing.publish(h.draft, actor).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PublishValidationError);
+    expect((err as PublishValidationError).findings.length).toBeGreaterThan(0);
+    // The gate blocked it → nothing published, the include is still absent.
+    await expect(store.loadInclude("greeting")).rejects.toThrow();
+  });
+
+  it("publishes a clean include draft through the gate", async () => {
+    const store = withConsumer();
+    const cat = Catalog.fromStore(store);
+    const h = await cat.editing.createDraft({ ref: iRef, content: includeContent([{ paragraph: "Hello" }]), actor });
+    await cat.editing.submitForReview(h.draft, actor);
+    await cat.editing.publish(h.draft, actor);
+    expect((await store.loadInclude("greeting")).body).toEqual([{ paragraph: "Hello" }]);
+    // The freshly-published catalog (template + include) is itself clean.
+    expect((await cat.validate()).ok).toBe(true);
   });
 });
 
