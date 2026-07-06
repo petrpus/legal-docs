@@ -67,6 +67,17 @@ export interface SignaturePlaceSpec {
   role?: string;
 }
 
+/**
+ * A page header or footer authored on a Template (paged output only). Each corner is an interpolated
+ * string — `{{ $party.name }}` binds against the payload; `{{ $page.number }}` / `{{ $page.total }}`
+ * resolve per page in the renderer. Styling (font size, colour, margin) lives in the Theme.
+ */
+export interface PageFurnitureSpec {
+  left?: string;
+  center?: string;
+  right?: string;
+}
+
 export interface Template {
   /** Template id (the family id when this Template was composed from a Variant). */
   template: string;
@@ -77,6 +88,10 @@ export interface Template {
   /** Names of the Derivations the Resolve phase runs into `$derived.*` (optional). */
   derivations?: string[];
   body: BodyItem[];
+  /** Optional page header for paged output (PDF/DOCX); ignored by the HTML fragment renderer. */
+  header?: PageFurnitureSpec;
+  /** Optional page footer for paged output (PDF/DOCX); ignored by the HTML fragment renderer. */
+  footer?: PageFurnitureSpec;
   /** The Variant this Template was composed from (absent for a standalone Template). */
   variant?: string;
   /** Party roles declared by the Variant (absent for a standalone Template). */

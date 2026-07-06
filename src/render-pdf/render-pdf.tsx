@@ -1,7 +1,8 @@
 import { LegalDocsError } from "../core/errors";
 import { Document, Page, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { cloneElement, createElement, type ReactElement } from "react";
-import type { DocumentNode, DocumentTree } from "../core/document-tree";
+import type { DocumentBody, DocumentNode, DocumentTree, PageFurniture } from "../core/document-tree";
+import { asDocumentTree, PAGE_NUMBER_SENTINEL, PAGE_TOTAL_SENTINEL } from "../core/document-tree";
 import type { RichRun } from "../core/rich-text";
 import { MAX_LEVEL } from "../core/engine";
 import { validatePayload } from "../core/payload";
@@ -284,15 +285,51 @@ export function documentElement(
     null,
     // fontFamily on the Page cascades to all Text (react-pdf resolves bold/italic within the family).
     <Page size={theme.page.size} style={{ padding: theme.page.padding, color: theme.color.text, fontFamily: theme.font.family }}>
-      {tree.map((node, i) => nodeToElement(node, i, theme, cx))}
+      {tree.header ? furnitureElement(tree.header, "header", theme) : null}
+      {tree.body.map((node, i) => nodeToElement(node, i, theme, cx))}
+      {tree.footer ? furnitureElement(tree.footer, "footer", theme) : null}
     </Page>,
   );
 }
 
-export function renderTreeToPdf(tree: DocumentTree, options: RenderTreeOptions = {}): Promise<Buffer> {
+/**
+ * A page header/footer: a `fixed` (repeats on every page), absolutely-positioned three-column row.
+ * Each slot's page-number sentinels are substituted per page via react-pdf's `render` callback, which
+ * is the only place `pageNumber`/`totalPages` are known.
+ */
+function furnitureElement(furniture: PageFurniture, kind: "header" | "footer", theme: Theme): ReactElement {
+  const style = kind === "header" ? theme.header : theme.footer;
+  const edge = kind === "header" ? { top: style.margin } : { bottom: style.margin };
+  const fill =
+    (slot: string) =>
+    ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }): string =>
+      slot.split(PAGE_NUMBER_SENTINEL).join(String(pageNumber)).split(PAGE_TOTAL_SENTINEL).join(String(totalPages));
+  const column = { flexGrow: 1, flexBasis: 0 } as const;
+  return (
+    <View
+      key={kind}
+      fixed
+      style={{
+        position: "absolute",
+        left: theme.page.padding,
+        right: theme.page.padding,
+        ...edge,
+        flexDirection: "row",
+        fontSize: style.fontSize,
+        color: style.color,
+      }}
+    >
+      <Text style={{ ...column, textAlign: "left" }} render={fill(furniture.left ?? "")} />
+      <Text style={{ ...column, textAlign: "center" }} render={fill(furniture.center ?? "")} />
+      <Text style={{ ...column, textAlign: "right" }} render={fill(furniture.right ?? "")} />
+    </View>
+  );
+}
+
+export function renderTreeToPdf(input: DocumentTree | DocumentBody, options: RenderTreeOptions = {}): Promise<Buffer> {
   // Register the bundled diacritics-safe font before rendering (idempotent). A consumer who sets a
   // different `theme.font.family` registers that family themselves via the re-exported `Font`.
   registerBundledFonts();
   const theme = mergeTheme(options.theme);
-  return renderToBuffer(documentElement(tree, theme, options.customBlocks, options.degradation, options.onDegrade));
+  return renderToBuffer(documentElement(asDocumentTree(input), theme, options.customBlocks, options.degradation, options.onDegrade));
 }

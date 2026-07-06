@@ -6,12 +6,12 @@ import { renderTreeToHtml } from "../src/render-html/render-html";
 import { escapeHtml } from "../src/render-html/escape";
 import { parseRichText } from "../src/core/rich-text";
 import { defaultTheme } from "../src/theme";
-import type { DocumentTree } from "../src/core/document-tree";
+import type { DocumentBody } from "../src/core/document-tree";
 import type { CustomBlockRegistry } from "../src/custom-block";
 
 const strictSchema = z.object({ label: z.string() });
 
-const tree: DocumentTree = [
+const tree: DocumentBody = [
   { kind: "title", text: "AGREEMENT & TERMS" },
   { kind: "paragraph", text: "Plain <world> text" },
   { kind: "richText", value: parseRichText("This is **bold** and *italic*.") },

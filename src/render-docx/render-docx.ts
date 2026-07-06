@@ -13,12 +13,14 @@ import {
 } from "docx";
 import type {
   Align,
+  DocumentBody,
   DocumentNode,
   DocumentTree,
   KeyValueRow,
   PartyIdentification,
   SignaturePlace,
 } from "../core/document-tree";
+import { asDocumentTree } from "../core/document-tree";
 import type { RichParagraph, RichRun } from "../core/rich-text";
 import { MAX_LEVEL } from "../core/engine";
 import { validatePayload } from "../core/payload";
@@ -41,12 +43,15 @@ interface DocxCtx {
  * Word has no nested block container, so nested nodes flatten into a flat `(Paragraph | Table)[]` with
  * indentation/markers carried as paragraph properties. The library handles XML escaping.
  */
-export async function renderTreeToDocx(tree: DocumentTree, options: RenderTreeOptions = {}): Promise<Buffer> {
+export async function renderTreeToDocx(input: DocumentTree | DocumentBody, options: RenderTreeOptions = {}): Promise<Buffer> {
   // `async` so a synchronous build error (unregistered component, throw-mode degradation) surfaces as
   // a rejected promise rather than a sync throw.
+  const tree = asDocumentTree(input);
   const theme = mergeTheme(options.theme);
   const ctx: DocxCtx = { theme, blocks: options.customBlocks ?? {}, degradation: options.degradation ?? "placeholder", onDegrade: options.onDegrade, depth: 0 };
-  const children = tree.flatMap((node) => nodeToDocx(node, ctx));
+  // Header/footer furniture (`tree.header`/`tree.footer`) is wired into the DOCX section in a later
+  // slice (Wave 4 #4); this slice renders the body only.
+  const children = tree.body.flatMap((node) => nodeToDocx(node, ctx));
   // Set the document-default run font (the reader's app substitutes if it lacks the family).
   const doc = new Document({
     styles: { default: { document: { run: { font: theme.font.family } } } },

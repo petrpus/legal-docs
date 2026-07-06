@@ -2,7 +2,7 @@ import { LegalDocsError, NotFoundError } from "../core/errors";
 import { Readable } from "node:stream";
 import type { Catalog } from "../catalog/catalog";
 import type { Template } from "../core/template";
-import { assembleTree } from "../core/engine";
+import { assembleDocument } from "../core/engine";
 import { expandIncludes } from "../core/includes";
 import { validatePayload, type PayloadSchemaRegistry } from "../core/payload";
 import { resolvePayload, type DerivationRegistry } from "../core/resolve";
@@ -90,7 +90,7 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
   const scope = { ...payload, derived };
   // Record every Clause version resolved during assembly, so the Snapshot can pin them for audit.
   const pins: ClausePin[] = [];
-  const tree = await assembleTree(concrete, {
+  const tree = await assembleDocument(concrete, {
     scope,
     helpers: input.helpers,
     clauses: async (ref, clauseLocale) => {

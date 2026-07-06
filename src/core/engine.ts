@@ -1,7 +1,7 @@
-import type { ArticleItem, BodyItem, KeyValueRows, SignaturePlaceSpec, Template, TextSpec } from "./template";
+import type { ArticleItem, BodyItem, KeyValueRows, PageFurnitureSpec, SignaturePlaceSpec, Template, TextSpec } from "./template";
 import { LegalDocsError } from "./errors";
-import type { BlockIndent, DocumentNode, DocumentTree, KeyValueRow, SignaturePlace } from "./document-tree";
-import { ALIGN_VALUES, isAlign } from "./document-tree";
+import type { BlockIndent, DocumentNode, DocumentTree, KeyValueRow, PageFurniture, SignaturePlace } from "./document-tree";
+import { ALIGN_VALUES, isAlign, PAGE_NUMBER_SENTINEL, PAGE_TOTAL_SENTINEL } from "./document-tree";
 import type { Clause } from "./clause";
 import { evaluate, evaluatePath, evaluatePredicate, type EvalContext } from "./expression";
 import { deepBind } from "./deep-bind";
@@ -43,16 +43,61 @@ export const MAX_LEVEL = 3;
 export async function assembleTree(
   template: Template,
   context: AssembleContext = {},
+): Promise<DocumentNode[]> {
+  return assembleItems(template.body, buildFrame(template, context), 1);
+}
+
+/**
+ * Assemble a full {@link DocumentTree}: the body plus the resolved page header/footer (paged output).
+ * Furniture slots are interpolated against the payload scope; a `$page.number` / `$page.total` token
+ * resolves to a sentinel that the paged renderer substitutes per page.
+ */
+export async function assembleDocument(
+  template: Template,
+  context: AssembleContext = {},
 ): Promise<DocumentTree> {
+  const frame = buildFrame(template, context);
+  const body = await assembleItems(template.body, frame, 1);
+  const header = resolveFurniture(template.header, frame);
+  const footer = resolveFurniture(template.footer, frame);
+  return {
+    body,
+    ...(header !== undefined ? { header } : {}),
+    ...(footer !== undefined ? { footer } : {}),
+  };
+}
+
+function buildFrame(template: Template, context: AssembleContext): Frame {
   const locale = context.locale ?? template.locale;
-  const frame: Frame = {
+  return {
     // Bind the render locale into the built-in helpers so `formatMoney`/`formatDateLong` format for it;
     // consumer `helpers` win on name collision.
     evalCtx: { scope: context.scope ?? {}, helpers: { ...makeDefaultHelpers(locale), ...context.helpers } },
     context,
     locale,
   };
-  return assembleItems(template.body, frame, 1);
+}
+
+/**
+ * Interpolate a header/footer spec's slots against the payload scope augmented with the reserved
+ * `$page` namespace (bound to the per-page sentinels). Returns `undefined` if the spec is absent or all
+ * its slots are.
+ */
+function resolveFurniture(spec: PageFurnitureSpec | undefined, frame: Frame): PageFurniture | undefined {
+  if (!spec) return undefined;
+  // `$page.number` / `$page.total` resolve to sentinels here; the paged renderer swaps them per page.
+  const scope = { ...frame.evalCtx.scope, page: { number: PAGE_NUMBER_SENTINEL, total: PAGE_TOTAL_SENTINEL } };
+  const ctx: EvalContext = { ...frame.evalCtx, scope };
+  const slot = (s: string | undefined): string | undefined => (s === undefined ? undefined : interpolate(s, ctx));
+  const left = slot(spec.left);
+  const center = slot(spec.center);
+  const right = slot(spec.right);
+  if (left === undefined && center === undefined && right === undefined) return undefined;
+  return {
+    ...(left !== undefined ? { left } : {}),
+    ...(center !== undefined ? { center } : {}),
+    ...(right !== undefined ? { right } : {}),
+  };
 }
 
 async function assembleItems(items: BodyItem[], frame: Frame, level: number): Promise<DocumentNode[]> {
