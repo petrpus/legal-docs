@@ -1,3 +1,4 @@
+import { LegalDocsError, NotFoundError } from "../core/errors";
 import type { CatalogStore } from "./catalog-store";
 import {
   describeRef,
@@ -10,6 +11,7 @@ import {
   type ElementStatus,
   type PublishResult,
 } from "./editable-catalog-store";
+import { refToNotFound } from "./editing-workflow";
 import type { AuditEntry } from "./audit";
 import type { ValidateOptions, ValidationFinding, ValidationResult } from "./validate";
 import type { Clause } from "../core/clause";
@@ -18,7 +20,7 @@ import { diffRichText } from "../core/clause-diff";
 import { parseRichText } from "../core/rich-text";
 
 /** Thrown when a draft fails the pre-publish integrity gate; carries the exact findings for a UI. */
-export class PublishValidationError extends Error {
+export class PublishValidationError extends LegalDocsError {
   constructor(public readonly findings: ValidationFinding[]) {
     super(`Cannot publish: ${findings.length} validation finding(s) — ${findings.map((f) => f.message).join("; ")}`);
     this.name = "PublishValidationError";
@@ -62,7 +64,7 @@ export function createEditingApi(store: EditableCatalogStore, validate: Validate
 
     publish: async (draft, actor, validateOptions) => {
       const handle = await store.loadDraft(draft);
-      if (!handle) throw new Error(`No draft to publish for ${describeRef(draft.ref)}`);
+      if (!handle) throw new NotFoundError("draft", refToNotFound(draft.ref, draft.version), `No draft to publish for ${describeRef(draft.ref)}`);
       // Short-circuit a wrong-status publish: let the store raise its clear "only in_review" error
       // rather than spending a lint pass on a draft that can't publish anyway.
       if (handle.status !== "in_review") return store.publish(draft, actor);
@@ -73,7 +75,7 @@ export function createEditingApi(store: EditableCatalogStore, validate: Validate
 
     previewDiff: async (draft, options) => {
       const handle = await store.loadDraft(draft);
-      if (!handle) throw new Error(`No draft for ${describeRef(draft.ref)}`);
+      if (!handle) throw new NotFoundError("draft", refToNotFound(draft.ref, draft.version), `No draft for ${describeRef(draft.ref)}`);
       return clausePreviewDiff(store, handle, options?.locale ?? "en");
     },
   };
@@ -162,7 +164,7 @@ function draftPublishOverlay(store: EditableCatalogStore, handle: DraftHandle): 
 
 async function clausePreviewDiff(store: EditableCatalogStore, handle: DraftHandle, locale: string): Promise<ClauseDiff> {
   const ref = handle.draft.ref;
-  if (ref.kind !== "clause") throw new Error(`previewDiff supports clause drafts only`);
+  if (ref.kind !== "clause") throw new LegalDocsError(`previewDiff supports clause drafts only`);
   const version = handle.draft.version ?? 0;
   const newRow = clauseRows(handle).find((r) => r.locale === locale);
   const newText = newRow?.text ?? "";
@@ -186,6 +188,6 @@ function clauseRows(handle: DraftHandle): Clause[] {
 /** The sole draft content payload of the given kind (single-revision drafts). */
 function draftContent<K extends ElementContent["kind"]>(handle: DraftHandle, kind: K): Extract<ElementContent, { kind: K }> {
   const found = handle.content.find((c) => c.kind === kind);
-  if (!found || found.kind !== kind) throw new Error(`Draft has no ${kind} content`);
+  if (!found || found.kind !== kind) throw new LegalDocsError(`Draft has no ${kind} content`);
   return found as Extract<ElementContent, { kind: K }>;
 }

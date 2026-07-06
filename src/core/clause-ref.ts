@@ -2,6 +2,7 @@
  * A Clause reference binds a Clause to a template: either pinned (`id@v2`) or `id@latest`
  * (auto-newest). A bare `id` means `@latest`.
  */
+import { LegalDocsError } from "./errors";
 export interface ClauseRef {
   id: string;
   version: number | "latest";
@@ -13,10 +14,10 @@ export function parseClauseRef(ref: string): ClauseRef {
 
   const id = ref.slice(0, at);
   const version = ref.slice(at + 1);
-  if (id.length === 0) throw new Error(`Invalid clause reference: "${ref}"`);
+  if (id.length === 0) throw new LegalDocsError(`Invalid clause reference: "${ref}"`);
   if (version === "latest") return { id, version: "latest" };
 
   const match = /^v(\d+)$/.exec(version);
-  if (!match) throw new Error(`Invalid clause version in "${ref}" (use @vN or @latest)`);
+  if (!match) throw new LegalDocsError(`Invalid clause version in "${ref}" (use @vN or @latest)`);
   return { id, version: Number(match[1]) };
 }

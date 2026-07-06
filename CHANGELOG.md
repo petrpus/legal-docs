@@ -71,6 +71,15 @@ It is **feature-complete and publish-ready** but not yet published to npm.
   behind both stores, pinned by a conformance suite run against both. A guard keeps `src/**` DB-free.
 - A **runtime Clause editor** in the demo (`examples/demo/` Editor tab).
 
+### Error taxonomy
+- Every error the library throws now extends **`LegalDocsError`** — catch it to handle any library
+  failure. **`NotFoundError`** (a subclass) carries a structured `{ kind, ref }` so a consumer can map a
+  missing template/clause/include/base/variant/schema/draft/pin to e.g. an HTTP 404 without
+  string-matching messages. The seven existing error classes (`PayloadValidationError`,
+  `PublishValidationError`, `VarsValidationError`, `ExpressionError`, `IncludeError`, `CompositionError`,
+  `SnapshotError`) are rebased onto the base; every previously-plain `throw new Error` in the stores,
+  facades, engine, and renderers is now typed.
+
 ### Snapshot format versioning
 - `Snapshot` now carries a **`schemaVersion`** (`SNAPSHOT_SCHEMA_VERSION`); `renderFromSnapshot`
   validates it up front and rejects an unknown-version / malformed snapshot with a clear `SnapshotError`

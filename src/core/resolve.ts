@@ -4,6 +4,7 @@
  * templates only read — `if`/`for` never compute. Derivations are code-side (like helpers/schemas);
  * a Template lists the names it uses, and the consumer supplies the implementations.
  */
+import { LegalDocsError } from "./errors";
 export type Derivation = (payload: unknown) => unknown;
 export type DerivationRegistry = Record<string, Derivation>;
 
@@ -20,12 +21,12 @@ export function resolvePayload(
   const derived: Record<string, unknown> = {};
   for (const name of names) {
     const derive = registry[name];
-    if (!derive) throw new Error(`Unknown derivation: ${name}`);
+    if (!derive) throw new LegalDocsError(`Unknown derivation: ${name}`);
     try {
       derived[name] = derive(payload);
     } catch (cause) {
       const reason = cause instanceof Error ? cause.message : String(cause);
-      throw new Error(`Derivation "${name}" failed: ${reason}`, { cause });
+      throw new LegalDocsError(`Derivation "${name}" failed: ${reason}`, { cause });
     }
   }
   return { derived };

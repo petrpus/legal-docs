@@ -1,3 +1,4 @@
+import { LegalDocsError, NotFoundError } from "../core/errors";
 import { Readable } from "node:stream";
 import type { Catalog } from "../catalog/catalog";
 import type { Template } from "../core/template";
@@ -125,7 +126,7 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
     return { format: "docx", buffer, stream: Readable.from(buffer), snapshot, snapshotId: snapshot.id };
   }
   const unsupported: never = input.format;
-  throw new Error(`Unsupported format: ${String(unsupported)}`);
+  throw new LegalDocsError(`Unsupported format: ${String(unsupported)}`);
 }
 
 function resolveScope(template: Template, input: RenderDocumentInput): Record<string, unknown> {
@@ -135,7 +136,7 @@ function resolveScope(template: Template, input: RenderDocumentInput): Record<st
   }
   const schema = input.schemas?.[template.payloadSchema];
   if (!schema) {
-    throw new Error(`No payload schema registered for "${template.payloadSchema}"`);
+    throw new NotFoundError("schema", { id: template.payloadSchema }, `No payload schema registered for "${template.payloadSchema}"`);
   }
   const validated = validatePayload(schema, input.data);
   return isRecord(validated) ? validated : {};

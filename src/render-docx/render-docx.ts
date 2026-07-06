@@ -1,3 +1,4 @@
+import { LegalDocsError } from "../core/errors";
 import {
   AlignmentType,
   BorderStyle,
@@ -100,7 +101,7 @@ function nodeToDocx(node: DocumentNode, ctx: DocxCtx): (Paragraph | Table)[] {
       return customDocx(node, ctx);
     default: {
       const unhandled: never = node;
-      throw new Error(`Unsupported node kind: ${JSON.stringify(unhandled)}`);
+      throw new LegalDocsError(`Unsupported node kind: ${JSON.stringify(unhandled)}`);
     }
   }
 }
@@ -289,7 +290,7 @@ function signaturesDocx(places: SignaturePlace[], ctx: DocxCtx): Table {
 
 function customDocx(node: Extract<DocumentNode, { kind: "custom" }>, ctx: DocxCtx): (Paragraph | Table)[] {
   const block = ctx.blocks[node.component];
-  if (!block) throw new Error(`Custom block "${node.component}" is not registered`);
+  if (!block) throw new LegalDocsError(`Custom block "${node.component}" is not registered`);
   if (typeof block.docx !== "function") return degradeDocx(node.component, ctx);
   let props = node.props;
   if (block.schema) {
@@ -297,7 +298,7 @@ function customDocx(node: Extract<DocumentNode, { kind: "custom" }>, ctx: DocxCt
       props = validatePayload(block.schema, node.props);
     } catch (cause) {
       const reason = cause instanceof Error ? cause.message : String(cause);
-      throw new Error(`Custom block "${node.component}" received invalid props: ${reason}`, { cause });
+      throw new LegalDocsError(`Custom block "${node.component}" received invalid props: ${reason}`, { cause });
     }
   }
   return block.docx(props, { theme: ctx.theme });

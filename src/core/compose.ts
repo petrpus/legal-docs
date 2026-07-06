@@ -1,7 +1,8 @@
+import { LegalDocsError } from "./errors";
 import type { BaseTemplate, BodyItem, Template, Variant } from "./template";
 
 /** A bad family composition: a Variant extending the wrong base, or overriding an undeclared Slot. */
-export class CompositionError extends Error {
+export class CompositionError extends LegalDocsError {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options);
     this.name = "CompositionError";

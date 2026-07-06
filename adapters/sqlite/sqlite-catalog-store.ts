@@ -10,6 +10,7 @@ import type {
   PublishResult,
 } from "../../src/catalog/editable-catalog-store";
 import type { AuditEntry } from "../../src/catalog/audit";
+import { NotFoundError, type NotFoundKind, type NotFoundRef } from "../../src/core/errors";
 import { EditingWorkflow, type DraftRecord, type EditingBackend } from "../../src/catalog/editing-workflow";
 import type { MemoryCatalogSeed } from "../../src/catalog/memory-catalog-store";
 import type { Clause } from "../../src/core/clause";
@@ -97,16 +98,16 @@ export class SqliteEditableCatalogStore implements EditableCatalogStore {
   }
 
   loadTemplate(id: string): Promise<Template> {
-    return this.loadJson<Template>("SELECT json FROM published WHERE kind='template' AND cid=? ORDER BY version DESC LIMIT 1", `Template "${id}" not found`, id);
+    return this.loadJson<Template>("SELECT json FROM published WHERE kind='template' AND cid=? ORDER BY version DESC LIMIT 1", "template", { id }, id);
   }
   loadInclude(id: string): Promise<Include> {
-    return this.loadJson<Include>("SELECT json FROM published WHERE kind='include' AND cid=? LIMIT 1", `Include "${id}" not found`, id);
+    return this.loadJson<Include>("SELECT json FROM published WHERE kind='include' AND cid=? LIMIT 1", "include", { id }, id);
   }
   loadBase(family: string): Promise<BaseTemplate> {
-    return this.loadJson<BaseTemplate>("SELECT json FROM published WHERE kind='base' AND cid=? ORDER BY version DESC LIMIT 1", `Base of family "${family}" not found`, family);
+    return this.loadJson<BaseTemplate>("SELECT json FROM published WHERE kind='base' AND cid=? ORDER BY version DESC LIMIT 1", "base", { family }, family);
   }
   loadVariant(family: string, variant: string): Promise<Variant> {
-    return this.loadJson<Variant>("SELECT json FROM published WHERE kind='variant' AND cid=? AND variant=? LIMIT 1", `Variant "${variant}" of family "${family}" not found`, family, variant);
+    return this.loadJson<Variant>("SELECT json FROM published WHERE kind='variant' AND cid=? AND variant=? LIMIT 1", "variant", { family, variant }, family, variant);
   }
   loadClause(id: string, version: number, locale: string): Promise<Clause> {
     const exact = this.get("SELECT json FROM published WHERE kind='clause' AND cid=? AND version=? AND locale=?", id, version, locale);
@@ -114,7 +115,7 @@ export class SqliteEditableCatalogStore implements EditableCatalogStore {
     // Fall back to the lowest-sorted authored locale of this version (mirrors the file/memory stores).
     const fallback = this.get("SELECT json FROM published WHERE kind='clause' AND cid=? AND version=? ORDER BY locale LIMIT 1", id, version);
     if (fallback) return Promise.resolve(JSON.parse(fallback.json) as Clause);
-    return Promise.reject(new Error(`Clause "${id}" v${version} not found`));
+    return Promise.reject(new NotFoundError("clause", { id, version }));
   }
 
   // --- EditableCatalogStore (delegate to the shared workflow) ----------------
@@ -219,9 +220,9 @@ export class SqliteEditableCatalogStore implements EditableCatalogStore {
   private get(sql: string, ...params: (string | number)[]): { json: string } | undefined {
     return this.db.prepare(sql).get(...params) as { json: string } | undefined;
   }
-  private loadJson<T>(sql: string, notFound: string, ...params: (string | number)[]): Promise<T> {
+  private loadJson<T>(sql: string, kind: NotFoundKind, ref: NotFoundRef, ...params: (string | number)[]): Promise<T> {
     const row = this.get(sql, ...params);
-    return row ? Promise.resolve(JSON.parse(row.json) as T) : Promise.reject(new Error(notFound));
+    return row ? Promise.resolve(JSON.parse(row.json) as T) : Promise.reject(new NotFoundError(kind, ref));
   }
 }
 

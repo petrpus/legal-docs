@@ -1,3 +1,4 @@
+import { LegalDocsError } from "../core/errors";
 import { Document, Page, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { cloneElement, createElement, type ReactElement } from "react";
 import type { DocumentNode, DocumentTree } from "../core/document-tree";
@@ -191,7 +192,7 @@ function nodeToElement(
       // Exhaustive over the Core node set: a new kind makes this assignment a compile error,
       // and this also guards untyped JS callers at runtime.
       const unhandled: never = node;
-      throw new Error(`Unsupported node kind: ${JSON.stringify(unhandled)}`);
+      throw new LegalDocsError(`Unsupported node kind: ${JSON.stringify(unhandled)}`);
     }
   }
 }
@@ -208,7 +209,7 @@ function customElement(
   cx: CustomCtx,
 ): ReactElement {
   const block = cx.blocks[node.component];
-  if (!block) throw new Error(`Custom block "${node.component}" is not registered`);
+  if (!block) throw new LegalDocsError(`Custom block "${node.component}" is not registered`);
   if (typeof block.pdf !== "function") {
     // `pdf` is required by the contract, so this only fires for an untyped caller or a future format;
     // the Degradation contract governs it (default: a visible, logged placeholder; never silent).
@@ -220,7 +221,7 @@ function customElement(
       props = validatePayload(block.schema, node.props);
     } catch (cause) {
       const reason = cause instanceof Error ? cause.message : String(cause);
-      throw new Error(`Custom block "${node.component}" received invalid props: ${reason}`, { cause });
+      throw new LegalDocsError(`Custom block "${node.component}" received invalid props: ${reason}`, { cause });
     }
   }
   // The block owns its layout (ADR-0005); inject only a key — no wrapper — so it controls its own
