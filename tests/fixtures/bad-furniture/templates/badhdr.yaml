@@ -1,0 +1,6 @@
+template: badhdr
+version: 1
+locale: en
+header: "just a string"
+body:
+  - paragraph: "x"

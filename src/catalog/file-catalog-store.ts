@@ -3,7 +3,7 @@ import type { Dirent } from "node:fs";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { CatalogStore } from "./catalog-store";
-import type { BaseTemplate, BodyItem, Include, Template, Variant } from "../core/template";
+import type { BaseTemplate, BodyItem, Include, PageFurnitureSpec, Template, Variant } from "../core/template";
 import type { Clause } from "../core/clause";
 import { LegalDocsError, NotFoundError } from "../core/errors";
 import type { VarsSchema } from "../core/vars-schema";
@@ -221,9 +221,47 @@ function toTemplate(value: unknown, id: string): Template {
     derivations: Array.isArray(v.derivations)
       ? v.derivations.filter((d): d is string => typeof d === "string")
       : undefined,
+    ...furnitureFields(v, `Template "${id}"`),
     // Per-item shape is validated lazily by the engine; payload (zod) validation is applied to the
     // data, not the template, in the facade.
     body: v.body as BodyItem[],
+  };
+}
+
+/**
+ * Parse optional `header` / `footer` page-furniture specs from a raw template object. Each is a
+ * `{ left?, center?, right? }` of strings; a non-object or a non-string slot is a clear authoring error.
+ * (Furniture on a family Base/Variant is a separate future extension — standalone Templates only here.)
+ */
+function furnitureFields(v: Record<string, unknown>, label: string): { header?: PageFurnitureSpec; footer?: PageFurnitureSpec } {
+  const header = v.header !== undefined ? toFurniture(v.header, `${label} header`) : undefined;
+  const footer = v.footer !== undefined ? toFurniture(v.footer, `${label} footer`) : undefined;
+  return {
+    ...(header !== undefined ? { header } : {}),
+    ...(footer !== undefined ? { footer } : {}),
+  };
+}
+
+/** Returns `undefined` for a slot-less spec, so a present-but-empty `header: {}` converges with "absent". */
+function toFurniture(value: unknown, label: string): PageFurnitureSpec | undefined {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new LegalDocsError(`${label} must be an object with left/center/right slots`);
+  }
+  const v = value as Record<string, unknown>;
+  const slot = (key: "left" | "center" | "right"): string | undefined => {
+    const s = v[key];
+    if (s === undefined) return undefined;
+    if (typeof s !== "string") throw new LegalDocsError(`${label} "${key}" must be a string`);
+    return s;
+  };
+  const left = slot("left");
+  const center = slot("center");
+  const right = slot("right");
+  if (left === undefined && center === undefined && right === undefined) return undefined;
+  return {
+    ...(left !== undefined ? { left } : {}),
+    ...(center !== undefined ? { center } : {}),
+    ...(right !== undefined ? { right } : {}),
   };
 }
 

@@ -1,0 +1,16 @@
+template: nda-headed
+version: 1
+locale: en
+payloadSchema: nda@1
+# Page furniture (ADR-0011): a running header with the party + "page X / Y", a confidentiality footer.
+header:
+  left: "{{ $party.name }}"
+  right: "{{ $page.number }} / {{ $page.total }}"
+footer:
+  center: "Confidential — do not distribute"
+body:
+  - title: "MUTUAL NON-DISCLOSURE AGREEMENT"
+  # Locale-aware helpers (ADR-0010): the date and amount format for the render locale.
+  - paragraph: "Entered into on {{ formatDateLong($date) }} by {{ $party.name }}."
+  - paragraph: "Liquidated damages for a breach are capped at {{ formatMoney($amount, $currency) }}."
+  - paragraph: "The parties shall hold all Confidential Information in strict confidence and use it solely for the Purpose."
