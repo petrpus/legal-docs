@@ -56,16 +56,20 @@ It is **feature-complete and publish-ready** but not yet published to npm.
   throw + catalog-lint finding). `defaultTheme` stays all-`left`/zero-indent, so existing output is
   unchanged.
 
-### Phase 7 — runtime editing API (in progress, ADR-0009)
+### Phase 7 — runtime editing API (ADR-0009)
 - The editing **contract**: `EditableCatalogStore` extends the read-only `CatalogStore` with drafting,
   a `draft → in_review → published` workflow, and an `AuditEntry` edit log. Read methods surface only
   published content, so `@latest` = newest published with `FileCatalogStore` unchanged.
-- `MemoryCatalogStore` (in-memory read store) + `MemoryEditableCatalogStore` — the reference editable
-  store, covering **clauses** (versions-as-rows, per-locale, additive translations) and
-  **templates / includes** (single-revision; publish bumps a template's version). `Catalog.fromStore`
+- `MemoryCatalogStore` + `MemoryEditableCatalogStore` — the reference editable store, covering **all
+  five element kinds**: clauses (versions-as-rows, per-locale, additive translations), templates/bases
+  (single-revision; publish bumps the version), and includes/variants (versionless). `Catalog.fromStore`
   gains its first test coverage (parity vs `fromDir`).
-- `catalog.editing` — the runtime editing API with a **`validate()`-gated publish** (a draft that would
-  break a consuming template is blocked with `PublishValidationError`) and `previewDiff` review diffs.
+- `catalog.editing` — the runtime editing API with a **`validate()`-gated, composition-aware publish**
+  (a draft that would break a consuming template, or a variant with an undeclared-slot override, is
+  blocked with `PublishValidationError`) and `previewDiff` review diffs.
+- A **`node:sqlite` adapter** (`adapters/sqlite/`, outside the package) and the shared `EditingWorkflow`
+  behind both stores, pinned by a conformance suite run against both. A guard keeps `src/**` DB-free.
+- A **runtime Clause editor** in the demo (`examples/demo/` Editor tab).
 
 ### Snapshot format versioning
 - `Snapshot` now carries a **`schemaVersion`** (`SNAPSHOT_SCHEMA_VERSION`); `renderFromSnapshot`

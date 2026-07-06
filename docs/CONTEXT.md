@@ -124,9 +124,10 @@ _Avoid_: "registry" as a synonym for the authored content (see the qualified reg
 
 **CatalogStore**:
 The persistence seam abstracting *how* the **Catalog** loads, reference-resolves, and lists versions
-of all authored content (Templates, Blocks, Clauses). The default and only current implementation is
-**FileCatalogStore** (filesystem / bundle). A future DB-backed editing API is another adapter of the
-same interface — not a rewrite. The store only loads/resolves/lists; **diff, integrity-lint and
+of all authored content (Templates, Bases, Variants, Clauses, Includes). The read-only default is
+**FileCatalogStore** (filesystem / bundle); **EditableCatalogStore** (see below) extends it with a
+runtime editing API, implemented in-memory and over `node:sqlite` (`adapters/sqlite/`) — the seam the
+design always anticipated. The store only loads/resolves/lists/writes; **diff, integrity-lint and
 `validate()` live in the Catalog layer above it**.
 
 **FileCatalogStore**:
@@ -169,9 +170,9 @@ needs a byte-exact archive stores the output artifact itself.
 **Snapshot mode**:
 Config (engine-level default, overridable per `renderDocument` call) choosing what a **Snapshot**
 freezes. Default **`full`**.
-- **`full`** (default): inputs (raw + Resolved payload, `template@v`/`variant`, all `clause@v` /
-  `block@v` pins) **and** the assembled **DocumentNode** tree. Self-contained; re-render renders the
-  frozen tree (immune to later catalog *and* engine changes); inputs give the audit trail.
+- **`full`** (default): inputs (raw + Resolved payload, `template@v`/`variant`, all `clause@v` **ClausePin**s)
+  **and** the assembled **DocumentNode** tree. Self-contained; re-render renders the frozen tree (immune
+  to later catalog *and* engine changes); inputs give the audit trail. Carries a `schemaVersion`.
 - **`tree`**: the frozen **DocumentNode** tree only (+ minimal metadata). Self-contained re-render,
   lighter audit.
 - **`pins`**: inputs + version pins only, **no tree**. Smallest, but re-render re-runs the engine

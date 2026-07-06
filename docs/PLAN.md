@@ -1,5 +1,11 @@
 # Plan: `@petrpus/legal-docs` — a universal legal-document generation library
 
+> **Historical document.** This is the original design plan; the whole roadmap (Phases 1–7, incl. the
+> runtime editing API) is now **delivered**. Where this plan and the code disagree, the **as-built docs
+> win** — see [`ARCHITECTURE.md`](ARCHITECTURE.md), [`AUTHORING.md`](AUTHORING.md),
+> [`CONTEXT.md`](CONTEXT.md), the [ADRs](adr/), and [`../CHANGELOG.md`](../CHANGELOG.md). Kept for the
+> rationale and the record of decisions (e.g. the superseded three-element model — see ADR-0002).
+
 > This is a **design plan for a brand-new, standalone repository**. The current project
 > (agenius-intranet) is only the **first consuming application / reference integration** and the
 > source of prior art. **The only change to this repo is saving this plan** to
