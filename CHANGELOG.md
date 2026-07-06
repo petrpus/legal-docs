@@ -67,4 +67,11 @@ It is **feature-complete and publish-ready** but not yet published to npm.
 - `catalog.editing` — the runtime editing API with a **`validate()`-gated publish** (a draft that would
   break a consuming template is blocked with `PublishValidationError`) and `previewDiff` review diffs.
 
+### Fonts & diacritics
+- **PDF now renders Latin-Extended diacritics correctly.** react-pdf's built-in Helvetica mangled Czech
+  (*"Příliš žluťoučký kůň"* → *"PYíliš žlueou ký koH"*); the library bundles a diacritics-safe serif
+  (Liberation Serif, SIL OFL) and registers it by default. New `theme.font.family` token (honoured by
+  all three renderers); `Font` (react-pdf) and `registerBundledFonts` re-exported so consumers can
+  register their own. See docs/THEMING.md.
+
 [Unreleased]: https://github.com/petrpus/legal-docs

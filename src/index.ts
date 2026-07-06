@@ -92,8 +92,12 @@ export type { Money, Loan, Party } from "./core/schema-fragments";
 export { defaultHelpers } from "./core/helpers";
 export type { Helper, HelperRegistry } from "./core/helpers";
 
-export { defaultTheme } from "./render-pdf/theme";
+export { defaultTheme, DEFAULT_FONT_FAMILY } from "./render-pdf/theme";
 export type { Theme } from "./render-pdf/theme";
+// Re-export react-pdf's Font so consumers can register their own PDF fonts (e.g. a branded family), plus
+// the bundled diacritics-safe default registration. See docs/THEMING.md.
+export { Font } from "@react-pdf/renderer";
+export { registerBundledFonts } from "./render-pdf/fonts";
 export type {
   CustomBlock,
   CustomBlockRegistry,

@@ -36,7 +36,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "assets"
   ],
   "sideEffects": false,
   "scripts": {
