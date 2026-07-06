@@ -72,6 +72,21 @@ export class Catalog {
     return this.store.variantIds(family);
   }
 
+  /** Ids of all Clauses in the catalog (ascending). */
+  clauseIds(): Promise<string[]> {
+    return this.store.clauseIds();
+  }
+
+  /** Ids of all shared Includes (ascending). */
+  includeIds(): Promise<string[]> {
+    return this.store.includeIds();
+  }
+
+  /** The published versions of a Clause (ascending). */
+  clauseVersions(id: string): Promise<number[]> {
+    return this.store.clauseVersions(id);
+  }
+
   /** Load a shared Include (Partial) by id. */
   loadInclude(id: string): Promise<Include> {
     return this.store.loadInclude(id);

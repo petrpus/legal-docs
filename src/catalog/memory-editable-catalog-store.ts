@@ -39,6 +39,8 @@ export class MemoryEditableCatalogStore extends MemoryCatalogStore implements Ed
     const backend: EditingBackend = {
       templateIds: () => this.templateIds(),
       loadTemplate: (id) => this.loadTemplate(id),
+      clauseIds: () => this.clauseIds(),
+      includeIds: () => this.includeIds(),
       loadInclude: (id) => this.loadInclude(id),
       familyIds: () => this.familyIds(),
       variantIds: (family) => this.variantIds(family),

@@ -88,6 +88,10 @@ function draftPublishOverlay(store: EditableCatalogStore, handle: DraftHandle): 
   const base: CatalogStore = {
     templateIds: () => store.templateIds(),
     loadTemplate: (tid) => store.loadTemplate(tid),
+    // clauseIds/includeIds pass through (not overlaid): validate() reaches a drafted clause via a
+    // template ref → clauseVersions/loadClause (which ARE overlaid), never by enumerating clauseIds.
+    clauseIds: () => store.clauseIds(),
+    includeIds: () => store.includeIds(),
     loadInclude: (iid) => store.loadInclude(iid),
     familyIds: () => store.familyIds(),
     variantIds: (family) => store.variantIds(family),

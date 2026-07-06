@@ -52,6 +52,8 @@ export class SqliteEditableCatalogStore implements EditableCatalogStore {
     const backend: EditingBackend = {
       templateIds: () => this.templateIds(),
       loadTemplate: (id) => this.loadTemplate(id),
+      clauseIds: () => this.clauseIds(),
+      includeIds: () => this.includeIds(),
       loadInclude: (id) => this.loadInclude(id),
       familyIds: () => this.familyIds(),
       variantIds: (family) => this.variantIds(family),
@@ -89,6 +91,12 @@ export class SqliteEditableCatalogStore implements EditableCatalogStore {
   }
   variantIds(family: string): Promise<string[]> {
     return Promise.resolve(this.col<string>("SELECT variant AS v FROM published WHERE kind='variant' AND cid=? ORDER BY variant", family));
+  }
+  clauseIds(): Promise<string[]> {
+    return Promise.resolve(this.col<string>("SELECT DISTINCT cid AS v FROM published WHERE kind='clause' ORDER BY cid"));
+  }
+  includeIds(): Promise<string[]> {
+    return Promise.resolve(this.col<string>("SELECT DISTINCT cid AS v FROM published WHERE kind='include' ORDER BY cid"));
   }
   clauseVersions(id: string): Promise<number[]> {
     return Promise.resolve(this.col<number>("SELECT DISTINCT version AS v FROM published WHERE kind='clause' AND cid=? ORDER BY version", id));

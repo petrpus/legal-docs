@@ -50,6 +50,17 @@ describe("MemoryCatalogStore (read)", () => {
     expect(await store.clauseLocales("note", 9)).toEqual([]);
   });
 
+  it("enumerates clause and include ids (sorted)", async () => {
+    const store = new MemoryCatalogStore({
+      clauses: [clause("beta", 1, "en"), clause("alpha", 1, "en")],
+      includes: [include("foot"), include("head")],
+    });
+    expect(await store.clauseIds()).toEqual(["alpha", "beta"]);
+    expect(await store.includeIds()).toEqual(["foot", "head"]);
+    expect(await new MemoryCatalogStore().clauseIds()).toEqual([]);
+    expect(await new MemoryCatalogStore().includeIds()).toEqual([]);
+  });
+
   it("loads the exact locale, falls back to another locale of the version, throws on a missing version", async () => {
     const store = new MemoryCatalogStore({ clauses: [clause("note", 1, "en"), clause("note", 1, "cs")] });
     expect(await store.loadClause("note", 1, "en")).toEqual(clause("note", 1, "en"));

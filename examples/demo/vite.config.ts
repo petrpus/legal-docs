@@ -36,7 +36,7 @@ function legalDocsApi(): Plugin {
   let samples: Promise<Samples> | undefined;
   // The editable catalog (in-memory reference store) backing the editor tab. Persists for the dev
   // server's lifetime; the node:sqlite adapter (adapters/sqlite/) is the persistent alternative.
-  let editing: { store: EditStore; cat: EditCatalog; ids: Set<string> } | undefined;
+  let editing: { store: EditStore; cat: EditCatalog } | undefined;
 
   async function loadLib() {
     return import(/* @vite-ignore */ libUrl);
@@ -59,7 +59,7 @@ function legalDocsApi(): Plugin {
         // A template consuming welcome@latest, so publishing runs the validate() gate against a real consumer.
         templates: [{ template: "letter", version: 1, locale: "en", body: [{ title: "LETTER" }, { clause: "welcome@latest" }] }],
       });
-      editing = { store, cat: l.Catalog.fromStore(store), ids: new Set(["welcome", "notice"]) };
+      editing = { store, cat: l.Catalog.fromStore(store) };
     }
     return editing;
   }
@@ -126,7 +126,6 @@ function legalDocsApi(): Plugin {
             const draft = { ref: { kind: "clause" as const, id: b.id }, version: b.version };
             if (url === "/editing/create") {
               const h = await e.cat.editing.createDraft({ ref: draft.ref, content: clauseContent(b), actor: DEMO_ACTOR });
-              e.ids.add(b.id); // only after a successful create — no phantom id on failure
               return json(res, { draft: summary(h) });
             }
             if (url === "/editing/update") {
@@ -352,6 +351,7 @@ interface EditBody {
 
 // Loose structural types for the dynamically-loaded (dist) editable store/catalog — the demo isn't typechecked.
 type EditStore = {
+  clauseIds(): Promise<string[]>;
   clauseVersions(id: string): Promise<number[]>;
   loadClause(id: string, version: number, locale: string): Promise<{ text: string }>;
 };
@@ -376,9 +376,9 @@ function clauseContent(b: EditBody) {
 function summary(h: DraftLike) {
   return { id: h.draft.ref.id, version: h.draft.version, status: h.status, locales: h.content.map((c) => c.clause.locale) };
 }
-async function editingState(e: { store: EditStore; cat: EditCatalog; ids: Set<string> }) {
+async function editingState(e: { store: EditStore; cat: EditCatalog }) {
   const clauses = [];
-  for (const id of [...e.ids].sort()) {
+  for (const id of await e.store.clauseIds()) {
     const versions = await e.store.clauseVersions(id);
     const latest = versions.at(-1);
     const c = latest !== undefined ? await e.store.loadClause(id, latest, "en").catch(() => undefined) : undefined;
