@@ -5,7 +5,7 @@ import type { Template } from "../src/core/template";
 import { renderTreeToHtml } from "../src/render-html/render-html";
 import { renderTreeToDocx } from "../src/render-docx/render-docx";
 import { renderTreeToPdf } from "../src/render-pdf/render-pdf";
-import { defaultTheme } from "../src/render-pdf/theme";
+import { defaultTheme } from "../src/theme";
 import type { DocumentTree } from "../src/core/document-tree";
 
 /** The raw word/document.xml of a .docx Buffer. */

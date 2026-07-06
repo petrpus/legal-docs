@@ -1,4 +1,4 @@
-import type { Align } from "../core/document-tree";
+import type { Align } from "./core/document-tree";
 
 /**
  * The default font family. The PDF renderer registers a bundled diacritics-safe serif (Liberation

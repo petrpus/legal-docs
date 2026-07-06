@@ -8,11 +8,11 @@ import { assertValidSnapshot } from "../core/snapshot";
 import type { ClausePin, Snapshot } from "../core/snapshot";
 import type { DocumentTree } from "../core/document-tree";
 import { renderTreeToPdf } from "../render-pdf/render-pdf";
-import type { RenderTreeOptions } from "../render-pdf/custom-block";
+import type { RenderTreeOptions } from "../custom-block";
 import { renderTreeToHtml } from "../render-html/render-html";
 import { renderTreeToDocx } from "../render-docx/render-docx";
-import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../render-pdf/custom-block";
-import type { Theme } from "../render-pdf/theme";
+import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../custom-block";
+import type { Theme } from "../theme";
 
 export interface RenderFromSnapshotOptions {
   /** Required for a `pins`-mode Snapshot (which re-runs the engine); unused for `full`/`tree`. */

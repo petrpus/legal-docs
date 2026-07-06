@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Font } from "@react-pdf/renderer";
-import { DEFAULT_FONT_FAMILY } from "./theme";
+import { DEFAULT_FONT_FAMILY } from "../theme";
 
 /**
  * PDF fonts. react-pdf embeds its own font subset, and its built-in Helvetica (Standard-14, WinAnsi)

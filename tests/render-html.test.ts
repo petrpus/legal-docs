@@ -5,9 +5,9 @@ import { z } from "zod";
 import { renderTreeToHtml } from "../src/render-html/render-html";
 import { escapeHtml } from "../src/render-html/escape";
 import { parseRichText } from "../src/core/rich-text";
-import { defaultTheme } from "../src/render-pdf/theme";
+import { defaultTheme } from "../src/theme";
 import type { DocumentTree } from "../src/core/document-tree";
-import type { CustomBlockRegistry } from "../src/render-pdf/custom-block";
+import type { CustomBlockRegistry } from "../src/custom-block";
 
 const strictSchema = z.object({ label: z.string() });
 

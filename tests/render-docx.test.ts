@@ -5,9 +5,9 @@ import { Paragraph, TextRun } from "docx";
 import JSZip from "jszip";
 import { renderTreeToDocx } from "../src/render-docx/render-docx";
 import { parseRichText } from "../src/core/rich-text";
-import { defaultTheme } from "../src/render-pdf/theme";
+import { defaultTheme } from "../src/theme";
 import type { DocumentTree } from "../src/core/document-tree";
-import type { CustomBlockRegistry } from "../src/render-pdf/custom-block";
+import type { CustomBlockRegistry } from "../src/custom-block";
 
 /** The raw word/document.xml of a .docx Buffer (text lives in <w:t> nodes). */
 async function docXml(buffer: Buffer): Promise<string> {

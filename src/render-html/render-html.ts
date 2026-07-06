@@ -10,9 +10,9 @@ import type {
 } from "../core/document-tree";
 import type { RichRun, RichTextV1 } from "../core/rich-text";
 import { validatePayload } from "../core/payload";
-import { defaultTheme, type Theme } from "../render-pdf/theme";
-import { reportDegradation } from "../render-pdf/custom-block";
-import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../render-pdf/custom-block";
+import { defaultTheme, type Theme } from "../theme";
+import { reportDegradation } from "../custom-block";
+import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../custom-block";
 import { escapeHtml } from "./escape";
 import { themeCss } from "./theme-css";
 

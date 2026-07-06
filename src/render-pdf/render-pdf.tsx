@@ -5,10 +5,10 @@ import type { DocumentNode, DocumentTree } from "../core/document-tree";
 import type { RichRun } from "../core/rich-text";
 import { MAX_LEVEL } from "../core/engine";
 import { validatePayload } from "../core/payload";
-import { defaultTheme, type Theme } from "./theme";
+import { defaultTheme, type Theme } from "../theme";
 import { registerBundledFonts } from "./fonts";
-import { reportDegradation } from "./custom-block";
-import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "./custom-block";
+import { reportDegradation } from "../custom-block";
+import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../custom-block";
 
 /** Render-time Custom-block context threaded through the visitor. */
 interface CustomCtx {

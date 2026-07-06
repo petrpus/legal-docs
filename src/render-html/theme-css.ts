@@ -1,4 +1,4 @@
-import type { Theme } from "../render-pdf/theme";
+import type { Theme } from "../theme";
 
 /**
  * Generate one scoped stylesheet from the shared Theme. Every rule is scoped under `.legal-doc` so the

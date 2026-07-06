@@ -24,6 +24,10 @@ type CustomBlockRegistry = Record<string, CustomBlock>;
 - `pdf` is **required**; `html`/`docx` are optional (added in later phases). A Custom block is a
   **leaf** — it renders its own complete layout, never core nodes. Its render context is `{ theme }`
   (deliberately minimal, extensible later).
+  > **Amended (pre-0.1.0):** `pdf` is now **optional** too — all three slots are optional (register the
+  > formats you render; a missing format degrades). This lets an HTML-only consumer author a block
+  > without an unused react-pdf `pdf` impl. The PDF renderer already degraded a missing `pdf` at
+  > runtime, so this only relaxes the type to match. Register at least one implementation.
 - The registry is **code-side**, supplied via `renderDocument({ customBlocks })` and
   `validate({ customBlocks })` — the same pattern as `schemas` / `helpers` / `derivations` (ADR-0004).
   It is never Catalog content.
