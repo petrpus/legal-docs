@@ -48,7 +48,8 @@ furniture) keeps working after the type change.
   `assembleTree` is unchanged (returns `DocumentNode[]`, the body) so the many callers/tests that build
   and assert bodies are untouched. The facade and `renderFromSnapshot` use `assembleDocument`.
 - PDF renders furniture as a `fixed`, absolutely-positioned three-column row repeated on every page.
-  DOCX furniture (section `Header`/`Footer` + `PageNumber`) lands in a follow-up slice.
+  DOCX renders it as a section `Header`/`Footer` with a center+right tab-stop layout, page numbers as
+  native `PAGE`/`NUMPAGES` fields.
 - Alternatives rejected: a **furniture DocumentNode** at the top of the body (furniture is not body
   content — every renderer would have to special-case and skip it); **carrying furniture in render
   options** (options aren't frozen, so re-render would lose it); a **separate numbering config** divorced

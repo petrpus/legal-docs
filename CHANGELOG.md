@@ -98,8 +98,10 @@ It is **feature-complete and publish-ready** but not yet published to npm.
   New engine entry `assembleDocument` resolves body + furniture (`assembleTree` still returns the body).
 - **`SNAPSHOT_SCHEMA_VERSION` → 2** (the `tree` field shape changed); a furniture-less document keeps its
   v1 snapshot id (the digest only mixes in header/footer when present).
+- **DOCX** renders furniture as a section `Header`/`Footer` with a three-column tab-stop layout; page
+  numbers become native Word `PAGE`/`NUMPAGES` fields (so they stay live if the document is edited).
 - **HTML ignores furniture** — it is a page-less fragment, so headers/footers are paged-output-only
-  (PDF/DOCX), exactly as HTML already ignores `theme.page.*`. DOCX furniture lands in a follow-up slice.
+  (PDF/DOCX), exactly as HTML already ignores `theme.page.*`.
 
 ### Locale-aware helpers (ADR-0010)
 - **New opt-in locale-aware helpers** — `formatDateLong` (`Intl.DateTimeFormat`, e.g. *"1. července 2026"*)
