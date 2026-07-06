@@ -1,6 +1,7 @@
 import type { BaseTemplate, Include, Template, Variant } from "../core/template";
 import type { Clause } from "../core/clause";
 import type { CatalogStore } from "./catalog-store";
+import { NotFoundError, type NotFoundKind, type NotFoundRef } from "../core/errors";
 
 /** A family (a Base template + its Variants) in a memory seed. */
 export interface MemoryFamily {
@@ -82,11 +83,11 @@ export class MemoryCatalogStore implements CatalogStore {
   }
 
   loadTemplate(id: string): Promise<Template> {
-    return this.require(this.templates.get(id), `Template "${id}" not found`);
+    return this.require(this.templates.get(id), "template", { id });
   }
 
   loadInclude(id: string): Promise<Include> {
-    return this.require(this.includes.get(id), `Include "${id}" not found`);
+    return this.require(this.includes.get(id), "include", { id });
   }
 
   familyIds(): Promise<string[]> {
@@ -98,11 +99,11 @@ export class MemoryCatalogStore implements CatalogStore {
   }
 
   loadBase(family: string): Promise<BaseTemplate> {
-    return this.require(this.bases.get(family), `Base of family "${family}" not found`);
+    return this.require(this.bases.get(family), "base", { family });
   }
 
   loadVariant(family: string, variant: string): Promise<Variant> {
-    return this.require(this.variants.get(family)?.get(variant), `Variant "${variant}" of family "${family}" not found`);
+    return this.require(this.variants.get(family)?.get(variant), "variant", { family, variant });
   }
 
   clauseVersions(id: string): Promise<number[]> {
@@ -116,7 +117,7 @@ export class MemoryCatalogStore implements CatalogStore {
   loadClause(id: string, version: number, locale: string): Promise<Clause> {
     const byLocale = this.clauses.get(id)?.get(version);
     if (byLocale === undefined || byLocale.size === 0) {
-      return Promise.reject(new Error(`Clause "${id}" v${version} not found`));
+      return Promise.reject(new NotFoundError("clause", { id, version }));
     }
     const exact = byLocale.get(locale);
     if (exact !== undefined) return Promise.resolve(exact);
@@ -125,7 +126,7 @@ export class MemoryCatalogStore implements CatalogStore {
     return Promise.resolve(byLocale.get(fallbackLocale)!);
   }
 
-  private require<T>(value: T | undefined, message: string): Promise<T> {
-    return value === undefined ? Promise.reject(new Error(message)) : Promise.resolve(value);
+  private require<T>(value: T | undefined, kind: NotFoundKind, ref: NotFoundRef): Promise<T> {
+    return value === undefined ? Promise.reject(new NotFoundError(kind, ref)) : Promise.resolve(value);
   }
 }

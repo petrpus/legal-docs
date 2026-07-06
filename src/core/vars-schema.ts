@@ -3,6 +3,7 @@
  * zod code). This compiles/validates that descriptor — the template maps a payload slice into the
  * vars, and these are checked against it before the clause text is interpolated.
  */
+import { LegalDocsError } from "./errors";
 export type VarType = "string" | "integer" | "number" | "boolean";
 
 export interface VarSpec {
@@ -14,7 +15,7 @@ export interface VarSpec {
 
 export type VarsSchema = Record<string, VarSpec>;
 
-export class VarsValidationError extends Error {
+export class VarsValidationError extends LegalDocsError {
   constructor(message: string) {
     super(message);
     this.name = "VarsValidationError";

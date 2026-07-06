@@ -1,3 +1,4 @@
+import { LegalDocsError } from "../core/errors";
 import type {
   Align,
   BlockIndent,
@@ -75,7 +76,7 @@ function nodeToHtml(node: DocumentNode, cx: HtmlCtx): string {
       return customHtml(node, cx);
     default: {
       const unhandled: never = node;
-      throw new Error(`Unsupported node kind: ${JSON.stringify(unhandled)}`);
+      throw new LegalDocsError(`Unsupported node kind: ${JSON.stringify(unhandled)}`);
     }
   }
 }
@@ -137,7 +138,7 @@ function signaturesHtml(places: SignaturePlace[]): string {
 
 function customHtml(node: Extract<DocumentNode, { kind: "custom" }>, cx: HtmlCtx): string {
   const block = cx.blocks[node.component];
-  if (!block) throw new Error(`Custom block "${node.component}" is not registered`);
+  if (!block) throw new LegalDocsError(`Custom block "${node.component}" is not registered`);
   if (typeof block.html !== "function") return degradeHtml(node.component, cx);
   let props = node.props;
   if (block.schema) {
@@ -145,7 +146,7 @@ function customHtml(node: Extract<DocumentNode, { kind: "custom" }>, cx: HtmlCtx
       props = validatePayload(block.schema, node.props);
     } catch (cause) {
       const reason = cause instanceof Error ? cause.message : String(cause);
-      throw new Error(`Custom block "${node.component}" received invalid props: ${reason}`, { cause });
+      throw new LegalDocsError(`Custom block "${node.component}" received invalid props: ${reason}`, { cause });
     }
   }
   // The block owns its markup (ADR-0006) — trusted consumer code, inserted raw (not escaped).

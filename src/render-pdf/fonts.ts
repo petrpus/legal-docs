@@ -1,3 +1,4 @@
+import { LegalDocsError } from "../core/errors";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,7 +17,7 @@ function packageRoot(): string {
   let dir = dirname(fileURLToPath(import.meta.url));
   for (let i = 0; i < 8 && !existsSync(join(dir, "package.json")); i++) dir = dirname(dir);
   if (!existsSync(join(dir, "package.json"))) {
-    throw new Error("legal-docs: could not locate the package root to load the bundled PDF fonts");
+    throw new LegalDocsError("legal-docs: could not locate the package root to load the bundled PDF fonts");
   }
   return dir;
 }

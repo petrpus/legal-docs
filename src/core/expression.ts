@@ -1,3 +1,4 @@
+import { LegalDocsError } from "./errors";
 import jsep from "jsep";
 import type { HelperRegistry } from "./helpers";
 
@@ -14,7 +15,7 @@ export interface EvalContext {
   helpers: HelperRegistry;
 }
 
-export class ExpressionError extends Error {
+export class ExpressionError extends LegalDocsError {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options);
     this.name = "ExpressionError";

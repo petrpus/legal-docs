@@ -1,3 +1,4 @@
+import { LegalDocsError, NotFoundError } from "../core/errors";
 import { Readable } from "node:stream";
 import type { Catalog } from "../catalog/catalog";
 import { assembleTree, type ClauseResolver } from "../core/engine";
@@ -97,7 +98,7 @@ export async function renderFromSnapshot(
     return { format: "docx", buffer, stream: Readable.from(buffer) };
   }
   const unsupported: never = format;
-  throw new Error(`Unsupported format: ${String(unsupported)}`);
+  throw new LegalDocsError(`Unsupported format: ${String(unsupported)}`);
 }
 
 async function reassembleFromPins(
@@ -106,7 +107,7 @@ async function reassembleFromPins(
 ): Promise<DocumentTree> {
   const { catalog } = options;
   if (!catalog) {
-    throw new Error("renderFromSnapshot: a `pins`-mode Snapshot needs a `catalog` to re-render");
+    throw new LegalDocsError("renderFromSnapshot: a `pins`-mode Snapshot needs a `catalog` to re-render");
   }
   const template = await catalog.getTemplate(snapshot.template, snapshot.variant);
   const body = await expandIncludes(template.body, (id) => catalog.loadInclude(id));
@@ -128,14 +129,14 @@ function pinnedResolver(pins: ClausePin[], catalog: Catalog): ClauseResolver {
   return async (ref, locale) => {
     const pin = byRef.get(`${ref}|${locale}`);
     if (!pin) {
-      throw new Error(`Snapshot has no pin for clause "${ref}" (${locale}) — cannot re-render`);
+      throw new NotFoundError("pin", { id: ref, locale }, `Snapshot has no pin for clause "${ref}" (${locale}) — cannot re-render`);
     }
     try {
       // Load the exact locale file that originally resolved (not a re-run of the store's fallback).
       return await catalog.getClause(`${pin.clause}@v${pin.version}`, pin.resolvedLocale ?? locale);
     } catch (cause) {
       const reason = cause instanceof Error ? cause.message : String(cause);
-      throw new Error(
+      throw new LegalDocsError(
         `Pinned clause "${pin.clause}@v${pin.version}" cannot be resolved: ${reason}`,
         { cause },
       );

@@ -1,3 +1,4 @@
+import { LegalDocsError } from "./errors";
 import { createHash } from "node:crypto";
 import type { DocumentTree } from "./document-tree";
 
@@ -20,7 +21,7 @@ export const DEFAULT_SNAPSHOT_MODE: SnapshotMode = "full";
 export const SNAPSHOT_SCHEMA_VERSION = 1;
 
 /** Thrown when a value handed to `renderFromSnapshot` is not a valid/known-version Snapshot. */
-export class SnapshotError extends Error {
+export class SnapshotError extends LegalDocsError {
   constructor(message: string) {
     super(message);
     this.name = "SnapshotError";

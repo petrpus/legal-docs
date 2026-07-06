@@ -20,6 +20,8 @@ export type {
   PublishResult,
 } from "./catalog/editable-catalog-store";
 export type { AuditEntry, AuditAction } from "./catalog/audit";
+export { LegalDocsError, NotFoundError } from "./core/errors";
+export type { NotFoundKind, NotFoundRef } from "./core/errors";
 export { PublishValidationError } from "./catalog/editing-facade";
 export type { EditingApi } from "./catalog/editing-facade";
 export type {

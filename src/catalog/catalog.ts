@@ -10,6 +10,7 @@ import {
 import type { Include, Template } from "../core/template";
 import type { Clause } from "../core/clause";
 import { parseClauseRef } from "../core/clause-ref";
+import { LegalDocsError, NotFoundError } from "../core/errors";
 import { composeTemplate } from "../core/compose";
 import { parseRichText } from "../core/rich-text";
 import { diffRichText, type ClauseDiff } from "../core/clause-diff";
@@ -110,7 +111,7 @@ export class Catalog {
       return await this.store.loadClause(id, version, locale);
     } catch (cause) {
       const reason = cause instanceof Error ? cause.message : String(cause);
-      throw new Error(`Cannot diff clause "${id}" v${version} (${locale}): ${reason}`, { cause });
+      throw new LegalDocsError(`Cannot diff clause "${id}" v${version} (${locale}): ${reason}`, { cause });
     }
   }
 
@@ -122,7 +123,7 @@ export class Catalog {
   private async latestVersion(id: string): Promise<number> {
     const versions = await this.store.clauseVersions(id);
     const latest = versions.at(-1);
-    if (latest === undefined) throw new Error(`Clause "${id}" has no versions`);
+    if (latest === undefined) throw new NotFoundError("clause", { id });
     return latest;
   }
 
@@ -140,7 +141,7 @@ export class Catalog {
    */
   get editing(): EditingApi {
     if (!isEditableStore(this.store)) {
-      throw new Error("This Catalog's store is not editable — build it over an EditableCatalogStore (e.g. MemoryEditableCatalogStore)");
+      throw new LegalDocsError("This Catalog's store is not editable — build it over an EditableCatalogStore (e.g. MemoryEditableCatalogStore)");
     }
     const store = this.store;
     return (this.editingApi ??= createEditingApi(store, (overlay, options) => Catalog.fromStore(overlay).validate(options)));

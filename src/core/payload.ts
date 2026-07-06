@@ -1,3 +1,4 @@
+import { LegalDocsError } from "./errors";
 import type { ZodType } from "zod";
 
 /**
@@ -11,7 +12,7 @@ export interface PayloadIssue {
   message: string;
 }
 
-export class PayloadValidationError extends Error {
+export class PayloadValidationError extends LegalDocsError {
   constructor(
     message: string,
     readonly issues: readonly PayloadIssue[],

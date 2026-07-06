@@ -1,3 +1,4 @@
+import { LegalDocsError } from "../core/errors";
 import type { ReactElement } from "react";
 import type { Paragraph, Table } from "docx";
 import type { ZodType } from "zod";
@@ -62,7 +63,7 @@ export function reportDegradation(
   onDegrade?: OnDegrade,
 ): string {
   if (mode === "throw") {
-    throw new Error(
+    throw new LegalDocsError(
       `Custom block "${component}" cannot render in "${format}": no ${format} implementation (degradation=throw)`,
     );
   }
@@ -73,5 +74,5 @@ export function reportDegradation(
     return marker;
   }
   const unsupported: never = mode;
-  throw new Error(`Unknown degradation mode: ${String(unsupported)}`);
+  throw new LegalDocsError(`Unknown degradation mode: ${String(unsupported)}`);
 }

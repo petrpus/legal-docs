@@ -12,6 +12,7 @@ import {
   type PublishResult,
 } from "./editable-catalog-store";
 import type { AuditAction, AuditEntry } from "./audit";
+import { LegalDocsError, NotFoundError, type NotFoundRef } from "../core/errors";
 
 /** The row key for draft content: a clause keys by locale; single-revision kinds by "". */
 const SINGLE = "";
@@ -68,7 +69,7 @@ export class EditingWorkflow {
 
   async updateDraft(update: { draft: DraftRef; content: ElementContent; actor: Actor }): Promise<DraftHandle> {
     const rec = this.requireDraft(update.draft);
-    if (rec.status !== "draft") throw new Error(`Cannot edit a "${rec.status}" draft; withdraw it first`);
+    if (rec.status !== "draft") throw new LegalDocsError(`Cannot edit a "${rec.status}" draft; withdraw it first`);
     if (rec.ref.kind === "clause") {
       const clause = asClause(rec.ref, update.content);
       await this.assertNotPublished(rec.ref.id, rec.version, clause.locale);
@@ -109,7 +110,7 @@ export class EditingWorkflow {
 
   async publish(draft: DraftRef, actor: Actor): Promise<PublishResult> {
     const rec = this.requireDraft(draft);
-    if (rec.status !== "in_review") throw new Error(`Only an in_review draft can be published (draft is "${rec.status}")`);
+    if (rec.status !== "in_review") throw new LegalDocsError(`Only an in_review draft can be published (draft is "${rec.status}")`);
     const ref = rec.ref;
     // Phase 1 — validate the draft against the published set (async reads; no writes yet).
     let writePublished: () => void;
@@ -136,7 +137,7 @@ export class EditingWorkflow {
     } else {
       // A variant only makes sense against a published base (an orphan variant is un-composable).
       if (!(await this.b.familyIds()).includes(ref.family)) {
-        throw new Error(`Cannot publish variant "${ref.variant}": family "${ref.family}" has no published base`);
+        throw new LegalDocsError(`Cannot publish variant "${ref.variant}": family "${ref.family}" has no published base`);
       }
       const variant = onlyContent(rec, "variant").variant;
       writePublished = () => this.b.putVariant(ref.family, variant);
@@ -170,7 +171,7 @@ export class EditingWorkflow {
     const draftVersions = this.clauseDraftVersions(id);
     const version = published.includes(clause.version) ? clause.version : Math.max(0, ...published, ...draftVersions) + 1;
     const key = clauseKey(id, version);
-    if (this.b.getDraftRecord(key)) throw new Error(`A draft for clause "${id}" v${version} already exists; use updateDraft`);
+    if (this.b.getDraftRecord(key)) throw new LegalDocsError(`A draft for clause "${id}" v${version} already exists; use updateDraft`);
     await this.assertNotPublished(id, version, clause.locale);
     const rec = this.newRecord(ref, version, clause.locale, withVersion(content, version), actor);
     this.record(actor, "create_draft", ref, { version, locale: clause.locale }, undefined, "draft");
@@ -179,7 +180,7 @@ export class EditingWorkflow {
 
   private createSingleDraft(ref: Exclude<ElementRef, { kind: "clause" }>, content: ElementContent, actor: Actor, version: number): DraftHandle {
     assertContentMatches(ref, content);
-    if (this.b.getDraftRecord(refKey(ref))) throw new Error(`A draft for ${describeRef(ref)} already exists; use updateDraft`);
+    if (this.b.getDraftRecord(refKey(ref))) throw new LegalDocsError(`A draft for ${describeRef(ref)} already exists; use updateDraft`);
     const rec = this.newRecord(ref, version, SINGLE, withVersion(content, version), actor);
     this.record(actor, "create_draft", ref, version > 0 ? { version } : undefined, undefined, "draft");
     return toHandle(rec);
@@ -203,7 +204,7 @@ export class EditingWorkflow {
 
   private transition(draft: DraftRef, actor: Actor, from: DraftRecord["status"], to: DraftRecord["status"], action: AuditAction): DraftHandle {
     const rec = this.requireDraft(draft);
-    if (rec.status !== from) throw new Error(`Cannot ${action} a "${rec.status}" draft (expected "${from}")`);
+    if (rec.status !== from) throw new LegalDocsError(`Cannot ${action} a "${rec.status}" draft (expected "${from}")`);
     rec.status = to;
     rec.updatedAt = this.b.now();
     rec.updatedBy = actor;
@@ -222,12 +223,12 @@ export class EditingWorkflow {
 
   private requireDraft(draft: DraftRef): DraftRecord {
     const rec = this.b.getDraftRecord(this.keyOf(draft));
-    if (!rec) throw new Error(`No draft for ${describeRef(draft.ref)}${draft.version ? ` v${draft.version}` : ""}`);
+    if (!rec) throw new NotFoundError("draft", refToNotFound(draft.ref, draft.version), `No draft for ${describeRef(draft.ref)}${draft.version ? ` v${draft.version}` : ""}`);
     return rec;
   }
 
   private keyOf(draft: DraftRef): string {
-    if (draft.ref.kind === "clause" && draft.version === undefined) throw new Error(`A clause DraftRef needs a version`);
+    if (draft.ref.kind === "clause" && draft.version === undefined) throw new LegalDocsError(`A clause DraftRef needs a version`);
     return refKey(draft.ref, draft.version);
   }
 
@@ -237,7 +238,7 @@ export class EditingWorkflow {
 
   private async assertNotPublished(id: string, version: number, locale: string): Promise<void> {
     if ((await this.b.clauseLocales(id, version)).includes(locale)) {
-      throw new Error(`Clause "${id}" v${version} (${locale}) is already published and immutable`);
+      throw new LegalDocsError(`Clause "${id}" v${version} (${locale}) is already published and immutable`);
     }
   }
 
@@ -255,6 +256,16 @@ export class EditingWorkflow {
 }
 
 // --- pure helpers ------------------------------------------------------------
+
+/** Map an element ref (+ optional version) to a structured {@link NotFoundRef} for a NotFoundError. */
+export function refToNotFound(ref: ElementRef, version?: number): NotFoundRef {
+  const base = ref.kind === "base" || ref.kind === "variant" ? { family: ref.family } : { id: ref.id };
+  return {
+    ...base,
+    ...(ref.kind === "variant" ? { variant: ref.variant } : {}),
+    ...(version !== undefined ? { version } : {}),
+  };
+}
 
 /** The draft-map key. Clauses key by (id, version) — many version drafts; other kinds one per element. */
 export function refKey(ref: ElementRef, version?: number): string {
@@ -277,8 +288,8 @@ function clauseKey(id: string, version: number): string {
 }
 
 function asClause(ref: Extract<ElementRef, { kind: "clause" }>, content: ElementContent): Clause {
-  if (content.kind !== "clause") throw new Error(`Content kind "${content.kind}" does not match clause ref`);
-  if (content.clause.clause !== ref.id) throw new Error(`Content clause id "${content.clause.clause}" does not match ref "${ref.id}"`);
+  if (content.kind !== "clause") throw new LegalDocsError(`Content kind "${content.kind}" does not match clause ref`);
+  if (content.clause.clause !== ref.id) throw new LegalDocsError(`Content clause id "${content.clause.clause}" does not match ref "${ref.id}"`);
   return content.clause;
 }
 
@@ -292,27 +303,27 @@ function withVersion(content: ElementContent, version: number): ElementContent {
 
 function assertContentMatches(ref: Exclude<ElementRef, { kind: "clause" }>, content: ElementContent): void {
   if (ref.kind === "template") {
-    if (content.kind !== "template") throw new Error(`Content kind "${content.kind}" does not match template ref`);
-    if (content.template.template !== ref.id) throw new Error(`Content template id "${content.template.template}" does not match ref "${ref.id}"`);
+    if (content.kind !== "template") throw new LegalDocsError(`Content kind "${content.kind}" does not match template ref`);
+    if (content.template.template !== ref.id) throw new LegalDocsError(`Content template id "${content.template.template}" does not match ref "${ref.id}"`);
     return;
   }
   if (ref.kind === "include") {
-    if (content.kind !== "include") throw new Error(`Content kind "${content.kind}" does not match include ref`);
-    if (content.include.id !== ref.id) throw new Error(`Content include id "${content.include.id}" does not match ref "${ref.id}"`);
+    if (content.kind !== "include") throw new LegalDocsError(`Content kind "${content.kind}" does not match include ref`);
+    if (content.include.id !== ref.id) throw new LegalDocsError(`Content include id "${content.include.id}" does not match ref "${ref.id}"`);
     return;
   }
   if (ref.kind === "base") {
-    if (content.kind !== "base") throw new Error(`Content kind "${content.kind}" does not match base ref`);
-    if (content.base.base !== ref.family) throw new Error(`Content base family "${content.base.base}" does not match ref "${ref.family}"`);
+    if (content.kind !== "base") throw new LegalDocsError(`Content kind "${content.kind}" does not match base ref`);
+    if (content.base.base !== ref.family) throw new LegalDocsError(`Content base family "${content.base.base}" does not match ref "${ref.family}"`);
     return;
   }
-  if (content.kind !== "variant") throw new Error(`Content kind "${content.kind}" does not match variant ref`);
-  if (content.variant.variant !== ref.variant) throw new Error(`Content variant "${content.variant.variant}" does not match ref "${ref.variant}"`);
+  if (content.kind !== "variant") throw new LegalDocsError(`Content kind "${content.kind}" does not match variant ref`);
+  if (content.variant.variant !== ref.variant) throw new LegalDocsError(`Content variant "${content.variant.variant}" does not match ref "${ref.variant}"`);
 }
 
 function onlyContent<K extends ElementContent["kind"]>(rec: DraftRecord, kind: K): Extract<ElementContent, { kind: K }> {
   const content = rec.rows.get(SINGLE);
-  if (!content || content.kind !== kind) throw new Error(`Draft for ${describeRef(rec.ref)} has no ${kind} content`);
+  if (!content || content.kind !== kind) throw new LegalDocsError(`Draft for ${describeRef(rec.ref)} has no ${kind} content`);
   return content as Extract<ElementContent, { kind: K }>;
 }
 
