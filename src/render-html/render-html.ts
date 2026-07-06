@@ -10,7 +10,7 @@ import type {
 } from "../core/document-tree";
 import type { RichRun, RichTextV1 } from "../core/rich-text";
 import { validatePayload } from "../core/payload";
-import { defaultTheme, type Theme } from "../theme";
+import { mergeTheme, type Theme } from "../theme";
 import { reportDegradation } from "../custom-block";
 import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../custom-block";
 import { escapeHtml } from "./escape";
@@ -29,7 +29,7 @@ interface HtmlCtx {
  * core-emitted text is escaped; a Custom block's HTML is trusted and inserted raw.
  */
 export function renderTreeToHtml(tree: DocumentTree, options: RenderTreeOptions = {}): string {
-  const theme = options.theme ?? defaultTheme;
+  const theme = mergeTheme(options.theme);
   const cx: HtmlCtx = { blocks: options.customBlocks ?? {}, degradation: options.degradation ?? "placeholder", onDegrade: options.onDegrade, theme };
   const body = tree.map((node) => nodeToHtml(node, cx)).join("");
   return `<div class="legal-doc"><style>${themeCss(theme)}</style>${body}</div>`;

@@ -2,7 +2,7 @@ import { LegalDocsError } from "./core/errors";
 import type { ReactElement } from "react";
 import type { Paragraph, Table } from "docx";
 import type { ZodType } from "zod";
-import type { Theme } from "./theme";
+import type { DeepPartial, Theme } from "./theme";
 
 /** Context a Custom block implementation receives (deliberately minimal; extensible later). */
 export interface CustomBlockContext {
@@ -58,7 +58,8 @@ export type OnDegrade = (event: DegradationEvent) => void;
 
 /** Options shared by all three tree renderers (`renderTreeToPdf`/`Html`/`Docx`). */
 export interface RenderTreeOptions {
-  theme?: Theme;
+  /** A partial theme, deep-merged over `defaultTheme` (override one token without re-spreading the rest). */
+  theme?: DeepPartial<Theme>;
   customBlocks?: CustomBlockRegistry;
   degradation?: DegradationMode;
   onDegrade?: OnDegrade;

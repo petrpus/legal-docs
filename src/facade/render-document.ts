@@ -13,7 +13,7 @@ import type { RenderTreeOptions } from "../custom-block";
 import { renderTreeToHtml } from "../render-html/render-html";
 import { renderTreeToDocx } from "../render-docx/render-docx";
 import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../custom-block";
-import type { Theme } from "../theme";
+import type { DeepPartial, Theme } from "../theme";
 
 export interface RenderDocumentInput {
   catalog: Catalog;
@@ -36,7 +36,8 @@ export interface RenderDocumentInput {
   /** A sink for degradation events; when supplied it replaces the default `console.warn`. */
   onDegrade?: OnDegrade;
   format: "pdf" | "html" | "docx";
-  theme?: Theme;
+  /** A partial theme, deep-merged over `defaultTheme`. */
+  theme?: DeepPartial<Theme>;
   /** What the returned Snapshot freezes (ADR-0003). Defaults to `full`. */
   snapshotMode?: SnapshotMode;
 }

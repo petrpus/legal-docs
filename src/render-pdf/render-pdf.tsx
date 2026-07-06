@@ -5,7 +5,7 @@ import type { DocumentNode, DocumentTree } from "../core/document-tree";
 import type { RichRun } from "../core/rich-text";
 import { MAX_LEVEL } from "../core/engine";
 import { validatePayload } from "../core/payload";
-import { defaultTheme, type Theme } from "../theme";
+import { defaultTheme, mergeTheme, type Theme } from "../theme";
 import { registerBundledFonts } from "./fonts";
 import { reportDegradation } from "../custom-block";
 import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../custom-block";
@@ -293,5 +293,6 @@ export function renderTreeToPdf(tree: DocumentTree, options: RenderTreeOptions =
   // Register the bundled diacritics-safe font before rendering (idempotent). A consumer who sets a
   // different `theme.font.family` registers that family themselves via the re-exported `Font`.
   registerBundledFonts();
-  return renderToBuffer(documentElement(tree, options.theme, options.customBlocks, options.degradation, options.onDegrade));
+  const theme = mergeTheme(options.theme);
+  return renderToBuffer(documentElement(tree, theme, options.customBlocks, options.degradation, options.onDegrade));
 }

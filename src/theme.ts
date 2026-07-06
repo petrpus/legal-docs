@@ -67,3 +67,30 @@ export const defaultTheme: Theme = {
     roleColor: "#555555",
   },
 };
+
+/** A recursively-optional shape of `T`. Arrays/tuples are treated as leaves (override the whole value). */
+export type DeepPartial<T> = T extends readonly unknown[] ? T : T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T;
+
+/**
+ * Deep-merge a partial theme over {@link defaultTheme}, so a consumer can override a single token
+ * without re-spreading every group: `mergeTheme({ fontSize: { title: 22 } })`. Arrays (e.g.
+ * `article.headingFontSize`) are replaced wholesale, not merged element-by-element. The result is
+ * not a deep clone — untouched groups alias `defaultTheme`'s objects (and no arg returns the
+ * `defaultTheme` singleton), so treat the returned Theme as read-only, as every renderer does.
+ */
+export function mergeTheme(partial?: DeepPartial<Theme>): Theme {
+  return partial ? (deepMerge(defaultTheme as unknown as Record<string, unknown>, partial as Record<string, unknown>) as unknown as Theme) : defaultTheme;
+}
+
+function deepMerge(base: Record<string, unknown>, override: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...base };
+  for (const key of Object.keys(override)) {
+    const o = override[key];
+    const b = base[key];
+    out[key] =
+      o !== null && typeof o === "object" && !Array.isArray(o) && b !== null && typeof b === "object" && !Array.isArray(b)
+        ? deepMerge(b as Record<string, unknown>, o as Record<string, unknown>)
+        : o;
+  }
+  return out;
+}
