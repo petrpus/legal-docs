@@ -22,7 +22,7 @@ import type {
 import type { RichParagraph, RichRun } from "../core/rich-text";
 import { MAX_LEVEL } from "../core/engine";
 import { validatePayload } from "../core/payload";
-import { defaultTheme, type Theme } from "../theme";
+import { mergeTheme, type Theme } from "../theme";
 import { reportDegradation } from "../custom-block";
 import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../custom-block";
 import { eighths, halfPoints, twips } from "./theme-docx";
@@ -44,7 +44,7 @@ interface DocxCtx {
 export async function renderTreeToDocx(tree: DocumentTree, options: RenderTreeOptions = {}): Promise<Buffer> {
   // `async` so a synchronous build error (unregistered component, throw-mode degradation) surfaces as
   // a rejected promise rather than a sync throw.
-  const theme = options.theme ?? defaultTheme;
+  const theme = mergeTheme(options.theme);
   const ctx: DocxCtx = { theme, blocks: options.customBlocks ?? {}, degradation: options.degradation ?? "placeholder", onDegrade: options.onDegrade, depth: 0 };
   const children = tree.flatMap((node) => nodeToDocx(node, ctx));
   // Set the document-default run font (the reader's app substitutes if it lacks the family).

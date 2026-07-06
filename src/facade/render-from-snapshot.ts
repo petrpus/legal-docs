@@ -12,7 +12,7 @@ import type { RenderTreeOptions } from "../custom-block";
 import { renderTreeToHtml } from "../render-html/render-html";
 import { renderTreeToDocx } from "../render-docx/render-docx";
 import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../custom-block";
-import type { Theme } from "../theme";
+import type { DeepPartial, Theme } from "../theme";
 
 export interface RenderFromSnapshotOptions {
   /** Required for a `pins`-mode Snapshot (which re-runs the engine); unused for `full`/`tree`. */
@@ -30,7 +30,7 @@ export interface RenderFromSnapshotOptions {
   onDegrade?: OnDegrade;
   /** Output format (defaults to `pdf`). */
   format?: "pdf" | "html" | "docx";
-  theme?: Theme;
+  theme?: DeepPartial<Theme>;
 }
 
 export interface PdfFromSnapshot {

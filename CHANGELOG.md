@@ -86,6 +86,13 @@ It is **feature-complete and publish-ready** but not yet published to npm.
   `{ theme?, customBlocks?, degradation?, onDegrade? }` (was five positional params). A consumer holding
   a `DocumentTree` can now render all three advertised formats.
 
+### Partial theme override
+- **`theme` now accepts a partial** everywhere it is taken (`renderDocument`, `renderFromSnapshot`, the
+  three tree renderers) — a `DeepPartial<Theme>` deep-merged over `defaultTheme` by the new **`mergeTheme`**
+  helper. Override a single token (`theme: { fontSize: { title: 22 } }`) without re-spreading every
+  group. Arrays (e.g. `article.headingFontSize`) are replaced wholesale, not element-merged. `mergeTheme`
+  and the `DeepPartial` type are exported.
+
 ### Catalog enumeration
 - `CatalogStore` and `Catalog` gain **`clauseIds()`** and **`includeIds()`**, and `Catalog.clauseVersions(id)`
   is now public — you can list clauses/includes without already knowing their ids (implemented across the
