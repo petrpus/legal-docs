@@ -86,6 +86,13 @@ It is **feature-complete and publish-ready** but not yet published to npm.
   `{ theme?, customBlocks?, degradation?, onDegrade? }` (was five positional params). A consumer holding
   a `DocumentTree` can now render all three advertised formats.
 
+### Expression arithmetic safety
+- **Division/modulo by zero and non-finite arithmetic are now hard errors** (`ExpressionError`) instead
+  of silently leaking. `$x / 0` (→ `Infinity`), `0 / 0` (→ `NaN`), and `$x % 0` previously flowed
+  through `String(value)` and rendered literally as the text *"Infinity"* / *"NaN"* in a document.
+  `toNumber` now also rejects a non-finite **operand** (a literal or coerced `Infinity`), and every
+  arithmetic result is guarded so a finite-operand overflow can't leak either.
+
 ### Partial theme override
 - **`theme` now accepts a partial** everywhere it is taken (`renderDocument`, `renderFromSnapshot`, the
   three tree renderers) — a `DeepPartial<Theme>` deep-merged over `defaultTheme` by the new **`mergeTheme`**
