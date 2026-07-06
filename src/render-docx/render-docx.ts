@@ -24,7 +24,7 @@ import { MAX_LEVEL } from "../core/engine";
 import { validatePayload } from "../core/payload";
 import { defaultTheme, type Theme } from "../render-pdf/theme";
 import { reportDegradation } from "../render-pdf/custom-block";
-import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../render-pdf/custom-block";
+import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../render-pdf/custom-block";
 import { eighths, halfPoints, twips } from "./theme-docx";
 
 interface DocxCtx {
@@ -41,16 +41,11 @@ interface DocxCtx {
  * Word has no nested block container, so nested nodes flatten into a flat `(Paragraph | Table)[]` with
  * indentation/markers carried as paragraph properties. The library handles XML escaping.
  */
-export async function renderTreeToDocx(
-  tree: DocumentTree,
-  theme: Theme = defaultTheme,
-  customBlocks: CustomBlockRegistry = {},
-  degradation: DegradationMode = "placeholder",
-  onDegrade?: OnDegrade,
-): Promise<Buffer> {
+export async function renderTreeToDocx(tree: DocumentTree, options: RenderTreeOptions = {}): Promise<Buffer> {
   // `async` so a synchronous build error (unregistered component, throw-mode degradation) surfaces as
   // a rejected promise rather than a sync throw.
-  const ctx: DocxCtx = { theme, blocks: customBlocks, degradation, onDegrade, depth: 0 };
+  const theme = options.theme ?? defaultTheme;
+  const ctx: DocxCtx = { theme, blocks: options.customBlocks ?? {}, degradation: options.degradation ?? "placeholder", onDegrade: options.onDegrade, depth: 0 };
   const children = tree.flatMap((node) => nodeToDocx(node, ctx));
   // Set the document-default run font (the reader's app substitutes if it lacks the family).
   const doc = new Document({

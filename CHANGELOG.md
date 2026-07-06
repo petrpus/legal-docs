@@ -71,6 +71,13 @@ It is **feature-complete and publish-ready** but not yet published to npm.
   behind both stores, pinned by a conformance suite run against both. A guard keeps `src/**` DB-free.
 - A **runtime Clause editor** in the demo (`examples/demo/` Editor tab).
 
+### Renderer API
+- The three tree renderers now share a coherent triad and a single options object: **`renderTreeToPdf`**
+  (renamed from the return-type-named `renderTreeToBuffer` and now **exported**), `renderTreeToHtml`,
+  `renderTreeToDocx` — each `(tree, options?: RenderTreeOptions)` where `RenderTreeOptions` is
+  `{ theme?, customBlocks?, degradation?, onDegrade? }` (was five positional params). A consumer holding
+  a `DocumentTree` can now render all three advertised formats.
+
 ### Catalog enumeration
 - `CatalogStore` and `Catalog` gain **`clauseIds()`** and **`includeIds()`**, and `Catalog.clauseVersions(id)`
   is now public — you can list clauses/includes without already knowing their ids (implemented across the

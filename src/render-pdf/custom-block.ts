@@ -51,6 +51,14 @@ export interface DegradationEvent {
 /** A consumer sink for degradation events. When supplied, it replaces the default `console.warn`. */
 export type OnDegrade = (event: DegradationEvent) => void;
 
+/** Options shared by all three tree renderers (`renderTreeToPdf`/`Html`/`Docx`). */
+export interface RenderTreeOptions {
+  theme?: Theme;
+  customBlocks?: CustomBlockRegistry;
+  degradation?: DegradationMode;
+  onDegrade?: OnDegrade;
+}
+
 /**
  * Apply the Degradation contract for a missing-format Custom block: in `throw` mode fail hard; in
  * `placeholder` mode notify (the consumer's {@link OnDegrade} sink, or `console.warn` by default) and

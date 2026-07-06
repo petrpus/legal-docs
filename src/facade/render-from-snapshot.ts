@@ -7,7 +7,8 @@ import type { HelperRegistry } from "../core/helpers";
 import { assertValidSnapshot } from "../core/snapshot";
 import type { ClausePin, Snapshot } from "../core/snapshot";
 import type { DocumentTree } from "../core/document-tree";
-import { renderTreeToBuffer } from "../render-pdf/render-pdf";
+import { renderTreeToPdf } from "../render-pdf/render-pdf";
+import type { RenderTreeOptions } from "../render-pdf/custom-block";
 import { renderTreeToHtml } from "../render-html/render-html";
 import { renderTreeToDocx } from "../render-docx/render-docx";
 import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../render-pdf/custom-block";
@@ -85,16 +86,17 @@ export async function renderFromSnapshot(
   // clear error rather than failing obscurely inside a renderer (accepts a runtime-typed `unknown`).
   assertValidSnapshot(snapshot);
   const tree = snapshot.tree ?? (await reassembleFromPins(snapshot, options));
+  const treeOptions: RenderTreeOptions = { theme: options.theme, customBlocks: options.customBlocks, degradation: options.degradation, onDegrade: options.onDegrade };
   const format = options.format ?? "pdf";
   if (format === "html") {
-    return { format: "html", html: renderTreeToHtml(tree, options.theme, options.customBlocks, options.degradation, options.onDegrade) };
+    return { format: "html", html: renderTreeToHtml(tree, treeOptions) };
   }
   if (format === "pdf") {
-    const buffer = await renderTreeToBuffer(tree, options.theme, options.customBlocks, options.degradation, options.onDegrade);
+    const buffer = await renderTreeToPdf(tree, treeOptions);
     return { format: "pdf", buffer, stream: Readable.from(buffer) };
   }
   if (format === "docx") {
-    const buffer = await renderTreeToDocx(tree, options.theme, options.customBlocks, options.degradation, options.onDegrade);
+    const buffer = await renderTreeToDocx(tree, treeOptions);
     return { format: "docx", buffer, stream: Readable.from(buffer) };
   }
   const unsupported: never = format;

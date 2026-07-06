@@ -8,7 +8,8 @@ import { validatePayload, type PayloadSchemaRegistry } from "../core/payload";
 import { resolvePayload, type DerivationRegistry } from "../core/resolve";
 import type { HelperRegistry } from "../core/helpers";
 import { buildSnapshot, type ClausePin, type Snapshot, type SnapshotMode } from "../core/snapshot";
-import { renderTreeToBuffer } from "../render-pdf/render-pdf";
+import { renderTreeToPdf } from "../render-pdf/render-pdf";
+import type { RenderTreeOptions } from "../render-pdf/custom-block";
 import { renderTreeToHtml } from "../render-html/render-html";
 import { renderTreeToDocx } from "../render-docx/render-docx";
 import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../render-pdf/custom-block";
@@ -113,16 +114,17 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
     input.snapshotMode,
   );
   // The Snapshot is format-agnostic (it freezes the tree); only the rendered output differs.
+  const treeOptions: RenderTreeOptions = { theme: input.theme, customBlocks: input.customBlocks, degradation: input.degradation, onDegrade: input.onDegrade };
   if (input.format === "html") {
-    const html = renderTreeToHtml(tree, input.theme, input.customBlocks, input.degradation, input.onDegrade);
+    const html = renderTreeToHtml(tree, treeOptions);
     return { format: "html", html, snapshot, snapshotId: snapshot.id };
   }
   if (input.format === "pdf") {
-    const buffer = await renderTreeToBuffer(tree, input.theme, input.customBlocks, input.degradation, input.onDegrade);
+    const buffer = await renderTreeToPdf(tree, treeOptions);
     return { format: "pdf", buffer, stream: Readable.from(buffer), snapshot, snapshotId: snapshot.id };
   }
   if (input.format === "docx") {
-    const buffer = await renderTreeToDocx(tree, input.theme, input.customBlocks, input.degradation, input.onDegrade);
+    const buffer = await renderTreeToDocx(tree, treeOptions);
     return { format: "docx", buffer, stream: Readable.from(buffer), snapshot, snapshotId: snapshot.id };
   }
   const unsupported: never = input.format;

@@ -24,7 +24,7 @@ fragment embeds into a consumer's page (preview/diff/WYSIWYG) without the collis
 both renderers; tokens are format-agnostic, each renderer interprets them.
 
 **The facade discriminates the result by `format`.** `renderDocument` switches on `format`:
-`"pdf"` → `renderTreeToBuffer`, `"html"` → the HTML renderer; the result is
+`"pdf"` → `renderTreeToPdf`, `"html"` → the HTML renderer; the result is
 `format: "pdf"` → `{ buffer, stream, snapshot, snapshotId }`, `format: "html"` → `{ html, snapshot, snapshotId }`
 (common `snapshot`/`snapshotId`, which stay format-agnostic — the Snapshot freezes the tree, not the
 bytes). `renderFromSnapshot` likewise gains a `format` option (default `pdf`) and the same discriminated
