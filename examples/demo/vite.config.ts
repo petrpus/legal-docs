@@ -115,6 +115,12 @@ function legalDocsApi(): Plugin {
             const diff = await cat.clauses.diff(clause, { from, to });
             return json(res, { html: l.renderClauseDiff(diff) });
           }
+          if (req.method === "POST" && url === "/schema") {
+            // Export the selected template's payload schema(s) to JSON Schema (Wave 4 #1).
+            const { template } = (await readBody(req)) as { template: string };
+            const schemas = cfg[template]?.schemas ?? {};
+            return json(res, { schemas: l.exportPayloadSchemas(schemas) });
+          }
 
           // --- Editor (ADR-0009 runtime editing API over an in-memory editable store) ---
           if (url.startsWith("/editing")) {
@@ -179,6 +185,13 @@ async function buildSamples(l: Awaited<ReturnType<typeof loadLib>>): Promise<Sam
     contract: {},
     localized: {},
     styled: {}, // showcase: per-block alignment + indentation (ADR-0008)
+    "nda-headed": {
+      // showcase: page header/footer + numbering (ADR-0011) and locale-aware helpers (ADR-0010).
+      // Switch the locale selector to see formatMoney/formatDateLong reformat; download PDF/DOCX to
+      // see the running header ("party — page X / Y") and confidentiality footer (HTML omits furniture).
+      schemas: { "nda@1": z.object({ party, amount: z.number(), currency: z.string(), date: z.string() }) },
+      data: { party: { name: "Acme Bank a.s." }, amount: 50000, currency: "EUR", date: "2026-07-06" },
+    },
     greeting: {
       schemas: { "greeting@1": z.object({ name: z.string(), loan }) },
       data: { name: "Alice", loan: { principal: { amount: 1000, currency: "EUR" } } },
