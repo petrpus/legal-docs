@@ -48,9 +48,10 @@ The three phases are deliberately separate so each is independently testable:
 The architecture turns on two clean boundaries ("seams") where one side can be swapped without
 touching the other:
 
-1. **`DocumentNode[]` — between the engine and the renderers.** Core produces a neutral document tree;
-   each **Renderer** is an exhaustive *visitor* over it. Author the structure once, render it to PDF,
-   HTML, and DOCX. This is why layout must be abstracted away from react-pdf (today it is fused in).
+1. **`DocumentTree` — between the engine and the renderers.** Core produces a neutral document tree
+   (a `DocumentNode[]` body, plus optional page furniture); each **Renderer** is an exhaustive *visitor*
+   over it. Author the structure once, render it to PDF, HTML, and DOCX. This is why layout must be
+   abstracted away from react-pdf (today it is fused in).
 2. **`CatalogStore` — between content storage and everything above it.** The **Catalog** loads
    authored content through this interface. **FileCatalogStore** (files + Git) is the read-only default;
    **`EditableCatalogStore`** extends it with a runtime editing API (drafting, a `draft → in_review →
