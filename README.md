@@ -15,8 +15,8 @@ code change and a deploy, and non-developers can't touch the text. This library 
 - **Templates are data** (declarative YAML), readable and editable by non-developers.
 - **Wording lives in a versioned catalog** of **Clauses** (reusable, versioned, locale-aware legal
   text, from a one-line phrase to a multi-page passage).
-- **One renderer-agnostic tree** (`DocumentNode[]`) is rendered to PDF, HTML, or DOCX by independent
-  visitors.
+- **One renderer-agnostic tree** (`DocumentTree`, optionally with a page header/footer) is rendered to
+  PDF, HTML, or DOCX by independent visitors.
 - **Versioning + diffs** come from files + Git; an immutable **Snapshot** is returned with every
   generation for audit and deterministic re-render.
 
@@ -99,7 +99,7 @@ A template references Clauses and binds the payload via `$paths` and `{{ expr }}
 
 ## Output formats & Custom blocks
 
-All three renderers visit the same `DocumentNode[]` tree. For a layout the core node set can't express
+All three renderers visit the same `DocumentTree`. For a layout the core node set can't express
 (a multi-column signature grid, a landscape grid note), drop in a **Custom block** — a code-side
 implementation per format, passed at render time:
 

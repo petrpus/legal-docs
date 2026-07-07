@@ -47,5 +47,13 @@ glossary — no implementation detail).
 ## Architecture orientation
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the renderer-agnostic tree and the two seams
-(`DocumentNode[]` between engine and renderers; `CatalogStore` between content storage and everything
+(`DocumentTree` between engine and renderers; `CatalogStore` between content storage and everything
 above). The full design and roadmap live in [`docs/PLAN.md`](docs/PLAN.md).
+
+## HTML documentation site
+
+`npm run docs:build` renders every markdown doc (README, `docs/*.md`, `docs/adr/*.md`,
+`docs/recipes/*.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, the demo/action READMEs) into a static,
+self-contained HTML site under `docs/*.html` (source for GitHub Pages, `docs/` folder). The generator
+is `scripts/build-docs-site.mjs` — **re-run it after editing any source markdown**; the `.html` files
+are committed (not gitignored) so the site works without a build step once deployed.

@@ -22,6 +22,11 @@ jobs:
       # command logic directly via runCli(), pre-build; this covers what that can't.
       - run: node dist/cli.js --help
       - run: node dist/cli.js validate --catalog legal-docs --config tests/fixtures/cli-registry.mjs
+      # The docs/*.html site is committed (it's the deployed artifact, not built on demand), so a
+      # markdown edit without a matching `npm run docs:build` would silently drift. Regenerate and
+      # fail if that leaves an uncommitted diff.
+      - run: npm run docs:build
+      - run: git diff --exit-code -- docs/
 
   action-self-test:
     runs-on: ubuntu-latest
