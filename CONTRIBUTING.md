@@ -9,7 +9,9 @@ npm install
 npm run verify   # typecheck + lint + tests + build — must be green
 ```
 
-Requires Node ≥ 20.
+Requires Node ≥ 20 to consume the published library. Running `npm run verify` needs **Node ≥ 22.5**:
+the `adapters/sqlite/` conformance test uses the built-in `node:sqlite` module, which isn't present on
+Node 20 (the library itself stays Node ≥ 20 — that adapter is outside the published package).
 
 ## Workflow
 
