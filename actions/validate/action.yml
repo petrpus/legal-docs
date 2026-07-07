@@ -1,0 +1,52 @@
+name: legal-docs validate
+description: >-
+  Lint a @petrpus/legal-docs catalog (templates/clauses/includes) for integrity — unresolved Clause
+  refs, unregistered helpers/derivations/Custom blocks, var-type mismatches — and fail the check with
+  GitHub annotations if anything is wrong.
+author: Petr Puš
+
+inputs:
+  catalog:
+    description: Path (relative to the consumer's workspace) to the catalog directory.
+    required: true
+  config:
+    description: >-
+      Optional path to a --config registry module (ESM, exporting { schemas, derivations, customBlocks,
+      helpers }) — the code-side pieces the catalog's templates may reference (ADR-0004).
+    required: false
+  node-version:
+    description: Node version to build @petrpus/legal-docs with.
+    required: false
+    default: "20"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    # The package isn't published to npm yet, so this action builds the library from the very repo it
+    # ships in (petrpus/legal-docs) — `uses: petrpus/legal-docs/actions/validate@main` materializes this
+    # whole repo at `github.action_path`. Once published, this step (and the one below) collapse to
+    # `npm i @petrpus/legal-docs`. Never `npm publish` here.
+    - name: Build legal-docs
+      shell: bash
+      working-directory: ${{ github.action_path }}/../..
+      run: |
+        npm ci
+        npm run build
+
+    - name: Run legal-docs validate
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        LEGAL_DOCS_ACTION_PATH: ${{ github.action_path }}
+        INPUT_CATALOG: ${{ inputs.catalog }}
+        INPUT_CONFIG: ${{ inputs.config }}
+      run: |
+        set -- validate --catalog "$INPUT_CATALOG" --github
+        if [ -n "$INPUT_CONFIG" ]; then
+          set -- "$@" --config "$INPUT_CONFIG"
+        fi
+        node "$LEGAL_DOCS_ACTION_PATH/../../dist/cli.js" "$@"
