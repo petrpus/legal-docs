@@ -213,6 +213,8 @@ token surface, the fonts recipe, and how each renderer maps units.
 - [`docs/THEMING.md`](docs/THEMING.md) — theme tokens, fonts, per-renderer units.
 - [`docs/adr/`](docs/adr/) — Architecture Decision Records (0009 = the editing API).
 - [`examples/demo/`](examples/demo/) — a runnable Vite + React demo (render, diff, editor).
+- [`docs/recipes/llm-drafting.md`](docs/recipes/llm-drafting.md) — an LLM drafts a clause revision
+  through the same `createDraft → previewDiff → validate()-gated publish` flow as a human editor.
 - [`CHANGELOG.md`](CHANGELOG.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md)
 
 ## License

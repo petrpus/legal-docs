@@ -9,6 +9,15 @@ All notable changes to `@petrpus/legal-docs` are recorded here. The format follo
 The library was built phase by phase from the approved design plan ([`docs/PLAN.md`](docs/PLAN.md)).
 It is **feature-complete and publish-ready** but not yet published to npm.
 
+### LLM drafting recipe (Wave 5 #4)
+- **[`docs/recipes/llm-drafting.md`](docs/recipes/llm-drafting.md)** — docs only, no code change. Shows
+  an LLM producing clause text that flows through the existing runtime editing API exactly as a human
+  editor's draft would: `createDraft → previewDiff (human review) → validate()-gated publish`. The
+  `validate()` gate is the guardrail for AI-authored content, not a new mechanism — a bad LLM draft is
+  blocked with the same structured `PublishValidationError` findings a bad human draft would produce.
+  Core stays free of any AI/HTTP dependency; the recipe uses `@anthropic-ai/sdk` as the consumer's own
+  dependency.
+
 ### Deploy-ready demo server (Wave 5 #3)
 - **The demo can now run as a small, fully-interactive Node server anywhere** — not just under `vite
   dev`. The `/api/*` render/diff/schema/editor logic was extracted into a framework-agnostic
