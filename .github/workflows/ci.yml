@@ -16,3 +16,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
+      # Smoke-test the built CLI bin (shebang, bin wiring, dist chunking) — vitest exercises the
+      # command logic directly via runCli(), pre-build; this covers what that can't.
+      - run: node dist/cli.js --help
+      - run: node dist/cli.js validate --catalog legal-docs --config tests/fixtures/cli-registry.mjs
