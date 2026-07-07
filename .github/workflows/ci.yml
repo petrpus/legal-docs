@@ -22,6 +22,17 @@ jobs:
       # command logic directly via runCli(), pre-build; this covers what that can't.
       - run: node dist/cli.js --help
       - run: node dist/cli.js validate --catalog legal-docs --config tests/fixtures/cli-registry.mjs
+      # Guard against a future src/browser.ts change re-introducing a Node built-in into the bundle
+      # tsup produces for the in-browser demo — vitest covers its logic, but only the built output can
+      # be checked for an actual `node:*` import specifier (esbuild leaves these unresolved verbatim).
+      # In practice esbuild's `platform: "browser"` already fails the build outright on any unresolvable
+      # `node:` import, so this is defense-in-depth for e.g. a dependency whose "browser" field stubs
+      # one built-in but not another; match any `node:` scheme, not an enumerated allowlist.
+      - run: |
+          if grep -qE '"node:' docs/assets/browser-demo.js; then
+            echo "docs/assets/browser-demo.js references a node: built-in — it must stay browser-safe" >&2
+            exit 1
+          fi
       # The docs/*.html site is committed (it's the deployed artifact, not built on demand), so a
       # markdown edit without a matching `npm run docs:build` would silently drift. Regenerate and
       # fail if that leaves an uncommitted diff.

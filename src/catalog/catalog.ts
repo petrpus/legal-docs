@@ -1,4 +1,3 @@
-import { FileCatalogStore } from "./file-catalog-store";
 import type { CatalogStore } from "./catalog-store";
 import { isEditableStore } from "./editable-catalog-store";
 import { createEditingApi, type EditingApi } from "./editing-facade";
@@ -9,11 +8,10 @@ import {
 } from "./validate";
 import type { Include, Template } from "../core/template";
 import type { Clause } from "../core/clause";
-import { parseClauseRef } from "../core/clause-ref";
-import { LegalDocsError, NotFoundError } from "../core/errors";
-import { composeTemplate } from "../core/compose";
+import { LegalDocsError } from "../core/errors";
 import { parseRichText } from "../core/rich-text";
 import { diffRichText, type ClauseDiff } from "../core/clause-diff";
+import { resolveClause, resolveTemplate } from "./resolve";
 
 /** Options for a Clause version diff. */
 export interface ClauseDiffOptions {
@@ -31,8 +29,13 @@ export interface ClauseDiffOptions {
 export class Catalog {
   private constructor(private readonly store: CatalogStore) {}
 
-  /** Load a file-based catalog from a directory (uses FileCatalogStore). */
+  /**
+   * Load a file-based catalog from a directory (uses FileCatalogStore). Dynamically imported so that
+   * importing `Catalog` alone (e.g. the browser-safe entry, `src/browser.ts`) never pulls in
+   * FileCatalogStore's `node:fs`/`node:path` dependency.
+   */
   static async fromDir(dir: string): Promise<Catalog> {
+    const { FileCatalogStore } = await import("./file-catalog-store");
     return new Catalog(new FileCatalogStore(dir));
   }
 
@@ -46,16 +49,7 @@ export class Catalog {
    * composes the family's Base template + that Variant into a concrete Template (Slots filled).
    */
   getTemplate(id: string, variant?: string): Promise<Template> {
-    if (variant === undefined) return this.store.loadTemplate(id);
-    return this.composeVariant(id, variant);
-  }
-
-  private async composeVariant(family: string, variant: string): Promise<Template> {
-    const [base, spec] = await Promise.all([
-      this.store.loadBase(family),
-      this.store.loadVariant(family, variant),
-    ]);
-    return composeTemplate(base, spec);
+    return resolveTemplate(this.store, id, variant);
   }
 
   templateIds(): Promise<string[]> {
@@ -93,10 +87,8 @@ export class Catalog {
   }
 
   /** Resolve a Clause reference (`id@vN` | `id@latest` | `id`) to a concrete Clause for a locale. */
-  async getClause(ref: string, locale: string): Promise<Clause> {
-    const { id, version } = parseClauseRef(ref);
-    const concrete = version === "latest" ? await this.latestVersion(id) : version;
-    return this.store.loadClause(id, concrete, locale);
+  getClause(ref: string, locale: string): Promise<Clause> {
+    return resolveClause(this.store, ref, locale);
   }
 
   private clausesApi?: { diff: (id: string, options: ClauseDiffOptions) => Promise<ClauseDiff> };
@@ -133,13 +125,6 @@ export class Catalog {
   /** The locales a Clause version is authored in. */
   clauseLocales(id: string, version: number): Promise<string[]> {
     return this.store.clauseLocales(id, version);
-  }
-
-  private async latestVersion(id: string): Promise<number> {
-    const versions = await this.store.clauseVersions(id);
-    const latest = versions.at(-1);
-    if (latest === undefined) throw new NotFoundError("clause", { id });
-    return latest;
   }
 
   /** Integrity lint: returns path-precise findings for unresolved refs, unregistered helpers, etc. */
