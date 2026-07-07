@@ -195,6 +195,8 @@ blocks](#output-formats--custom-blocks)) can't come from a data flag, so pass `-
 plain ESM module exporting any of `{ schemas, derivations, customBlocks, helpers }`. Every command works
 without it for templates that need none. Run `legal-docs --help` for the full option list.
 
+A GitHub Action wraps `validate` as a PR check — see [`actions/validate/`](actions/validate/).
+
 ## Theming
 
 Every renderer reads a configurable **Theme**; pass `renderDocument({ theme })` to restyle. Tokens cover

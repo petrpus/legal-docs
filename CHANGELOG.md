@@ -9,6 +9,14 @@ All notable changes to `@petrpus/legal-docs` are recorded here. The format follo
 The library was built phase by phase from the approved design plan ([`docs/PLAN.md`](docs/PLAN.md)).
 It is **feature-complete and publish-ready** but not yet published to npm.
 
+### GitHub Action (Wave 5 #2)
+- **A composite `actions/validate/` GitHub Action** wraps `legal-docs validate --github` as a drop-in PR
+  check: `uses: petrpus/legal-docs/actions/validate@main` with `{ catalog, config? }` inputs. Since the
+  package isn't published to npm yet, the action builds the library from the checked-out repo itself
+  (documented as a temporary cost in `actions/validate/README.md` — collapses to `npm i
+  @petrpus/legal-docs` once published). CI gains an `action-self-test` job exercising the action
+  end-to-end via `uses: ./actions/validate`.
+
 ### CLI (Wave 5 #1)
 - **A `legal-docs` command-line bin** (`legal-docs render|validate|schema`), built as a second tsup
   entry alongside the library (`dist/cli.js`, `package.json#bin`). Three subcommands, all over the

@@ -22,3 +22,12 @@ jobs:
       # command logic directly via runCli(), pre-build; this covers what that can't.
       - run: node dist/cli.js --help
       - run: node dist/cli.js validate --catalog legal-docs --config tests/fixtures/cli-registry.mjs
+
+  action-self-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./actions/validate
+        with:
+          catalog: legal-docs
+          config: tests/fixtures/cli-registry.mjs
