@@ -1,0 +1,11 @@
+node_modules
+dist
+tmp
+samples
+*.tsbuildinfo
+.git
+.github
+docs
+adapters
+examples/demo/node_modules
+examples/demo/dist
