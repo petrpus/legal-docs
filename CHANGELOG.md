@@ -9,6 +9,19 @@ All notable changes to `@petrpus/legal-docs` are recorded here. The format follo
 The library was built phase by phase from the approved design plan ([`docs/PLAN.md`](docs/PLAN.md)).
 It is **feature-complete and publish-ready** but not yet published to npm.
 
+### Deploy-ready demo server (Wave 5 #3)
+- **The demo can now run as a small, fully-interactive Node server anywhere** — not just under `vite
+  dev`. The `/api/*` render/diff/schema/editor logic was extracted into a framework-agnostic
+  `examples/demo/server/api.mjs` (`createApiHandler({ lib, catalogDir })`), shared by both the Vite dev
+  plugin and a new standalone `examples/demo/server.mjs` (plain `node:http`, no new dependency; serves
+  the built client + the same API; `PORT` env, default `8080`).
+- A multi-stage `examples/demo/Dockerfile` (build context = repo root) builds the library, the demo
+  client, and runs `server.mjs`; a `docs`/README section covers `docker run` / Fly / Render deployment
+  and flags the in-memory editing store as single-instance-only (the `node:sqlite` adapter is the
+  persistent alternative).
+- `examples/demo/server/api.mjs` adds a request-body size cap (1 MB) the original dev-only plugin
+  flagged as needed hardening for anything beyond a trusted local browser.
+
 ### GitHub Action (Wave 5 #2)
 - **A composite `actions/validate/` GitHub Action** wraps `legal-docs validate --github` as a drop-in PR
   check: `uses: petrpus/legal-docs/actions/validate@main` with `{ catalog, config? }` inputs. Since the
