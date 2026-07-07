@@ -9,6 +9,22 @@ All notable changes to `@petrpus/legal-docs` are recorded here. The format follo
 The library was built phase by phase from the approved design plan ([`docs/PLAN.md`](docs/PLAN.md)).
 It is **feature-complete and publish-ready** but not yet published to npm.
 
+### CLI (Wave 5 #1)
+- **A `legal-docs` command-line bin** (`legal-docs render|validate|schema`), built as a second tsup
+  entry alongside the library (`dist/cli.js`, `package.json#bin`). Three subcommands, all over the
+  existing public API — no new library capability:
+  - `legal-docs render <template> --catalog <dir> [--data f.json] [--variant] [--locale]
+    [--format pdf|html|docx] [--out file|-] [--config registry.mjs]`
+  - `legal-docs validate --catalog <dir> [--config registry.mjs] [--github]` — exits `1` with findings
+    printed as `path: message`; `--github` additionally emits message-only `::error` workflow
+    annotations (percent-encoded; no `file=`, since a finding's `path` is a logical catalog path, not a
+    filesystem path).
+  - `legal-docs schema <template> --catalog <dir> --config registry.mjs [--variant] [--target
+    draft-7|draft-2020-12]` — prints the template's payload JSON Schema (via `exportPayloadSchema`).
+  - `--config` points at a plain ESM module exporting any of `{ schemas, derivations, customBlocks,
+    helpers, degradation }` — the code-side registries a Catalog's templates may reference (ADR-0004);
+    every command works without it for templates that need none.
+
 ### Phase 1 — MVP core + PDF
 - Renderer-agnostic document tree (`DocumentNode[]`); the closed Core node set.
 - Declarative Template engine: `$path` / `{{ expr }}` binding, `if` / `for`, whitelisted helpers via a

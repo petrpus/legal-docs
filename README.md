@@ -180,6 +180,21 @@ renders the old→new review diff. A `node:sqlite` reference adapter lives in
 [`adapters/sqlite/`](adapters/sqlite/) (outside the published package). See the runnable
 [`examples/demo/`](examples/demo/) — Render / Clause-diff / **Editor** tabs.
 
+## CLI
+
+A `legal-docs` bin ships alongside the library for rendering and linting from a shell or CI:
+
+```sh
+legal-docs render nda --catalog ./legal-docs --data payload.json --format pdf --out nda.pdf
+legal-docs validate --catalog ./legal-docs --github   # exits 1 with findings; --github adds ::error annotations
+legal-docs schema nda --catalog ./legal-docs --config registry.mjs   # payload as JSON Schema
+```
+
+Code-side registries (payload schemas, Derivations, Custom blocks — see [Output formats & Custom
+blocks](#output-formats--custom-blocks)) can't come from a data flag, so pass `--config registry.mjs`: a
+plain ESM module exporting any of `{ schemas, derivations, customBlocks, helpers }`. Every command works
+without it for templates that need none. Run `legal-docs --help` for the full option list.
+
 ## Theming
 
 Every renderer reads a configurable **Theme**; pass `renderDocument({ theme })` to restyle. Tokens cover
