@@ -76,6 +76,17 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
 .sidebar-footer a { font-size: 0.8rem; color: var(--ink-faint); }
 main { flex: 1 1 auto; min-width: 0; padding: 3rem 2rem 5rem; display: flex; justify-content: center; }
 article { width: 100%; max-width: 42rem; }
+.live-demo-callout {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  margin: 0 0 2.2rem; padding: 0.9rem 1.2rem; border-radius: 8px; background: var(--accent-soft);
+  border: 1px solid var(--line); font-family: -apple-system, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+}
+.live-demo-callout p { margin: 0; font-size: 0.9rem; color: var(--ink-soft); }
+.live-demo-callout a.cta {
+  flex: 0 0 auto; font-size: 0.82rem; font-weight: 700; color: var(--bg-raised); background: var(--accent);
+  padding: 0.45rem 0.95rem; border-radius: 5px; border-bottom: none; white-space: nowrap;
+}
+.live-demo-callout a.cta:hover { filter: brightness(1.08); }
 article h1 { font-size: 2.1rem; line-height: 1.2; margin: 0 0 1.75rem; text-wrap: balance; letter-spacing: -0.01em; }
 article h2 { font-size: 1.45rem; margin: 2.6rem 0 1rem; padding-top: 0.4rem; border-top: 1px solid var(--line); text-wrap: balance; }
 article h2:first-child { border-top: none; padding-top: 0; margin-top: 0; }
@@ -119,26 +130,14 @@ hr { border: none; border-top: 1px solid var(--line); margin: 2.2rem 0; }
       <button class="theme-toggle" data-theme-label>Dark</button>
     </div>
     <div class="nav-group"><h2>Start here</h2><ul><li><a href="../index.html">Home</a></li>
-<li><a href="../ARCHITECTURE.html">Architecture</a></li>
+<li><a href="../live-demo.html">Live demo</a></li></ul></div>
+<div class="nav-group"><h2>Developer reference</h2><ul><li><a href="../ARCHITECTURE.html">Architecture</a></li>
 <li><a href="../AUTHORING.html">Authoring guide</a></li>
 <li><a href="../CONTEXT.html">Glossary</a></li>
-<li><a href="../THEMING.html">Theming</a></li>
-<li><a href="../PLAN.html"><span class="nav-tag">historical</span>Design plan</a></li></ul></div>
-<div class="nav-group"><h2>Decision records</h2><ul><li><a href="../adr/0001-foundational-decisions.html"><span class="nav-num">0001</span>Foundational decisions</a></li>
-<li><a href="../adr/0002-unify-snippet-and-clause.html"><span class="nav-num">0002</span>Unify Snippet and Clause</a></li>
-<li><a href="../adr/0003-snapshot-mode-configurable-default-full.html"><span class="nav-num">0003</span>Snapshot mode</a></li>
-<li><a href="../adr/0004-payload-schemas-are-code-side.html"><span class="nav-num">0004</span>Payload schemas are code-side</a></li>
-<li><a href="../adr/0005-custom-block-contract.html"><span class="nav-num">0005</span>Custom block contract</a></li>
-<li><a href="../adr/0006-html-renderer-contract.html"><span class="nav-num">0006</span>HTML renderer contract</a></li>
-<li><a href="../adr/0007-docx-renderer-contract.html"><span class="nav-num">0007</span>DOCX renderer contract</a></li>
-<li><a href="../adr/0008-block-level-styling.html"><span class="nav-num">0008</span>Block-level styling</a></li>
-<li><a href="../adr/0009-editing-api-and-status.html"><span class="nav-num">0009</span>Runtime editing API</a></li>
-<li><a href="../adr/0010-locale-aware-helpers.html"><span class="nav-num">0010</span>Locale-aware helpers</a></li>
-<li><a href="../adr/0011-page-headers-footers.html"><span class="nav-num">0011</span>Page headers & footers</a></li></ul></div>
+<li><a href="../THEMING.html">Theming</a></li></ul></div>
 <div class="nav-group"><h2>Recipes</h2><ul><li><a href="./llm-drafting.html" class="active" aria-current="page">LLM clause drafting</a></li></ul></div>
 <div class="nav-group"><h2>Project</h2><ul><li><a href="../CHANGELOG.html">Changelog</a></li>
-<li><a href="../CONTRIBUTING.html">Contributing</a></li>
-<li><a href="../demo.html">Demo app</a></li>
+<li><a href="../demo.html">Full demo (server)</a></li>
 <li><a href="../action-validate.html">GitHub Action</a></li></ul></div>
     <div class="sidebar-footer"><a href="https://github.com/petrpus/legal-docs" target="_blank" rel="noopener">GitHub ↗</a></div>
   </nav>

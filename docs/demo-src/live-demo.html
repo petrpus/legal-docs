@@ -1,0 +1,181 @@
+<h1>Live demo</h1>
+<p>A genuinely interactive demo — no server. Edit the JSON payload below and the document re-renders
+entirely in your browser, through the same tree-assembly and HTML-render pipeline the library uses
+server-side (<a href="ARCHITECTURE.html">binding, clause resolution, key-value rows, signatures</a>),
+minus the audit Snapshot (which needs a Node-only hash). The template and its two clauses are seeded
+in-memory for this page — see the <a href="AUTHORING.html">Authoring guide</a> for how a real catalog on
+disk looks.</p>
+
+<div class="live-demo" id="live-demo">
+  <div class="live-demo__pane">
+    <div class="live-demo__pane-head">
+      <label for="live-demo-payload">Payload (JSON)</label>
+      <button type="button" id="live-demo-reset" class="live-demo__btn live-demo__btn--ghost">Reset</button>
+    </div>
+    <textarea id="live-demo-payload" class="live-demo__editor" spellcheck="false" autocapitalize="off"></textarea>
+    <div class="live-demo__actions">
+      <button type="button" id="live-demo-render" class="live-demo__btn live-demo__btn--primary">Render ▸</button>
+      <span class="live-demo__hint">Renders as you type, or press ⌘/Ctrl + Enter</span>
+    </div>
+    <div id="live-demo-error" class="live-demo__error" hidden></div>
+  </div>
+  <div class="live-demo__pane">
+    <div class="live-demo__pane-head"><label>Output (HTML renderer)</label></div>
+    <iframe id="live-demo-output" class="live-demo__frame" title="Rendered document preview" sandbox=""></iframe>
+  </div>
+</div>
+
+<style>
+  .live-demo { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1.5rem 0 2rem; font-family: -apple-system, "Segoe UI", ui-sans-serif, system-ui, sans-serif; }
+  .live-demo__pane { display: flex; flex-direction: column; min-width: 0; }
+  .live-demo__pane-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
+  .live-demo__pane-head label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-faint); font-weight: 600; }
+  .live-demo__editor {
+    flex: 1 1 auto; min-height: 22rem; resize: vertical; width: 100%; box-sizing: border-box;
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace; font-size: 0.82rem; line-height: 1.55;
+    background: var(--code-bg); color: var(--code-ink); border: 1px solid var(--line); border-radius: 6px;
+    padding: 0.9rem 1rem; tab-size: 2;
+  }
+  .live-demo__editor:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .live-demo__actions { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.65rem; flex-wrap: wrap; }
+  .live-demo__hint { font-size: 0.76rem; color: var(--ink-faint); }
+  .live-demo__btn {
+    font: inherit; font-size: 0.82rem; font-weight: 600; border-radius: 5px; padding: 0.45rem 0.9rem;
+    cursor: pointer; border: 1px solid transparent;
+  }
+  .live-demo__btn--primary { background: var(--accent); color: var(--bg-raised); }
+  .live-demo__btn--primary:hover { filter: brightness(1.08); }
+  .live-demo__btn--ghost { background: transparent; color: var(--ink-soft); border-color: var(--line); font-weight: 500; font-size: 0.76rem; padding: 0.3rem 0.6rem; }
+  .live-demo__btn--ghost:hover { background: var(--accent-soft); color: var(--ink); }
+  .live-demo__error {
+    margin-top: 0.65rem; padding: 0.6rem 0.85rem; border-radius: 5px; font-size: 0.82rem; line-height: 1.5;
+    background: color-mix(in srgb, #b00020 12%, transparent); color: #b00020; border: 1px solid color-mix(in srgb, #b00020 35%, transparent);
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+  .live-demo__frame {
+    flex: 1 1 auto; min-height: 22rem; width: 100%; box-sizing: border-box; border: 1px solid var(--line);
+    border-radius: 6px; background: #fff; box-shadow: 0 1px 3px var(--shadow);
+  }
+  @media (max-width: 860px) {
+    .live-demo { grid-template-columns: 1fr; }
+    .live-demo__editor, .live-demo__frame { min-height: 16rem; }
+  }
+</style>
+
+<script type="module">
+  import { MemoryCatalogStore, renderHtmlInBrowser } from "./assets/browser-demo.js";
+
+  // Seeded entirely in-memory for this page — see docs/AUTHORING.md for how a real file-based catalog
+  // (Templates/Clauses on disk) composes the same way through Catalog.fromDir.
+  const store = new MemoryCatalogStore({
+    templates: [
+      {
+        template: "services-agreement",
+        version: 1,
+        locale: "en",
+        body: [
+          { title: "SERVICES AGREEMENT" },
+          { partyHeader: { party: "$client", roleLabel: "Client" } },
+          { partyHeader: { party: "$provider", roleLabel: "Provider" } },
+          { paragraph: "This agreement takes effect on {{ formatDateLong($effectiveDate) }}." },
+          { clause: "welcome-note" },
+          {
+            keyValueTable: {
+              rows: [
+                { label: "Monthly fee", value: "{{ formatMoney($fee, $currency) }}" },
+                { label: "Effective date", value: "{{ formatDate($effectiveDate) }}" },
+              ],
+            },
+          },
+          {
+            bulletList: [
+              [{ paragraph: "Scope of work is described in Exhibit A." }],
+              [{ paragraph: "Either party may terminate with 30 days' written notice." }],
+            ],
+          },
+          { clause: "counterparts", vars: { count: "$counterpartCount" } },
+          { signatures: { places: [{ party: "$client" }, { party: "$provider" }] } },
+        ],
+      },
+    ],
+    clauses: [
+      { clause: "welcome-note", version: 1, locale: "en", vars: {}, text: "Welcome to this agreement between the parties." },
+      {
+        clause: "counterparts",
+        version: 1,
+        locale: "en",
+        vars: { count: { type: "integer", min: 1 } },
+        text: "This document is executed in **{{ $count }}** counterparts, each party receiving one.",
+      },
+    ],
+  });
+
+  const SAMPLE_PAYLOAD = {
+    client: { name: "Acme s.r.o.", idNumber: "12345678", address: "Prague, CZ" },
+    provider: { name: "Ludwig Legal Studio" },
+    effectiveDate: "2026-07-01",
+    fee: 4200,
+    currency: "EUR",
+    counterpartCount: 2,
+  };
+
+  const editor = document.getElementById("live-demo-payload");
+  const output = document.getElementById("live-demo-output");
+  const errorBox = document.getElementById("live-demo-error");
+  const renderBtn = document.getElementById("live-demo-render");
+  const resetBtn = document.getElementById("live-demo-reset");
+
+  function showError(message) {
+    errorBox.textContent = message;
+    errorBox.hidden = false;
+  }
+  function clearError() {
+    errorBox.hidden = true;
+    errorBox.textContent = "";
+  }
+
+  async function render() {
+    let data;
+    try {
+      data = JSON.parse(editor.value);
+    } catch (err) {
+      showError(`Invalid JSON: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
+    try {
+      const html = await renderHtmlInBrowser({ store, template: "services-agreement", data });
+      clearError();
+      output.srcdoc =
+        '<!doctype html><html><head><meta charset="utf-8">' +
+        '<style>body{margin:0;padding:2rem;background:#fff;color-scheme:light;}</style>' +
+        "</head><body>" + html + "</body></html>";
+    } catch (err) {
+      showError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  let debounceTimer;
+  function scheduleRender() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(render, 350);
+  }
+
+  editor.value = JSON.stringify(SAMPLE_PAYLOAD, null, 2);
+  editor.addEventListener("input", scheduleRender);
+  editor.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      clearTimeout(debounceTimer);
+      render();
+    }
+  });
+  renderBtn.addEventListener("click", () => {
+    clearTimeout(debounceTimer);
+    render();
+  });
+  resetBtn.addEventListener("click", () => {
+    editor.value = JSON.stringify(SAMPLE_PAYLOAD, null, 2);
+    render();
+  });
+
+  render();
+</script>

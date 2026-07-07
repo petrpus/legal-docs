@@ -9,6 +9,18 @@ All notable changes to `@petrpus/legal-docs` are recorded here. The format follo
 The library was built phase by phase from the approved design plan ([`docs/PLAN.md`](docs/PLAN.md)).
 It is **feature-complete and publish-ready** but not yet published to npm.
 
+### Documentation site redesign & live in-browser demo (ADR-0012)
+- **`docs/live-demo.html`** — a genuinely interactive demo: edit a JSON payload, the document re-renders
+  entirely client-side, no server. Powered by a new browser-safe build entry (`src/browser.ts`, bundled
+  standalone into `docs/assets/browser-demo.js` by a second `tsup` config) that excludes `FileCatalogStore`
+  (`node:fs`), the Snapshot audit trail (`node:crypto`), and the PDF/DOCX renderers. Template/Clause
+  resolution (variant composition, `@latest`) is shared with `Catalog` via the new
+  `src/catalog/resolve.ts`, so the browser path and the Node path can't drift apart.
+- **The public doc site is scoped down** to a project introduction, developer reference, and a live
+  demo — the 11 ADRs, `docs/PLAN.md`, and `CONTRIBUTING.md` are no longer generated as site pages (they
+  stay in the repo and are linked to on GitHub from any page that references them). See ADR-0012 for the
+  rationale.
+
 ### LLM drafting recipe (Wave 5 #4)
 - **[`docs/recipes/llm-drafting.md`](docs/recipes/llm-drafting.md)** — docs only, no code change. Shows
   an LLM producing clause text that flows through the existing runtime editing API exactly as a human

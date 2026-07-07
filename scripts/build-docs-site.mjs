@@ -14,42 +14,34 @@ const REPO = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const GITHUB = "https://github.com/petrpus/legal-docs";
 
 // --- Page manifest: source (repo-root-relative) -> output (repo-root-relative, under docs/) ---
+// ADRs, the design plan, and CONTRIBUTING stay in the repo (linked to on GitHub, via the resolveHref
+// fallback below) but are deliberately off the public site: it introduces the project and documents
+// usage for developers (incl. LLM-assisted drafting) and a live demo, not the internal design history.
 const PAGES = [
   { src: "README.md", out: "docs/index.html", group: "start", label: "Home", order: 0 },
-  { src: "docs/ARCHITECTURE.md", out: "docs/ARCHITECTURE.html", group: "start", label: "Architecture", order: 1 },
-  { src: "docs/AUTHORING.md", out: "docs/AUTHORING.html", group: "start", label: "Authoring guide", order: 2 },
-  { src: "docs/CONTEXT.md", out: "docs/CONTEXT.html", group: "start", label: "Glossary", order: 3 },
-  { src: "docs/THEMING.md", out: "docs/THEMING.html", group: "start", label: "Theming", order: 4 },
-  { src: "docs/PLAN.md", out: "docs/PLAN.html", group: "start", label: "Design plan", order: 5, badge: "historical" },
+  { src: "docs/demo-src/live-demo.html", out: "docs/live-demo.html", group: "start", label: "Live demo", order: 1, raw: true },
 
-  { src: "docs/adr/0001-foundational-decisions.md", out: "docs/adr/0001-foundational-decisions.html", group: "adr", num: "0001", label: "Foundational decisions" },
-  { src: "docs/adr/0002-unify-snippet-and-clause.md", out: "docs/adr/0002-unify-snippet-and-clause.html", group: "adr", num: "0002", label: "Unify Snippet and Clause" },
-  { src: "docs/adr/0003-snapshot-mode-configurable-default-full.md", out: "docs/adr/0003-snapshot-mode-configurable-default-full.html", group: "adr", num: "0003", label: "Snapshot mode" },
-  { src: "docs/adr/0004-payload-schemas-are-code-side.md", out: "docs/adr/0004-payload-schemas-are-code-side.html", group: "adr", num: "0004", label: "Payload schemas are code-side" },
-  { src: "docs/adr/0005-custom-block-contract.md", out: "docs/adr/0005-custom-block-contract.html", group: "adr", num: "0005", label: "Custom block contract" },
-  { src: "docs/adr/0006-html-renderer-contract.md", out: "docs/adr/0006-html-renderer-contract.html", group: "adr", num: "0006", label: "HTML renderer contract" },
-  { src: "docs/adr/0007-docx-renderer-contract.md", out: "docs/adr/0007-docx-renderer-contract.html", group: "adr", num: "0007", label: "DOCX renderer contract" },
-  { src: "docs/adr/0008-block-level-styling.md", out: "docs/adr/0008-block-level-styling.html", group: "adr", num: "0008", label: "Block-level styling" },
-  { src: "docs/adr/0009-editing-api-and-status.md", out: "docs/adr/0009-editing-api-and-status.html", group: "adr", num: "0009", label: "Runtime editing API" },
-  { src: "docs/adr/0010-locale-aware-helpers.md", out: "docs/adr/0010-locale-aware-helpers.html", group: "adr", num: "0010", label: "Locale-aware helpers" },
-  { src: "docs/adr/0011-page-headers-footers.md", out: "docs/adr/0011-page-headers-footers.html", group: "adr", num: "0011", label: "Page headers & footers" },
+  { src: "docs/ARCHITECTURE.md", out: "docs/ARCHITECTURE.html", group: "guide", label: "Architecture", order: 0 },
+  { src: "docs/AUTHORING.md", out: "docs/AUTHORING.html", group: "guide", label: "Authoring guide", order: 1 },
+  { src: "docs/CONTEXT.md", out: "docs/CONTEXT.html", group: "guide", label: "Glossary", order: 2 },
+  { src: "docs/THEMING.md", out: "docs/THEMING.html", group: "guide", label: "Theming", order: 3 },
 
   { src: "docs/recipes/llm-drafting.md", out: "docs/recipes/llm-drafting.html", group: "recipes", label: "LLM clause drafting" },
 
   { src: "CHANGELOG.md", out: "docs/CHANGELOG.html", group: "project", label: "Changelog", order: 1 },
-  { src: "CONTRIBUTING.md", out: "docs/CONTRIBUTING.html", group: "project", label: "Contributing", order: 2 },
-  { src: "examples/demo/README.md", out: "docs/demo.html", group: "project", label: "Demo app", order: 3 },
-  { src: "actions/validate/README.md", out: "docs/action-validate.html", group: "project", label: "GitHub Action", order: 4 },
+  { src: "examples/demo/README.md", out: "docs/demo.html", group: "project", label: "Full demo (server)", order: 2 },
+  { src: "actions/validate/README.md", out: "docs/action-validate.html", group: "project", label: "GitHub Action", order: 3 },
 ];
 
 const bySrc = new Map(PAGES.map((p) => [p.src, p]));
 
 // --- Manifest completeness: PAGES is hand-maintained, not a directory scan — fail loud rather than
-// silently drop a new doc off the site. CLAUDE.md is deliberately excluded (internal agent guidance,
-// not a public doc). ---
-const EXCLUDED = new Set(["CLAUDE.md"]);
+// silently drop a new doc off the site. CLAUDE.md is internal agent guidance, not a public doc; the ADRs,
+// PLAN.md and CONTRIBUTING.md are deliberately kept out of the site (see the PAGES comment above) — all
+// stay on GitHub via resolveHref's fallback, so are excluded here rather than registered as pages. ---
+const EXCLUDED = new Set(["CLAUDE.md", "docs/PLAN.md", "CONTRIBUTING.md"]);
 function assertManifestComplete() {
-  const candidateDirs = [".", "docs", "docs/adr", "docs/recipes"];
+  const candidateDirs = [".", "docs", "docs/recipes"];
   const discovered = new Set();
   for (const dir of candidateDirs) {
     for (const name of readdirSync(path.join(REPO, dir), { withFileTypes: true })) {
@@ -131,6 +123,11 @@ function resolveHref(href, currentSrc, currentOut) {
 
 // --- Render one page's markdown to a body-only HTML fragment ---
 function renderBody(page) {
+  // A "raw" page (currently just the live demo) is hand-authored HTML, not markdown — passed through
+  // verbatim. Its own links/script paths are already correct relative to its output location, so none
+  // of the markdown link-rewriting below applies.
+  if (page.raw) return readFileSync(path.join(REPO, page.src), "utf8");
+
   const md = readFileSync(path.join(REPO, page.src), "utf8");
   const slugger = makeSlugger();
 
@@ -162,8 +159,8 @@ function navHtml(currentOut) {
     const r = path.relative(path.dirname(currentOut), out).replace(/\\/g, "/");
     return r.startsWith(".") ? r : `./${r}`;
   };
-  const groupLabel = { start: "Start here", adr: "Decision records", recipes: "Recipes", project: "Project" };
-  return ["start", "adr", "recipes", "project"]
+  const groupLabel = { start: "Start here", guide: "Developer reference", recipes: "Recipes", project: "Project" };
+  return ["start", "guide", "recipes", "project"]
     .map((g) => {
       const items = PAGES.filter((p) => p.group === g).sort(
         (a, b) => (a.order ?? 0) - (b.order ?? 0) || (a.num ?? "").localeCompare(b.num ?? ""),
@@ -250,6 +247,17 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
 .sidebar-footer a { font-size: 0.8rem; color: var(--ink-faint); }
 main { flex: 1 1 auto; min-width: 0; padding: 3rem 2rem 5rem; display: flex; justify-content: center; }
 article { width: 100%; max-width: 42rem; }
+.live-demo-callout {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  margin: 0 0 2.2rem; padding: 0.9rem 1.2rem; border-radius: 8px; background: var(--accent-soft);
+  border: 1px solid var(--line); font-family: -apple-system, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+}
+.live-demo-callout p { margin: 0; font-size: 0.9rem; color: var(--ink-soft); }
+.live-demo-callout a.cta {
+  flex: 0 0 auto; font-size: 0.82rem; font-weight: 700; color: var(--bg-raised); background: var(--accent);
+  padding: 0.45rem 0.95rem; border-radius: 5px; border-bottom: none; white-space: nowrap;
+}
+.live-demo-callout a.cta:hover { filter: brightness(1.08); }
 article h1 { font-size: 2.1rem; line-height: 1.2; margin: 0 0 1.75rem; text-wrap: balance; letter-spacing: -0.01em; }
 article h2 { font-size: 1.45rem; margin: 2.6rem 0 1rem; padding-top: 0.4rem; border-top: 1px solid var(--line); text-wrap: balance; }
 article h2:first-child { border-top: none; padding-top: 0; margin-top: 0; }
@@ -345,8 +353,15 @@ function wrap(page, body) {
 `;
 }
 
+const liveDemoPage = bySrc.get("docs/demo-src/live-demo.html");
+
 for (const page of PAGES) {
-  const body = renderBody(page);
+  let body = renderBody(page);
+  if (page.src === "README.md" && liveDemoPage) {
+    const href = path.relative(path.dirname(page.out), liveDemoPage.out).replace(/\\/g, "/");
+    const callout = `<div class="live-demo-callout"><p>See it render: a genuinely interactive, in-browser demo — edit a payload, watch the document update, no server involved.</p><a class="cta" href="${href.startsWith(".") ? href : `./${href}`}">Try the live demo →</a></div>`;
+    body = body.replace(/(<h1[^>]*>.*?<\/h1>\s*)/s, `$1${callout}`);
+  }
   const title = page.src === "README.md" ? "@petrpus/legal-docs" : page.label;
   const description = `${page.label} — @petrpus/legal-docs documentation.`;
   const html = wrap({ ...page, title, description }, body);

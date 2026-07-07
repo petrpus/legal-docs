@@ -49,7 +49,7 @@
     "test": "vitest run",
     "build": "tsup",
     "samples": "npm run build && node scripts/render-samples.mjs",
-    "docs:build": "node scripts/build-docs-site.mjs",
+    "docs:build": "npm run build && node scripts/build-docs-site.mjs",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build"
   },
   "dependencies": {
