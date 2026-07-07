@@ -16,6 +16,23 @@ and the renderers. Already evaluated and ready for a renderer (a *visitor*) to e
 Has no `id` and no schema; it is pure output data, not a catalog entry.
 _Avoid_: Block (that is the catalog type, not the tree instance), node, element.
 
+**DocumentTree**:
+The whole renderer- and Snapshot-facing seam: the ordered **DocumentNode** body plus optional
+resolved **Page furniture** (`{ body, header?, footer? }`). A bare `DocumentNode[]` is still accepted
+by the tree renderers (normalized to `{ body }`) for a caller not using furniture. See ADR-0011.
+_Avoid_: using "DocumentNode[]" as a synonym for the whole tree once furniture is in play — the tree
+is the object, `body` is the node list.
+
+**Page furniture**:
+A resolved page header/footer for paged output (PDF/DOCX only — the HTML fragment renderer has no
+pages and ignores it). Authored on a Template as `{ left?, center?, right? }` interpolated slots;
+`{{ $page.number }}` / `{{ $page.total }}` are reserved tokens resolved **per page** by the renderer,
+via sentinel markers frozen into the **Snapshot** alongside the rest of the furniture (so re-render is
+deterministic). Presentation (size, colour, margin) is a Theme concern, not an authoring one. See
+ADR-0011.
+_Avoid_: "header"/"footer" unqualified when the running-page kind is meant (a Template's `title`
+DocumentNode is unrelated).
+
 ### Catalog elements
 
 The catalog has exactly **two** kinds of authored, reusable elements: **Block** (structure) and
@@ -237,6 +254,8 @@ The catalog looking up a **Block** or **Clause reference** to a concrete element
 - Each **Renderer** visits the **Core node set** exhaustively; a **Custom block** missing a format
   triggers the **Degradation contract** (default `placeholder`).
 - **Clause** bodies and text-node `text` are **InlineRich** / **RichTextV1**.
+- A **DocumentTree** is the **DocumentNode** body plus optional **Page furniture**; only PDF/DOCX
+  render furniture, and the **Snapshot** freezes it for deterministic re-render.
 
 ## Example dialogue
 
