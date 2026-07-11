@@ -43,6 +43,14 @@ The Template and its two Clauses are seeded in-memory for this page — see the
 
   <section class="pi-panel">
     <header class="pi-panel__head"><span class="pi-panel__step">4</span>
+      <div><h2 class="pi-panel__title">Derivations <a class="pi-panel__ref" href="CONTEXT.html#resolution--derivation" title="Glossary: Resolution &amp; derivation">glossary ↗</a></h2>
+      <p class="pi-panel__desc"><strong>All computation is a Derivation — templates only read</strong> <code>$derived.*</code> (<a href="CONTEXT.html#resolution--derivation">Resolve phase</a>). Each registered Derivation shows its name, its <strong>read-only source</strong> (code-side by design — <a href="ARCHITECTURE.html">ADR-0004</a>; the demo shows it, it does not let you author it) and its current value from the Resolved payload above.</p></div>
+    </header>
+    <div class="pi-body pi-derivs" id="pi-derivations"></div>
+  </section>
+
+  <section class="pi-panel">
+    <header class="pi-panel__head"><span class="pi-panel__step">5</span>
       <div><h2 class="pi-panel__title">DocumentNode tree <a class="pi-panel__ref" href="CONTEXT.html#document-tree" title="Glossary: Document tree">glossary ↗</a></h2>
       <p class="pi-panel__desc">The renderer-agnostic <strong>DocumentTree</strong> the engine assembles — each node tagged by its <code>kind</code>. Expand to inspect.</p></div>
     </header>
@@ -54,7 +62,7 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   </section>
 
   <section class="pi-panel pi-panel--wide">
-    <header class="pi-panel__head"><span class="pi-panel__step">5</span>
+    <header class="pi-panel__head"><span class="pi-panel__step">6</span>
       <div><h2 class="pi-panel__title">HTML preview <a class="pi-panel__ref" href="CONTEXT.html#rendering" title="Glossary: Rendering">glossary ↗</a></h2>
       <p class="pi-panel__desc">A <strong>Renderer</strong> walks the DocumentNode tree to emit output — here, HTML — in a sandboxed frame.</p></div>
     </header>
@@ -153,6 +161,16 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   .pi-tag { display: inline-block; font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.04em; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
     border-radius: 3px; padding: 0.02rem 0.28rem; margin-left: 0.4rem; }
+  /* Derivations panel: one card per registered Derivation (name + value header, read-only source) */
+  .pi-derivs { display: flex; flex-direction: column; gap: 0.6rem; }
+  .pi-deriv { border: 1px solid var(--line); border-radius: 6px; background: var(--bg-raised); padding: 0.5rem 0.6rem; }
+  .pi-deriv__head { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
+  .pi-deriv__name { font-weight: 700; color: var(--accent); }
+  .pi-deriv__val { margin-left: auto; color: var(--ink-soft); }
+  .pi-deriv__val b { color: var(--ink); font-weight: 700; }
+  .pi-deriv__src { margin: 0; padding: 0.5rem 0.6rem; white-space: pre-wrap; word-break: break-word;
+    background: var(--code-bg); color: var(--code-ink); border: 1px solid var(--line); border-radius: 5px;
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace; font-size: 0.74rem; line-height: 1.5; }
   /* DocumentNode tree */
   .pi-node { border-left: 2px solid var(--line); margin: 0.15rem 0 0.15rem 0.1rem; padding-left: 0.55rem; }
   .pi-node__sum { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 0.5rem; padding: 0.15rem 0; }
@@ -298,6 +316,7 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   const errorBox = document.getElementById("pi-error");
   const templateEl = document.getElementById("pi-template");
   const resolvedEl = document.getElementById("pi-resolved");
+  const derivationsEl = document.getElementById("pi-derivations");
   const treeEl = document.getElementById("pi-tree");
   const refsEl = document.getElementById("pi-refs");
   const output = document.getElementById("pi-output");
@@ -393,6 +412,27 @@ The Template and its two Clauses are seeded in-memory for this page — see the
     }
   }
 
+  // --- Derivations panel: one card per registered Derivation, showing its name, read-only source
+  // (via Function.prototype.toString() so it stays in sync with the code) and current $derived value.
+  // ADR-0004: Derivations are code-side — this panel displays them, it never lets the visitor edit them.
+  function renderDerivations(resolved) {
+    clear(derivationsEl);
+    const derived = resolved.derived ?? {};
+    for (const [name, fn] of Object.entries(derivations)) {
+      const card = el("div", "pi-deriv");
+      const head = el("div", "pi-deriv__head");
+      head.appendChild(el("span", "pi-deriv__name", name));
+      head.appendChild(el("span", "pi-tag", "$derived"));
+      const val = el("span", "pi-deriv__val");
+      val.appendChild(document.createTextNode("→ "));
+      val.appendChild(el("b", null, jsonText(derived[name])));
+      head.appendChild(val);
+      card.appendChild(head);
+      card.appendChild(el("pre", "pi-deriv__src", fn.toString()));
+      derivationsEl.appendChild(card);
+    }
+  }
+
   // --- DocumentNode tree panel: collapsible nodes, each led by its `kind` ---
   const CHILD_FIELDS = { article: "body", numberedList: "items", bulletList: "items", alphaList: "items" };
   function nodePreview(node) {
@@ -467,6 +507,7 @@ The Template and its two Clauses are seeded in-memory for this page — see the
       const result = await inspectDocument({ store, template: "services-agreement", data, derivations });
       clearError();
       renderResolved(result.resolved);
+      renderDerivations(result.resolved);
       renderTree(result.tree);
       renderRefs(result.references);
       output.srcdoc = frameSrcdoc(result.html);
