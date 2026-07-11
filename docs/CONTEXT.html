@@ -218,6 +218,18 @@ its party roles. An <strong>authoring</strong> concept — it is resolved to a c
 assembly, so at runtime you always hold a Template, never a &quot;Variant&quot;.</p>
 <p><strong>Slot</strong>:
 A named override point declared in a <strong>Base template</strong> that a <strong>Variant</strong> fills or overrides.</p>
+<p><strong>Body item</strong>:
+One authored entry in a Template (or Include / Base template) body. Every Body item falls into
+exactly one of four classes: a <strong>leaf</strong> (inline text, a <strong>Clause reference</strong>, a <strong>Block</strong> reference,
+<code>custom</code>), a <strong>nested</strong> item that carries its own body (<code>article</code>, the lists), a <strong>control</strong> item
+(<code>if</code> / <code>for</code>), or a <strong>directive</strong> (<code>include</code> / <code>slot</code>) — an authoring indirection spliced away
+before tree assembly (by Include expansion / Slot filling), so it never becomes a <strong>DocumentNode</strong>.
+The union is closed; anything that walks a body goes through <strong>Body traversal</strong>.</p>
+<p><strong>Body traversal</strong>:
+The single module that owns the closed Body-item union — it classifies each item as leaf / nested /
+control / directive and exposes generic walk/map over a Template body. Tree assembly, Include expansion, Slot
+filling and the Catalog integrity lint are callbacks over it; they contribute only their own
+behaviour, never the enumeration. TS exhaustiveness for Body items is enforced here, once.</p>
 <p><strong>Include</strong> (a.k.a. <strong>Partial</strong>):
 A shared template fragment (e.g. a party-block set, a signature grid) referenced by several
 Templates/Variants to keep repeated structure DRY.</p>
@@ -351,7 +363,9 @@ one or more <strong>DocumentNode</strong>s.</li>
 then <strong>Binds</strong> values and <strong>Reference-resolves</strong> Blocks/Clauses into <strong>DocumentNode</strong>s.</li>
 <li>A <strong>Template family</strong> groups <strong>Variant</strong>s over a shared <strong>Base template</strong>; a <strong>Variant</strong> resolves
 to a <strong>Template</strong> before tree assembly.</li>
-<li>A <strong>Template</strong> references <strong>Block</strong>s, <strong>Clause</strong>s, <strong>Include</strong>s and inline text in its body.</li>
+<li>A <strong>Template</strong> references <strong>Block</strong>s, <strong>Clause</strong>s, <strong>Include</strong>s and inline text in its body; each
+entry is a <strong>Body item</strong> (leaf / nested / control), and every walk over a body goes through
+<strong>Body traversal</strong>.</li>
 <li>The <strong>Catalog</strong> loads Templates/Blocks/Clauses through a <strong>CatalogStore</strong> (today
 <strong>FileCatalogStore</strong>); diff/lint/validate sit in the Catalog above the store.</li>
 <li><strong>Helper / Custom-block / Theme / Font registries</strong> are code-side and live outside the Catalog.</li>
