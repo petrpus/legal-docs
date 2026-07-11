@@ -1,16 +1,12 @@
 import { LegalDocsError, NotFoundError } from "../core/errors";
-import { Readable } from "node:stream";
+import type { Readable } from "node:stream";
 import type { Catalog } from "../catalog/catalog";
-import { assembleDocument, type ClauseResolver } from "../core/engine";
-import { expandIncludes } from "../core/includes";
+import type { ClauseResolver } from "../core/engine";
 import type { HelperRegistry } from "../core/helpers";
 import { assertValidSnapshot } from "../core/snapshot";
 import type { ClausePin, Snapshot } from "../core/snapshot";
 import type { DocumentTree } from "../core/document-tree";
-import { renderTreeToPdf } from "../render-pdf/render-pdf";
-import type { RenderTreeOptions } from "../custom-block";
-import { renderTreeToHtml } from "../render-html/render-html";
-import { renderTreeToDocx } from "../render-docx/render-docx";
+import { assembleFromCatalog, renderTree } from "./render-tree";
 import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../custom-block";
 import type { DeepPartial, Theme } from "../theme";
 
@@ -86,21 +82,12 @@ export async function renderFromSnapshot(
   // clear error rather than failing obscurely inside a renderer (accepts a runtime-typed `unknown`).
   assertValidSnapshot(snapshot);
   const tree = snapshot.tree ?? (await reassembleFromPins(snapshot, options));
-  const treeOptions: RenderTreeOptions = { theme: options.theme, customBlocks: options.customBlocks, degradation: options.degradation, onDegrade: options.onDegrade };
-  const format = options.format ?? "pdf";
-  if (format === "html") {
-    return { format: "html", html: renderTreeToHtml(tree, treeOptions) };
-  }
-  if (format === "pdf") {
-    const buffer = await renderTreeToPdf(tree, treeOptions);
-    return { format: "pdf", buffer, stream: Readable.from(buffer) };
-  }
-  if (format === "docx") {
-    const buffer = await renderTreeToDocx(tree, treeOptions);
-    return { format: "docx", buffer, stream: Readable.from(buffer) };
-  }
-  const unsupported: never = format;
-  throw new LegalDocsError(`Unsupported format: ${String(unsupported)}`);
+  return renderTree(tree, options.format ?? "pdf", {
+    theme: options.theme,
+    customBlocks: options.customBlocks,
+    degradation: options.degradation,
+    onDegrade: options.onDegrade,
+  });
 }
 
 async function reassembleFromPins(
@@ -112,16 +99,14 @@ async function reassembleFromPins(
     throw new LegalDocsError("renderFromSnapshot: a `pins`-mode Snapshot needs a `catalog` to re-render");
   }
   const template = await catalog.getTemplate(snapshot.template, snapshot.variant);
-  const body = await expandIncludes(template.body, (id) => catalog.loadInclude(id));
-  return assembleDocument(
-    { ...template, body },
-    {
-      scope: snapshot.resolved ?? {},
-      helpers: options.helpers,
-      clauses: pinnedResolver(snapshot.pins ?? [], catalog),
-      locale: snapshot.locale,
-    },
-  );
+  // The same pipeline as a fresh render (see assembleFromCatalog) — only the inputs are frozen:
+  // the Snapshot's Resolved payload as scope, and a resolver locked to the pinned Clause versions.
+  return assembleFromCatalog(catalog, template, {
+    scope: snapshot.resolved ?? {},
+    helpers: options.helpers,
+    clauses: pinnedResolver(snapshot.pins ?? [], catalog),
+    locale: snapshot.locale,
+  });
 }
 
 /** A Clause resolver locked to the Snapshot's pinned versions, regardless of the catalog's `@latest`. */
