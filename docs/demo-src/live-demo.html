@@ -246,6 +246,21 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   .cv-previews { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin: 1rem 0; }
   .cv .pi-frame { min-height: 12rem; }
   .cv-refs__label { color: var(--ink-faint); font-weight: 600; }
+  /* Variants & Slots: Base/Slots panel (filled vs empty Slot positions per Variant) */
+  .vs-base { display: flex; align-items: baseline; gap: 0.5rem; padding: 0.32rem 0; border-bottom: 1px dashed var(--line); }
+  .vs-base__tag { flex: 0 0 auto; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--ink-faint); border: 1px solid var(--line); border-radius: 3px; padding: 0.02rem 0.28rem; }
+  .vs-base__desc { font-size: 0.78rem; color: var(--ink-soft); word-break: break-word; }
+  .vs-slot { margin: 0.45rem 0; padding: 0.5rem 0.65rem; border-radius: 6px; border: 1px solid var(--line); }
+  .vs-slot--filled { background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+  .vs-slot--empty { background: var(--code-bg); border-style: dashed; }
+  .vs-slot__head { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.3rem; }
+  .vs-slot__status { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--ink-faint); }
+  .vs-slot--filled .vs-slot__status { color: var(--accent); }
+  .vs-slot__body { font-size: 0.78rem; line-height: 1.45; color: var(--ink-soft); word-break: break-word; }
+  .vs-slot--empty .vs-slot__body { font-style: italic; }
   @media (max-width: 860px) {
     .pi { grid-template-columns: 1fr; }
     .pi-panel--wide { grid-column: auto; }
@@ -706,12 +721,57 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   };
   const vsStore = new MemoryCatalogStore({ families: [{ base: VS_BASE, variants: VS_VARIANTS }] });
 
+  const vsPanel = document.getElementById("vs-panel");
   const vsPreview = document.getElementById("vs-preview");
   const vsError = document.getElementById("vs-error");
+
+  // --- Base/Slots panel: presentation from seed data (Base body + Variant overrides) — NOT composition.
+  // We render VS_BASE.body row by row. Shared-structure nodes (title, roster) are shown muted; each
+  // `{ slot }` position is shown either filled (with a compact preview of the chosen Variant's override)
+  // or explicitly empty. An unfilled Slot renders nothing in the composed document — compose.ts removes
+  // it entirely — which is exactly what the empty row states. resolveTemplate is never called here.
+  function describeNode(node) {
+    if (typeof node.title === "string") return `title — “${node.title}”`;
+    if (typeof node.paragraph === "string") return `paragraph — “${node.paragraph}”`;
+    if (node.for) return `for each ${node.for.each} as ${node.for.as} — party roster`;
+    if (typeof node.slot === "string") return `slot ${node.slot}`;
+    return jsonText(node);
+  }
+  function overridePreview(nodes) {
+    return (nodes || []).map(describeNode).join("  ·  ");
+  }
+  function renderVsPanel(variant) {
+    clear(vsPanel);
+    const found = VS_VARIANTS.find((v) => v.variant === variant);
+    const overrides = (found && found.overrides) || {};
+    for (const node of VS_BASE.body) {
+      if (typeof node.slot === "string") {
+        const name = node.slot;
+        const filled = Object.prototype.hasOwnProperty.call(overrides, name);
+        const row = el("div", filled ? "vs-slot vs-slot--filled" : "vs-slot vs-slot--empty");
+        const head = el("div", "vs-slot__head");
+        head.appendChild(el("span", "pi-kind", `slot ${name}`));
+        head.appendChild(el("span", "vs-slot__status",
+          filled ? "filled by this Variant" : "left empty — renders nothing"));
+        row.appendChild(head);
+        row.appendChild(el("div", "vs-slot__body", filled
+          ? overridePreview(overrides[name])
+          : "No override — the composed document omits this position entirely."));
+        vsPanel.appendChild(row);
+      } else {
+        const row = el("div", "vs-base");
+        row.appendChild(el("span", "vs-base__tag", "shared"));
+        row.appendChild(el("span", "vs-base__desc", describeNode(node)));
+        vsPanel.appendChild(row);
+      }
+    }
+  }
 
   // Compose the selected Variant through the shared pipeline and paint the preview frame. Same
   // error-into-strip contract as the inspector: never fail silently, keep the last good frame on error.
   async function renderVariants(variant) {
+    // The Base/Slots panel is pure presentation from the seed, so it always repaints first.
+    renderVsPanel(variant);
     try {
       const result = await inspectDocument({ store: vsStore, template: "nda", variant, data: VS_PAYLOAD });
       vsError.hidden = true;
