@@ -1,17 +1,12 @@
-import { LegalDocsError, NotFoundError } from "../core/errors";
-import { Readable } from "node:stream";
+import { NotFoundError } from "../core/errors";
+import type { Readable } from "node:stream";
 import type { Catalog } from "../catalog/catalog";
 import type { Template } from "../core/template";
-import { assembleDocument } from "../core/engine";
-import { expandIncludes } from "../core/includes";
 import { validatePayload, type PayloadSchemaRegistry } from "../core/payload";
 import { resolvePayload, type DerivationRegistry } from "../core/resolve";
 import type { HelperRegistry } from "../core/helpers";
 import { buildSnapshot, type ClausePin, type Snapshot, type SnapshotMode } from "../core/snapshot";
-import { renderTreeToPdf } from "../render-pdf/render-pdf";
-import type { RenderTreeOptions } from "../custom-block";
-import { renderTreeToHtml } from "../render-html/render-html";
-import { renderTreeToDocx } from "../render-docx/render-docx";
+import { assembleFromCatalog, renderTree } from "./render-tree";
 import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../custom-block";
 import type { DeepPartial, Theme } from "../theme";
 
@@ -81,16 +76,13 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
   // A `locale` override resolves Clauses in the requested language (falling back per the store);
   // otherwise the Template's own locale applies. The resolved locale is what the Snapshot freezes.
   const locale = input.locale ?? template.locale;
-  // Expand Includes into a concrete, include-free body before tree assembly.
-  const body = await expandIncludes(template.body, (id) => input.catalog.loadInclude(id));
-  const concrete = { ...template, body };
-  const payload = resolveScope(concrete, input);
-  const { derived } = resolvePayload(payload, concrete.derivations ?? [], input.derivations ?? {});
+  const payload = resolveScope(template, input);
+  const { derived } = resolvePayload(payload, template.derivations ?? [], input.derivations ?? {});
   // `$derived` is the reserved namespace, so a payload field literally named `derived` is overwritten.
   const scope = { ...payload, derived };
   // Record every Clause version resolved during assembly, so the Snapshot can pin them for audit.
   const pins: ClausePin[] = [];
-  const tree = await assembleDocument(concrete, {
+  const tree = await assembleFromCatalog(input.catalog, template, {
     scope,
     helpers: input.helpers,
     clauses: async (ref, clauseLocale) => {
@@ -115,21 +107,13 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
     input.snapshotMode,
   );
   // The Snapshot is format-agnostic (it freezes the tree); only the rendered output differs.
-  const treeOptions: RenderTreeOptions = { theme: input.theme, customBlocks: input.customBlocks, degradation: input.degradation, onDegrade: input.onDegrade };
-  if (input.format === "html") {
-    const html = renderTreeToHtml(tree, treeOptions);
-    return { format: "html", html, snapshot, snapshotId: snapshot.id };
-  }
-  if (input.format === "pdf") {
-    const buffer = await renderTreeToPdf(tree, treeOptions);
-    return { format: "pdf", buffer, stream: Readable.from(buffer), snapshot, snapshotId: snapshot.id };
-  }
-  if (input.format === "docx") {
-    const buffer = await renderTreeToDocx(tree, treeOptions);
-    return { format: "docx", buffer, stream: Readable.from(buffer), snapshot, snapshotId: snapshot.id };
-  }
-  const unsupported: never = input.format;
-  throw new LegalDocsError(`Unsupported format: ${String(unsupported)}`);
+  const output = await renderTree(tree, input.format, {
+    theme: input.theme,
+    customBlocks: input.customBlocks,
+    degradation: input.degradation,
+    onDegrade: input.onDegrade,
+  });
+  return { ...output, snapshot, snapshotId: snapshot.id };
 }
 
 function resolveScope(template: Template, input: RenderDocumentInput): Record<string, unknown> {
