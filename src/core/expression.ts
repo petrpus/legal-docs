@@ -10,20 +10,56 @@ import type { HelperRegistry } from "./helpers";
  */
 export type Scope = Record<string, unknown>;
 
+/** Where in a Template body an expression was evaluated (the Body-traversal path vocabulary). */
+export interface ExpressionLocation {
+  path: string;
+  /** The `for` loop counter, when the Binding runs inside a loop iteration. */
+  iteration?: number;
+}
+
 export interface EvalContext {
   scope: Scope;
   helpers: HelperRegistry;
+  /** Attached to any ExpressionError thrown under this context, so the author sees where it failed. */
+  at?: ExpressionLocation;
 }
 
 export class ExpressionError extends LegalDocsError {
+  /** The offending expression source (attached once, at the evaluation entry point). */
+  expression?: string;
+  /** The body path / loop iteration of the Binding that evaluated the expression. */
+  location?: ExpressionLocation;
+
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options);
     this.name = "ExpressionError";
   }
 }
 
+/**
+ * Attach the expression source and body location to an ExpressionError exactly once — at the
+ * outermost evaluation entry point. A nested entry (e.g. `interpolate` → `evaluate`) sees
+ * `expression` already set and passes the error through unchanged.
+ */
+function annotate(error: unknown, expr: string, at?: ExpressionLocation): unknown {
+  if (error instanceof ExpressionError && error.expression === undefined) {
+    error.expression = expr;
+    if (at !== undefined) error.location = at;
+    const where =
+      at === undefined
+        ? ""
+        : `at ${at.path}${at.iteration !== undefined ? `, iteration ${at.iteration}` : ""} — `;
+    error.message = `${error.message} (${where}expression: ${expr})`;
+  }
+  return error;
+}
+
 export function evaluate(expr: string, ctx: EvalContext): unknown {
-  return evalNode(parse(expr), ctx);
+  try {
+    return evalNode(parse(expr), ctx);
+  } catch (error) {
+    throw annotate(error, expr, ctx.at);
+  }
 }
 
 /**
@@ -31,21 +67,48 @@ export function evaluate(expr: string, ctx: EvalContext): unknown {
  * comparison/logical operators are allowed — any computation (arithmetic, calls) must be a Derivation.
  */
 export function evaluatePredicate(expr: string, ctx: EvalContext): unknown {
-  const ast = parse(expr);
-  assertPredicate(ast);
-  return evalNode(ast, ctx);
+  try {
+    const ast = parse(expr);
+    assertPredicate(ast);
+    return evalNode(ast, ctx);
+  } catch (error) {
+    throw annotate(error, expr, ctx.at);
+  }
 }
 
 /** Evaluate a `for: each` expression, which must be a direct field path (no computation). */
 export function evaluatePath(expr: string, ctx: EvalContext): unknown {
-  const ast = parse(expr);
-  assertPath(ast);
-  return evalNode(ast, ctx);
+  try {
+    const ast = parse(expr);
+    assertPath(ast);
+    return evalNode(ast, ctx);
+  } catch (error) {
+    throw annotate(error, expr, ctx.at);
+  }
+}
+
+/** Leak guard only — authored template/clause expressions are a finite set well below this. */
+const AST_CACHE_MAX = 1000;
+const astCache = new Map<string, jsep.Expression>();
+
+/**
+ * Cached jsep parse. The same expression recurs constantly — every `for` iteration re-binds the same
+ * `if:`/`{{ }}` sources, and the integrity lint scans the strings the runtime later evaluates — so
+ * each distinct source is parsed once. Evaluation never mutates the AST, so sharing is safe.
+ */
+export function parseExpression(expr: string): jsep.Expression {
+  const hit = astCache.get(expr);
+  if (hit) return hit;
+  const ast = jsep(expr);
+  // All-or-nothing wipe (not LRU): authored expressions never approach the cap, so simplicity wins.
+  if (astCache.size >= AST_CACHE_MAX) astCache.clear();
+  astCache.set(expr, ast);
+  return ast;
 }
 
 function parse(expr: string): jsep.Expression {
   try {
-    return jsep(expr);
+    return parseExpression(expr);
   } catch (cause) {
     throw new ExpressionError(`Cannot parse expression: ${expr}`, { cause });
   }
@@ -55,7 +118,7 @@ function parse(expr: string): jsep.Expression {
 export function helperCallsIn(expr: string): string[] {
   let ast: jsep.Expression;
   try {
-    ast = jsep(expr);
+    ast = parseExpression(expr);
   } catch {
     return [];
   }

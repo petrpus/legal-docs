@@ -31,6 +31,25 @@ interface Frame {
   evalCtx: EvalContext;
   context: AssembleContext;
   locale: string;
+  /** Body path of the item currently being assembled (the Body-traversal vocabulary). */
+  at: string;
+}
+
+/**
+ * Move the frame to a body path (and optionally a `for` iteration), mirroring it onto the eval
+ * context so any ExpressionError reports where the Binding failed. An enclosing loop's iteration is
+ * sticky for the items inside its body; a nested `for` overrides it with its own counter.
+ */
+function locateFrame(frame: Frame, path: string, iteration?: number): Frame {
+  const iter = iteration ?? frame.evalCtx.at?.iteration;
+  return {
+    ...frame,
+    at: path,
+    evalCtx: {
+      ...frame.evalCtx,
+      at: { path, ...(iter !== undefined ? { iteration: iter } : {}) },
+    },
+  };
 }
 
 /** Articles deeper than this share the deepest level's styling. */
@@ -76,6 +95,7 @@ function buildFrame(template: Template, context: AssembleContext): Frame {
     evalCtx: { scope: context.scope ?? {}, helpers: { ...makeDefaultHelpers(locale), ...context.helpers } },
     context,
     locale,
+    at: "body",
   };
 }
 
@@ -102,7 +122,9 @@ function resolveFurniture(spec: PageFurnitureSpec | undefined, frame: Frame): Pa
 }
 
 async function assembleItems(items: BodyItem[], frame: Frame, level: number): Promise<DocumentNode[]> {
-  const groups = await Promise.all(items.map((item) => expandItem(item, frame, level)));
+  const groups = await Promise.all(
+    items.map((item, i) => expandItem(item, locateFrame(frame, `${frame.at}[${i}]`), level)),
+  );
   return groups.flat();
 }
 
@@ -122,8 +144,9 @@ async function assembleIf(
   frame: Frame,
   level: number,
 ): Promise<DocumentNode[]> {
-  const branch = evaluatePredicate(item.if, frame.evalCtx) ? item.then : (item.else ?? []);
-  return assembleItems(branch, frame, level);
+  const taken = Boolean(evaluatePredicate(item.if, frame.evalCtx));
+  const branch = taken ? item.then : (item.else ?? []);
+  return assembleItems(branch, locateFrame(frame, `${frame.at} › ${taken ? "then" : "else"}`), level);
 }
 
 async function assembleFor(
@@ -139,8 +162,8 @@ async function assembleFor(
   for (let index = 0; index < list.length; index++) {
     // `index` is reserved as the loop counter ($index); a loop var named "index" would collide.
     const scope = { ...frame.evalCtx.scope, [item.for.as]: list[index], index };
-    const childFrame: Frame = { ...frame, evalCtx: { ...frame.evalCtx, scope } };
-    groups.push(await assembleItems(item.body, childFrame, level));
+    const scoped: Frame = { ...frame, evalCtx: { ...frame.evalCtx, scope } };
+    groups.push(await assembleItems(item.body, locateFrame(scoped, `${frame.at} › for`, index), level));
   }
   return groups.flat();
 }
@@ -334,7 +357,11 @@ function cell(value: unknown, fn: string, index: number, key: "label" | "value")
 }
 
 async function articleNode(article: ArticleItem, frame: Frame, level: number): Promise<DocumentNode> {
-  const body = await assembleItems(article.body, frame, Math.min(level + 1, MAX_LEVEL));
+  const body = await assembleItems(
+    article.body,
+    locateFrame(frame, `${frame.at} › article`),
+    Math.min(level + 1, MAX_LEVEL),
+  );
   return {
     kind: "article",
     no: article.no,
@@ -351,7 +378,9 @@ function assembleListItems(
   frame: Frame,
   level: number,
 ): Promise<DocumentNode[][]> {
-  return Promise.all(items.map((item) => assembleItems(item, frame, level)));
+  return Promise.all(
+    items.map((item, i) => assembleItems(item, locateFrame(frame, `${frame.at}[${i}]`), level)),
+  );
 }
 
 async function clauseNode(
@@ -371,7 +400,11 @@ async function clauseNode(
   // Interpolation runs before parsing, so a var value is substituted as raw text: it is NOT
   // markdown-escaped, and a value containing `*`/`**` would become a mark. Fine for the typed vars
   // here; revisit if untrusted string vars are introduced.
-  const text = interpolate(clause.text, { scope: validated, helpers: frame.evalCtx.helpers });
+  const text = interpolate(clause.text, {
+    scope: validated,
+    helpers: frame.evalCtx.helpers,
+    at: frame.evalCtx.at,
+  });
   return { kind: "richText", value: parseRichText(text) };
 }
 
