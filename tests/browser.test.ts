@@ -145,6 +145,8 @@ describe("browser entry: demo Derivations (Derivations panel contract)", () => {
       return Array.isArray(parties) ? parties.length : 0;
     },
     hasGuarantor: (payload: unknown) => (payload as { guarantor?: unknown }).guarantor != null,
+    // Mirrors the demo page's arithmetic derivation, so all three panel entries are pinned by tests.
+    feeInclVat: (payload: unknown) => Math.round(Number((payload as { fee?: unknown }).fee) * 1.21),
   };
   const demoSeed: MemoryCatalogSeed = {
     templates: [
@@ -152,7 +154,7 @@ describe("browser entry: demo Derivations (Derivations panel contract)", () => {
         template: "services-agreement",
         version: 1,
         locale: "en",
-        derivations: ["counterpartsCount", "hasGuarantor"],
+        derivations: ["counterpartsCount", "hasGuarantor", "feeInclVat"],
         body: [
           {
             for: { each: "$parties", as: "party" },
@@ -180,23 +182,27 @@ describe("browser entry: demo Derivations (Derivations panel contract)", () => {
       { role: "Provider", name: "Ludwig Legal Studio" },
     ],
     guarantor: { name: "Berndt Holding a.s." },
+    fee: 1000,
   };
 
   it("guarantor present → hasGuarantor true, the if: section appears, counterpartsCount matches $parties length", async () => {
     const store = new MemoryCatalogStore(demoSeed);
     const result = await inspectDocument({ store, template: "services-agreement", data: basePayload, derivations });
-    expect(result.resolved.derived).toEqual({ counterpartsCount: 2, hasGuarantor: true });
+    expect(result.resolved.derived).toEqual({ counterpartsCount: 2, hasGuarantor: true, feeInclVat: 1210 });
     // The if:-driven GUARANTOR section is in the tree and rendered HTML.
     expect(result.tree.body.some((n) => "text" in n && n.text === "GUARANTOR")).toBe(true);
     expect(result.html).toContain("unconditionally guarantees the obligations.");
     expect(result.html).toContain("Berndt Holding a.s.");
+    // The for:-expanded party roster made it into the HTML too.
+    expect(result.html).toContain("Client: Acme s.r.o.");
+    expect(result.html).toContain("Provider: Ludwig Legal Studio");
   });
 
   it("guarantor removed → hasGuarantor false and the if: section disappears; counterpartsCount tracks $parties", async () => {
     const store = new MemoryCatalogStore(demoSeed);
-    const noGuarantor = { parties: basePayload.parties };
+    const noGuarantor = { parties: basePayload.parties, fee: 1000 };
     const result = await inspectDocument({ store, template: "services-agreement", data: noGuarantor, derivations });
-    expect(result.resolved.derived).toEqual({ counterpartsCount: 2, hasGuarantor: false });
+    expect(result.resolved.derived).toEqual({ counterpartsCount: 2, hasGuarantor: false, feeInclVat: 1210 });
     // The whole GUARANTOR section is absent — the Template only reads the derived boolean.
     expect(result.tree.body.some((n) => "text" in n && n.text === "GUARANTOR")).toBe(false);
     expect(result.html).not.toContain("unconditionally guarantees the obligations.");

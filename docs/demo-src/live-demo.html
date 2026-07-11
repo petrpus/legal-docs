@@ -44,7 +44,7 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   <section class="pi-panel">
     <header class="pi-panel__head"><span class="pi-panel__step">4</span>
       <div><h2 class="pi-panel__title">Derivations <a class="pi-panel__ref" href="CONTEXT.html#resolution--derivation" title="Glossary: Resolution &amp; derivation">glossary ↗</a></h2>
-      <p class="pi-panel__desc"><strong>All computation is a Derivation — templates only read</strong> <code>$derived.*</code> (<a href="CONTEXT.html#resolution--derivation">Resolve phase</a>). Each registered Derivation shows its name, its <strong>read-only source</strong> (code-side by design — <a href="ARCHITECTURE.html">ADR-0004</a>; the demo shows it, it does not let you author it) and its current value from the Resolved payload above.</p></div>
+      <p class="pi-panel__desc"><strong>All computation is a Derivation — templates only read</strong> <code>$derived.*</code> (<a href="CONTEXT.html#resolution--derivation">Resolve phase</a>). Each registered Derivation shows its name, its <strong>read-only source</strong> (code-side by design — <a href="https://github.com/petrpus/legal-docs/blob/main/docs/adr/0004-payload-schemas-are-code-side.md" target="_blank" rel="noopener">ADR-0004</a>; the demo shows it, it does not let you author it) and its current value from the Resolved payload above.</p></div>
     </header>
     <div class="pi-body pi-derivs" id="pi-derivations"></div>
   </section>
@@ -78,7 +78,7 @@ The Template and its two Clauses are seeded in-memory for this page — see the
     version at generation time. Flip the published version below: the <code>@latest</code> preview follows the
     change, the pinned one does not. In a real generation the concrete resolved version is frozen into the audit
     <strong>Snapshot</strong> so re-rendering stays reproducible — that step is Node-only and out of this browser
-    demo's scope (<a href="ARCHITECTURE.html">ADR-0012</a>), the same "minus the audit Snapshot" caveat noted at
+    demo's scope (<a href="https://github.com/petrpus/legal-docs/blob/main/docs/adr/0012-browser-demo-and-public-site-scope.md" target="_blank" rel="noopener">ADR-0012</a>), the same "minus the audit Snapshot" caveat noted at
     the top. See the <a href="CONTEXT.html#catalog-elements">Clause reference</a> glossary entry for the pinned
     vs <code>@latest</code> distinction.</p>
   <fieldset class="cv-switch">
