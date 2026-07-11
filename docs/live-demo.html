@@ -281,6 +281,7 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   .pi-btn--ghost { background: transparent; color: var(--ink-soft); border-color: var(--line); font-weight: 500;
     font-size: 0.72rem; padding: 0.28rem 0.55rem; align-self: flex-start; }
   .pi-btn--ghost:hover { background: var(--accent-soft); color: var(--ink); }
+  .pi-ref--error { color: #b00020; }
   .pi-error { margin-top: 0.6rem; padding: 0.55rem 0.8rem; border-radius: 5px; font-size: 0.78rem; line-height: 1.5;
     background: color-mix(in srgb, #b00020 12%, transparent); color: #b00020;
     border: 1px solid color-mix(in srgb, #b00020 35%, transparent);
@@ -643,33 +644,46 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   const cvRefsEl = document.getElementById("cv-refs");
 
   // Shared references strip: one labelled line per preview, showing the concrete resolved version.
+  // Mirrors the inspector's renderRefs, including the locale-fallback notation and the empty state.
   function renderCvRefs(entries) {
     clear(cvRefsEl);
+    let any = false;
     for (const { label, references } of entries) {
       for (const r of references) {
+        any = true;
         const line = el("div", "pi-ref");
         line.appendChild(el("span", "cv-refs__label", `${label}: `));
         line.appendChild(document.createTextNode(`${r.ref} → `));
         line.appendChild(el("b", null, `${r.clause}@v${r.version}`));
-        line.appendChild(document.createTextNode(` (${r.locale})`));
+        const localeNote = r.resolvedLocale && r.resolvedLocale !== r.locale
+          ? ` (${r.locale} → ${r.resolvedLocale} fallback)`
+          : ` (${r.locale})`;
+        line.appendChild(document.createTextNode(localeNote));
         cvRefsEl.appendChild(line);
       }
     }
+    if (!any) cvRefsEl.appendChild(el("div", "pi-ref", "— no references resolved —"));
   }
 
   // Seed a fresh store for the given published-version state, resolve both Templates, paint both frames
   // and the shared references strip. The pinned preview never changes; the @latest preview follows the
   // newest published version.
   async function renderVersioning(published) {
-    const store = new MemoryCatalogStore({ templates: [CV_PINNED, CV_LATEST], clauses: cvClauses(published) });
-    const pinned = await inspectDocument({ store, template: "terms-pinned", data: {} });
-    const latest = await inspectDocument({ store, template: "terms-latest", data: {} });
-    cvPinnedFrame.srcdoc = frameSrcdoc(pinned.html);
-    cvLatestFrame.srcdoc = frameSrcdoc(latest.html);
-    renderCvRefs([
-      { label: "Pinned @v1", references: pinned.references },
-      { label: "Latest @latest", references: latest.references },
-    ]);
+    try {
+      const store = new MemoryCatalogStore({ templates: [CV_PINNED, CV_LATEST], clauses: cvClauses(published) });
+      const pinned = await inspectDocument({ store, template: "terms-pinned", data: {} });
+      const latest = await inspectDocument({ store, template: "terms-latest", data: {} });
+      cvPinnedFrame.srcdoc = frameSrcdoc(pinned.html);
+      cvLatestFrame.srcdoc = frameSrcdoc(latest.html);
+      renderCvRefs([
+        { label: "Pinned @v1", references: pinned.references },
+        { label: "Latest @latest", references: latest.references },
+      ]);
+    } catch (err) {
+      // Same contract as the inspector: never fail silently — surface the error in the strip.
+      clear(cvRefsEl);
+      cvRefsEl.appendChild(el("div", "pi-ref pi-ref--error", err instanceof Error ? err.message : String(err)));
+    }
   }
 
   // Published-version switch: re-seed and re-render both previews when the selection changes.

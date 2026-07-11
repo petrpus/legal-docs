@@ -100,11 +100,11 @@ describe("browser entry: template/variant/clause resolution", () => {
  * frozen on v1's wording after v2 exists.
  */
 describe("browser entry: clause-version propagation (pinned vs @latest)", () => {
-  const counterpartsV1: MemoryCatalogSeed["clauses"] = [
+  const counterpartsV1: NonNullable<MemoryCatalogSeed["clauses"]> = [
     { clause: "counterparts", version: 1, locale: "en", vars: { count: { type: "integer", min: 1 } }, text: "v1 text" },
   ];
-  const counterpartsV1AndV2: MemoryCatalogSeed["clauses"] = [
-    ...counterpartsV1!,
+  const counterpartsV1AndV2: NonNullable<MemoryCatalogSeed["clauses"]> = [
+    ...counterpartsV1,
     { clause: "counterparts", version: 2, locale: "en", vars: { count: { type: "integer", min: 1 } }, text: "In **{{ $count }}** counterparts." },
   ];
   const v1OnlyStore = () => new MemoryCatalogStore({ clauses: counterpartsV1 });
