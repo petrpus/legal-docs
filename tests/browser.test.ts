@@ -92,6 +92,45 @@ describe("browser entry: template/variant/clause resolution", () => {
   });
 });
 
+/**
+ * The propagation semantics the "Clause versioning" demo section relies on (issue #126), proved through
+ * the same shared `resolveClause` path the browser inspector uses. The demo re-seeds a fresh
+ * `MemoryCatalogStore` per published-version state, so these mirror that: a v1-only store vs a v1+v2
+ * store. `@latest` follows the newest published version across a publish; a pinned `@v1` reference stays
+ * frozen on v1's wording after v2 exists.
+ */
+describe("browser entry: clause-version propagation (pinned vs @latest)", () => {
+  const counterpartsV1: MemoryCatalogSeed["clauses"] = [
+    { clause: "counterparts", version: 1, locale: "en", vars: { count: { type: "integer", min: 1 } }, text: "v1 text" },
+  ];
+  const counterpartsV1AndV2: MemoryCatalogSeed["clauses"] = [
+    ...counterpartsV1!,
+    { clause: "counterparts", version: 2, locale: "en", vars: { count: { type: "integer", min: 1 } }, text: "In **{{ $count }}** counterparts." },
+  ];
+  const v1OnlyStore = () => new MemoryCatalogStore({ clauses: counterpartsV1 });
+  const v1AndV2Store = () => new MemoryCatalogStore({ clauses: counterpartsV1AndV2 });
+
+  it("@latest tracks the newest published version — v1 when only v1 exists, v2 once v2 is published", async () => {
+    const before = await resolveClause(v1OnlyStore(), "counterparts@latest", "en");
+    expect(before.version).toBe(1);
+    expect(before.text).toBe("v1 text");
+
+    const after = await resolveClause(v1AndV2Store(), "counterparts@latest", "en");
+    expect(after.version).toBe(2);
+    expect(after.text).not.toBe("v1 text");
+  });
+
+  it("a pinned @v1 reference stays frozen on v1 wording after a newer v2 is published", async () => {
+    const before = await resolveClause(v1OnlyStore(), "counterparts@v1", "en");
+    const after = await resolveClause(v1AndV2Store(), "counterparts@v1", "en");
+
+    expect(before.version).toBe(1);
+    expect(after.version).toBe(1);
+    expect(after.text).toBe(before.text);
+    expect(after.text).toBe("v1 text");
+  });
+});
+
 describe("browser entry: renderHtmlInBrowser", () => {
   it("expands Includes and renders the resulting HTML", async () => {
     const store = new MemoryCatalogStore(seed);
