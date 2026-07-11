@@ -203,14 +203,16 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   import { MemoryCatalogStore, inspectDocument } from "./assets/browser-demo.js";
 
   // Seeded entirely in-memory for this page — see docs/AUTHORING.md for how a real file-based catalog
-  // (Templates/Clauses on disk) composes the same way through Catalog.fromDir. The template declares one
-  // Derivation (feeInclVat) so the Resolve phase produces a real $derived.* value, and references a
-  // Clause by @latest so Reference resolution picks the highest published version (counterparts v2).
+  // (Templates/Clauses on disk) composes the same way through Catalog.fromDir. The template declares
+  // three code-side Derivations (feeInclVat, counterpartsCount, hasGuarantor) so the Resolve phase
+  // produces real $derived.* values, and references a Clause by @latest so Reference resolution picks the
+  // highest published version (counterparts v2). The body demonstrates "templates only read": a `for:`
+  // iterates the plain `$parties` array and an `if:` reads the derived boolean `$derived.hasGuarantor`.
   const TEMPLATE = {
     template: "services-agreement",
     version: 1,
     locale: "en",
-    derivations: ["feeInclVat"],
+    derivations: ["feeInclVat", "counterpartsCount", "hasGuarantor"],
     body: [
       { title: "SERVICES AGREEMENT" },
       { partyHeader: { party: "$client", roleLabel: "Client" } },
@@ -226,13 +228,29 @@ The Template and its two Clauses are seeded in-memory for this page — see the
           ],
         },
       },
+      // A `for:` roster over the plain `$parties` array (CONTEXT rule: `for: each` must be a plain array
+      // field, never a derived one). `counterpartsCount` derives its length, read by the clause below.
+      { title: "PARTIES TO THIS AGREEMENT" },
+      {
+        for: { each: "$parties", as: "party" },
+        body: [{ paragraph: "{{ $party.role }}: {{ $party.name }}" }],
+      },
       {
         bulletList: [
           [{ paragraph: "Scope of work is described in Exhibit A." }],
           [{ paragraph: "Either party may terminate with 30 days' written notice." }],
         ],
       },
-      { clause: "counterparts@latest", vars: { count: "$counterpartCount" } },
+      // An `if:` reading the derived boolean $derived.hasGuarantor — the whole GUARANTOR section appears
+      // or disappears as the payload's `guarantor` is added/removed. The template only reads the value.
+      {
+        if: "$derived.hasGuarantor",
+        then: [
+          { title: "GUARANTOR" },
+          { paragraph: "{{ $guarantor.name }} unconditionally guarantees the Provider's obligations under this agreement." },
+        ],
+      },
+      { clause: "counterparts@latest", vars: { count: "$derived.counterpartsCount" } },
       { signatures: { places: [{ party: "$client" }, { party: "$provider" }] } },
     ],
   };
@@ -255,17 +273,25 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   });
 
   // Code-side Derivation registry (whitelisted pure functions), keyed by the names the Template lists.
+  // ADR-0004: Derivations are code-side by design — the demo shows their source read-only below, it does
+  // not let visitors author them. All computation lives here; the Template only reads `$derived.*`.
   const derivations = {
     feeInclVat: (payload) => Math.round(Number(payload.fee) * 1.21),
+    counterpartsCount: (payload) => (Array.isArray(payload.parties) ? payload.parties.length : 0),
+    hasGuarantor: (payload) => payload.guarantor != null,
   };
 
   const SAMPLE_PAYLOAD = {
     client: { name: "Acme s.r.o.", idNumber: "12345678", address: "Prague, CZ" },
     provider: { name: "Ludwig Legal Studio" },
+    parties: [
+      { role: "Client", name: "Acme s.r.o." },
+      { role: "Provider", name: "Ludwig Legal Studio" },
+    ],
+    guarantor: { name: "Berndt Holding a.s." },
     effectiveDate: "2026-07-01",
     fee: 4200,
     currency: "EUR",
-    counterpartCount: 2,
   };
 
   const editor = document.getElementById("pi-payload");
