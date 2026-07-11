@@ -6,7 +6,11 @@ import {
   resolveClause,
   renderHtmlInBrowser,
   inspectDocument,
+  ExpressionError,
+  z as bundledZ,
 } from "../src/browser";
+import { NotFoundError } from "../src/core/errors";
+import { PayloadValidationError } from "../src/core/payload";
 import type { MemoryCatalogSeed } from "../src/browser";
 
 /**
@@ -216,6 +220,141 @@ describe("browser entry: demo Derivations (Derivations panel contract)", () => {
     };
     const result = await inspectDocument({ store, template: "services-agreement", data: threeParties, derivations });
     expect(result.resolved.derived).toMatchObject({ counterpartsCount: 3 });
+  });
+});
+
+/**
+ * The demo's error panel (issue #129) reads the STRUCTURED fields of an `ExpressionError` rather than
+ * parsing the message string. This pins the exact contract behind that panel's scenario (2) — a
+ * helper/expression that throws *inside* a top-level `for: $parties` loop — so the panel can rely on:
+ * `err instanceof ExpressionError` (safe because the demo imports the class from this same bundle),
+ * `err.location.path` carrying the ` › for` marker the engine attaches (see `engine.ts` `assembleFor`),
+ * a numeric `err.location.iteration` (the loop counter), and a non-empty `err.expression` (the offending
+ * source). The crafted payload has a bare-string `$parties` element, so `{{ $party.name }}` throws
+ * "Cannot index a string" — no Template change, just the input, exactly like the demo's break-it button.
+ */
+describe("browser entry: ExpressionError structured fields (error-panel scenario 2)", () => {
+  const loopSeed: MemoryCatalogSeed = {
+    templates: [
+      {
+        template: "roster",
+        version: 1,
+        locale: "en",
+        body: [
+          {
+            for: { each: "$parties", as: "party" },
+            body: [{ paragraph: "{{ $party.name }}" }],
+          },
+        ],
+      },
+    ],
+  };
+
+  it("rejects with an ExpressionError carrying location.path (` › for`), a numeric iteration, and the expression", async () => {
+    const store = new MemoryCatalogStore(loopSeed);
+    // The second `$parties` element is a bare string, so `$party.name` throws on iteration 1.
+    const data = { parties: [{ name: "Acme s.r.o." }, "not-an-object"] };
+
+    const error = await inspectDocument({ store, template: "roster", data }).then(
+      () => {
+        throw new Error("expected inspectDocument to reject");
+      },
+      (e: unknown) => e,
+    );
+
+    expect(error).toBeInstanceOf(ExpressionError);
+    const err = error as ExpressionError;
+    expect(err.name).toBe("ExpressionError");
+    expect(err.location?.path).toContain(" › for");
+    expect(typeof err.location?.iteration).toBe("number");
+    expect(err.location?.iteration).toBe(1);
+    expect(err.expression).toBeTruthy();
+    expect(err.expression).toContain("$party.name");
+  });
+});
+
+describe("browser entry: demo error-panel seeds (scenario 1 schema + scenario 3 missing clause)", () => {
+  // `z` must be reachable from the SAME bundle as inspectDocument so the demo page can build a
+  // ZodType for its PayloadSchemaRegistry without adding a dependency (zod is already bundled via
+  // validatePayload). The re-export is the value, not just the type.
+  it("re-exports zod's `z` value from the browser bundle", () => {
+    expect(bundledZ).toBeDefined();
+    expect(typeof bundledZ.object).toBe("function");
+  });
+
+  // Mirrors the demo's loose payload schema: constrains ONLY `fee` (number) and `parties` (array),
+  // passing every other key through so the full sample payload still renders unchanged. A number `fee`
+  // validates; a string `fee` genuinely rejects with a PayloadValidationError (scenario 1).
+  const schemaKey = "services-agreement.payload";
+  const schemas = {
+    [schemaKey]: bundledZ
+      .object({ fee: bundledZ.number(), parties: bundledZ.array(bundledZ.unknown()) })
+      .loose(),
+  };
+  const withSchema: MemoryCatalogSeed = {
+    templates: [
+      {
+        template: "services-agreement",
+        version: 1,
+        locale: "en",
+        payloadSchema: schemaKey,
+        body: [
+          { paragraph: "Fee: {{ $fee }} {{ $currency }} for {{ $client.name }}" },
+        ],
+      },
+    ],
+  };
+  const goodPayload = {
+    client: { name: "Acme s.r.o." },
+    parties: [{ role: "Client" }, { role: "Provider" }],
+    fee: 4200,
+    currency: "EUR",
+  };
+
+  it("passes the sample payload through the loose schema, keeping keys the template reads", async () => {
+    const store = new MemoryCatalogStore(withSchema);
+    const result = await inspectDocument({ store, template: "services-agreement", data: goodPayload, schemas });
+    // `.loose()` must NOT strip $client/$currency — the rendered doc reads them.
+    expect(result.payload.client).toEqual({ name: "Acme s.r.o." });
+    expect(result.payload.currency).toBe("EUR");
+    expect(result.html).toContain("Acme s.r.o.");
+    expect(result.html).toContain("EUR");
+  });
+
+  it("rejects a string `fee` with a PayloadValidationError (scenario 1)", async () => {
+    const store = new MemoryCatalogStore(withSchema);
+    const data = { ...goodPayload, fee: "not-a-number" };
+    const error = await inspectDocument({ store, template: "services-agreement", data, schemas }).then(
+      () => {
+        throw new Error("expected inspectDocument to reject");
+      },
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(PayloadValidationError);
+    expect((error as PayloadValidationError).name).toBe("PayloadValidationError");
+  });
+
+  // Scenario 3: the reference lives in the Template, not the payload. A Template pointing at a Clause
+  // that was never published rejects with a NotFoundError (name + message drive the panel).
+  it("rejects a missing Clause reference with a NotFoundError (scenario 3)", async () => {
+    const store = new MemoryCatalogStore({
+      templates: [
+        {
+          template: "broken",
+          version: 1,
+          locale: "en",
+          body: [{ title: "T" }, { clause: "does-not-exist@latest" }],
+        },
+      ],
+    });
+    const error = await inspectDocument({ store, template: "broken", data: {} }).then(
+      () => {
+        throw new Error("expected inspectDocument to reject");
+      },
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(NotFoundError);
+    expect((error as NotFoundError).name).toBe("NotFoundError");
   });
 });
 

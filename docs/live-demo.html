@@ -176,6 +176,15 @@ The Template and its two Clauses are seeded in-memory for this page — see the
       <span class="pi-hint">Recomputes as you type, or press ⌘/Ctrl + Enter</span>
     </div>
     <div id="pi-error" class="pi-error" hidden></div>
+    <div class="pi-breakit">
+      <div class="pi-breakit__head">Break it — see the structured error panel</div>
+      <p class="pi-breakit__hint">Each button only changes the <strong>input</strong> (the payload above, or — for the last one — which Template is used). The panel always shows whatever the real pipeline throws; fix the input (or click <strong>Reset</strong>, or un-tick the last box) and every panel recovers automatically.</p>
+      <div class="pi-breakit__row">
+        <button type="button" id="pi-break-schema" class="pi-btn pi-btn--ghost">① Break the schema — string <code>fee</code></button>
+        <button type="button" id="pi-break-expr" class="pi-btn pi-btn--ghost">② Break an expression in the <code>for:</code> loop</button>
+        <label class="pi-breakit__toggle"><input type="checkbox" id="pi-break-clause"> ③ Point at a missing Clause (Template)</label>
+      </div>
+    </div>
   </section>
 
   <section class="pi-panel">
@@ -331,6 +340,26 @@ The Template and its two Clauses are seeded in-memory for this page — see the
     background: color-mix(in srgb, #b00020 12%, transparent); color: #b00020;
     border: 1px solid color-mix(in srgb, #b00020 35%, transparent);
     font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace; }
+  /* Structured error panel: error name + message, and (for an ExpressionError) its structured field rows */
+  .pi-error__name { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+  .pi-error__msg { margin-top: 0.15rem; line-height: 1.5; }
+  .pi-error__rows { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.7rem; margin-top: 0.5rem;
+    padding-top: 0.45rem; border-top: 1px solid color-mix(in srgb, #b00020 30%, transparent); }
+  .pi-error__row { display: contents; }
+  .pi-error__key { font-weight: 600; opacity: 0.85; }
+  .pi-error__val { word-break: break-word; white-space: pre-wrap; }
+  /* Break-it toolbar: input-only triggers that surface each error kind in the panel above */
+  .pi-breakit { margin-top: 0.7rem; padding: 0.6rem 0.75rem; border: 1px dashed var(--line); border-radius: 6px;
+    background: var(--code-bg); }
+  .pi-breakit__head { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint);
+    font-weight: 700; }
+  .pi-breakit__hint { margin: 0.3rem 0 0.55rem; font-size: 0.74rem; line-height: 1.5; color: var(--ink-soft); }
+  .pi-breakit__hint code { font-size: 0.85em; }
+  .pi-breakit__row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+  .pi-breakit__row .pi-btn code { font-size: 0.85em; }
+  .pi-breakit__toggle { font-size: 0.74rem; color: var(--ink); display: inline-flex; align-items: center; gap: 0.35rem;
+    cursor: pointer; border: 1px solid var(--line); border-radius: 5px; padding: 0.28rem 0.55rem; }
+  .pi-breakit__toggle:hover { background: var(--accent-soft); }
   /* Resolved payload key/value rows */
   .pi-kv { display: grid; grid-template-columns: minmax(6rem, auto) 1fr; gap: 0.4rem 0.75rem;
     padding: 0.28rem 0; border-bottom: 1px dashed var(--line); align-items: baseline; }
@@ -415,7 +444,7 @@ The Template and its two Clauses are seeded in-memory for this page — see the
 </style>
 
 <script type="module">
-  import { MemoryCatalogStore, inspectDocument } from "./assets/browser-demo.js";
+  import { MemoryCatalogStore, inspectDocument, ExpressionError, z } from "./assets/browser-demo.js";
 
   // Seeded entirely in-memory for this page — see docs/AUTHORING.md for how a real file-based catalog
   // (Templates/Clauses on disk) composes the same way through Catalog.fromDir. The template declares
@@ -423,10 +452,12 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   // produces real $derived.* values, and references a Clause by @latest so Reference resolution picks the
   // highest published version (counterparts v2). The body demonstrates "templates only read": a `for:`
   // iterates the plain `$parties` array and an `if:` reads the derived boolean `$derived.hasGuarantor`.
+  const PAYLOAD_SCHEMA_KEY = "services-agreement.payload";
   const TEMPLATE = {
     template: "services-agreement",
     version: 1,
     locale: "en",
+    payloadSchema: PAYLOAD_SCHEMA_KEY,
     derivations: ["feeInclVat", "counterpartsCount", "hasGuarantor"],
     body: [
       { title: "SERVICES AGREEMENT" },
@@ -470,22 +501,36 @@ The Template and its two Clauses are seeded in-memory for this page — see the
     ],
   };
 
-  const store = new MemoryCatalogStore({
-    templates: [TEMPLATE],
-    clauses: [
-      { clause: "welcome-note", version: 1, locale: "en", vars: {}, text: "Welcome to this agreement between the parties." },
-      {
-        clause: "counterparts", version: 1, locale: "en",
-        vars: { count: { type: "integer", min: 1 } },
-        text: "This document is executed in **{{ $count }}** counterparts.",
-      },
-      {
-        clause: "counterparts", version: 2, locale: "en",
-        vars: { count: { type: "integer", min: 1 } },
-        text: "This document is executed in **{{ $count }}** counterparts, each party receiving one original.",
-      },
-    ],
-  });
+  const CLAUSES = [
+    { clause: "welcome-note", version: 1, locale: "en", vars: {}, text: "Welcome to this agreement between the parties." },
+    {
+      clause: "counterparts", version: 1, locale: "en",
+      vars: { count: { type: "integer", min: 1 } },
+      text: "This document is executed in **{{ $count }}** counterparts.",
+    },
+    {
+      clause: "counterparts", version: 2, locale: "en",
+      vars: { count: { type: "integer", min: 1 } },
+      text: "This document is executed in **{{ $count }}** counterparts, each party receiving one original.",
+    },
+  ];
+  const store = new MemoryCatalogStore({ templates: [TEMPLATE], clauses: CLAUSES });
+
+  // Break-it scenario 3 (unresolvable Clause reference): the reference lives in the TEMPLATE, not the
+  // payload, so we swap the whole store for an alternate one whose `services-agreement` template points
+  // its `counterparts` reference at a Clause that was never published. Everything else is identical, so
+  // the payload editor and the other two scenarios are unaffected; un-toggling restores `store`. The
+  // pipeline reaches Clause resolution and throws a NotFoundError — nothing is faked, the panel renders
+  // whatever the real pipeline throws.
+  const BROKEN_TEMPLATE = {
+    ...TEMPLATE,
+    body: TEMPLATE.body.map((item) =>
+      item.clause === "counterparts@latest" ? { ...item, clause: "does-not-exist@latest" } : item,
+    ),
+  };
+  const brokenStore = new MemoryCatalogStore({ templates: [BROKEN_TEMPLATE], clauses: CLAUSES });
+  let scenario3Active = false;
+  function activeStore() { return scenario3Active ? brokenStore : store; }
 
   // Code-side Derivation registry (whitelisted pure functions), keyed by the names the Template lists.
   // ADR-0004: Derivations are code-side by design — the demo shows their source read-only below, it does
@@ -494,6 +539,18 @@ The Template and its two Clauses are seeded in-memory for this page — see the
     feeInclVat: (payload) => Math.round(Number(payload.fee) * 1.21),
     counterpartsCount: (payload) => (Array.isArray(payload.parties) ? payload.parties.length : 0),
     hasGuarantor: (payload) => payload.guarantor != null,
+  };
+
+  // Code-side payload schema (ADR-0004: schemas are code, not Catalog content). It constrains ONLY the
+  // two fields whose type the pipeline depends on — `fee` (a number, multiplied by the VAT Derivation)
+  // and `parties` (an array the `for:` roster iterates) — and is `.loose()` so every OTHER key
+  // ($client, $provider, $effectiveDate, $currency, guarantor, …) passes through untouched and the
+  // sample payload renders in full. A string `fee` therefore genuinely rejects with a
+  // PayloadValidationError (break-it scenario 1) without the schema having to enumerate the whole payload.
+  const schemas = {
+    [PAYLOAD_SCHEMA_KEY]: z
+      .object({ fee: z.number(), parties: z.array(z.unknown()) })
+      .loose(),
   };
 
   const SAMPLE_PAYLOAD = {
@@ -585,8 +642,44 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
   function jsonText(v) { return typeof v === "string" ? v : JSON.stringify(v, null, 2); }
 
-  function showError(message) { errorBox.textContent = message; errorBox.hidden = false; }
-  function clearError() { errorBox.hidden = true; errorBox.textContent = ""; }
+  function clearError() { errorBox.hidden = true; clear(errorBox); }
+
+  // Plain inline message — for things that are NOT a library error object (e.g. invalid JSON the
+  // editor could not even parse). Keeps the pre-panel single-line behaviour for that case.
+  function showError(message) {
+    clear(errorBox);
+    errorBox.appendChild(el("div", "pi-error__msg", message));
+    errorBox.hidden = false;
+  }
+
+  function errorRow(label, value) {
+    const row = el("div", "pi-error__row");
+    row.appendChild(el("span", "pi-error__key", label));
+    row.appendChild(el("code", "pi-error__val", value));
+    return row;
+  }
+
+  // Structured panel for a caught pipeline error object: the error `name` and `message` for every error,
+  // plus — when it is an `ExpressionError` (instanceof works because this page imports the class from the
+  // SAME bundle as inspectDocument) — dedicated rows for its STRUCTURED fields: `location.path`,
+  // `location.iteration` (only when present) and `expression`. These are read from the error object,
+  // never parsed out of the message string. Zod payload validation / NotFoundError errors have their own
+  // `name` + `message` and fall through to just those two.
+  function showErrorPanel(err) {
+    clear(errorBox);
+    errorBox.appendChild(el("div", "pi-error__name", err instanceof Error && err.name ? err.name : "Error"));
+    errorBox.appendChild(el("div", "pi-error__msg", err instanceof Error ? err.message : String(err)));
+    if (err instanceof ExpressionError) {
+      const rows = el("div", "pi-error__rows");
+      if (err.location && err.location.path) rows.appendChild(errorRow("path", err.location.path));
+      if (err.location && err.location.iteration != null) {
+        rows.appendChild(errorRow("iteration", String(err.location.iteration)));
+      }
+      if (err.expression) rows.appendChild(errorRow("expression", err.expression));
+      if (rows.firstChild) errorBox.appendChild(rows);
+    }
+    errorBox.hidden = false;
+  }
 
   // Sandboxed preview wrapper — shared by the main inspector and the versioning previews below.
   function frameSrcdoc(html) {
@@ -701,7 +794,7 @@ The Template and its two Clauses are seeded in-memory for this page — see the
       return;
     }
     try {
-      const result = await inspectDocument({ store, template: "services-agreement", data, derivations });
+      const result = await inspectDocument({ store: activeStore(), template: "services-agreement", data, schemas, derivations });
       clearError();
       renderResolved(result.resolved);
       renderDerivations(result.resolved);
@@ -709,8 +802,9 @@ The Template and its two Clauses are seeded in-memory for this page — see the
       renderRefs(result.references);
       output.srcdoc = frameSrcdoc(result.html);
     } catch (err) {
-      // Pipeline error (e.g. missing field a Derivation needs): show it, keep last good panels.
-      showError(err instanceof Error ? err.message : String(err));
+      // Pipeline error (payload validation, a throwing expression, an unresolvable Clause): show the
+      // structured panel, keep the last good panels intact (the recompute() contract).
+      showErrorPanel(err);
     }
   }
 
@@ -729,7 +823,44 @@ The Template and its two Clauses are seeded in-memory for this page — see the
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { clearTimeout(debounceTimer); recompute(); }
   });
   renderBtn.addEventListener("click", () => { clearTimeout(debounceTimer); recompute(); });
-  resetBtn.addEventListener("click", () => { editor.value = JSON.stringify(SAMPLE_PAYLOAD, null, 2); recompute(); });
+
+  // --- Break-it triggers: mutate ONLY the input, then recompute. Nothing here hardcodes error output. ---
+  const breakClauseToggle = document.getElementById("pi-break-clause");
+  // A break-it button demonstrates ONE failure at a time: loading its payload also clears the
+  // scenario-③ store toggle, otherwise the missing-Clause error would mask the intended one.
+  function loadPayload(obj) {
+    scenario3Active = false;
+    breakClauseToggle.checked = false;
+    editor.value = JSON.stringify(obj, null, 2);
+    clearTimeout(debounceTimer);
+    recompute();
+  }
+
+  // ① Schema: a string `fee` fails the loose payload schema → PayloadValidationError (name + message).
+  document.getElementById("pi-break-schema").addEventListener("click", () => {
+    loadPayload({ ...SAMPLE_PAYLOAD, fee: "four thousand two hundred" });
+  });
+  // ② Expression: the 2nd `parties` element is a bare string, so `{{ $party.role }}` throws INSIDE the
+  //    `for: $parties` loop on iteration 1 → ExpressionError with location.iteration + expression rows.
+  document.getElementById("pi-break-expr").addEventListener("click", () => {
+    loadPayload({ ...SAMPLE_PAYLOAD, parties: [SAMPLE_PAYLOAD.parties[0], "Ludwig Legal Studio (should be an object!)"] });
+  });
+  // ③ Missing Clause: the reference is in the Template, so swap to the broken store while ticked →
+  //    NotFoundError (name + message). Un-ticking restores the working store and re-renders.
+  breakClauseToggle.addEventListener("change", () => {
+    scenario3Active = breakClauseToggle.checked;
+    clearTimeout(debounceTimer);
+    recompute();
+  });
+
+  // Reset restores BOTH inputs: the payload and the scenario-3 store toggle, so recovery is one click.
+  resetBtn.addEventListener("click", () => {
+    scenario3Active = false;
+    breakClauseToggle.checked = false;
+    editor.value = JSON.stringify(SAMPLE_PAYLOAD, null, 2);
+    clearTimeout(debounceTimer);
+    recompute();
+  });
 
   recompute();
 
