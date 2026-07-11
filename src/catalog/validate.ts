@@ -7,6 +7,7 @@ import type { DerivationRegistry } from "../core/resolve";
 import { helperCallsIn } from "../core/expression";
 import { expressionTokens } from "../core/interpolate";
 import { expandIncludes, IncludeError } from "../core/includes";
+import { classify, walkBody } from "../core/body-traversal";
 import { CompositionError } from "../core/compose";
 import { parseClauseRef } from "../core/clause-ref";
 import { ALIGN_VALUES, isAlign } from "../core/document-tree";
@@ -127,7 +128,7 @@ async function lintBody(template: Template, path: string, ctx: LintContext): Pro
     if (!(error instanceof IncludeError)) throw error;
     ctx.findings.push({ path: `${path} › ${error.path}`, message: error.message });
   }
-  await lintItems(body, `${path} › body`, ctx);
+  await walkBody(body, (item, at) => lintItem(item, at, ctx), `${path} › body`);
 }
 
 /** The interpolatable text of a title/paragraph body item (string shorthand or `TextSpec` object). */
@@ -154,64 +155,67 @@ function checkTextStyle(
   }
 }
 
-async function lintItems(items: BodyItem[], path: string, ctx: LintContext): Promise<void> {
-  for (const [i, item] of items.entries()) {
-    await lintItem(item, `${path}[${i}]`, ctx);
-  }
-}
-
+/**
+ * Lint one Body item. The walk (via {@link walkBody}) already descends into nested bodies and control
+ * branches, so this only checks the item itself — the classify switch is exhaustive, so a new BodyItem
+ * variant fails compilation here until its lint is decided.
+ */
 async function lintItem(item: BodyItem, path: string, ctx: LintContext): Promise<void> {
-  // title/paragraph accept a string shorthand or a `{ text, align, … }` object (ADR-0008); lint the
-  // interpolated text and, for the object form, the static `align` enum (a typo would else fail at render).
-  if ("title" in item) {
-    checkTextStyle(item.title, path, ctx);
-    return checkString(textOf(item.title), path, ctx);
-  }
-  if ("paragraph" in item) {
-    checkTextStyle(item.paragraph, path, ctx);
-    return checkString(textOf(item.paragraph), path, ctx);
-  }
-  if ("clause" in item) return lintClause(item, path, ctx);
-  if ("article" in item) {
-    if (item.article.heading !== undefined) checkString(item.article.heading, path, ctx);
-    return lintItems(item.article.body, `${path} › article`, ctx);
-  }
-  if ("numberedList" in item) return lintListItems(item.numberedList, path, ctx);
-  if ("bulletList" in item) return lintListItems(item.bulletList, path, ctx);
-  if ("alphaList" in item) return lintListItems(item.alphaList, path, ctx);
-  if ("partyHeader" in item) return checkString(item.partyHeader.roleLabel, path, ctx);
-  if ("keyValueTable" in item) return lintRows(item.keyValueTable.rows, path, ctx);
-  if ("signatures" in item) {
-    for (const place of item.signatures.places) {
-      if (place.name !== undefined) checkString(place.name, path, ctx);
-      if (place.role !== undefined) checkString(place.role, path, ctx);
+  const classified = classify(item);
+  switch (classified.kind) {
+    // title/paragraph accept a string shorthand or a `{ text, align, … }` object (ADR-0008); lint the
+    // interpolated text and, for the object form, the static `align` enum (a typo would else fail at render).
+    case "title": {
+      checkTextStyle(classified.item.title, path, ctx);
+      return checkString(textOf(classified.item.title), path, ctx);
     }
-    return;
-  }
-  if ("if" in item) {
-    await lintItems(item.then, `${path} › then`, ctx);
-    if (item.else) await lintItems(item.else, `${path} › else`, ctx);
-    return;
-  }
-  if ("for" in item) return lintItems(item.body, `${path} › for`, ctx);
-  if ("custom" in item) return lintCustom(item.custom, path, ctx);
-  // `include` is resolved by expansion before lintItems runs; an unresolved one is already a finding.
-  if ("include" in item) return;
-  // A Slot is filled by composition before a Variant body reaches the lint, so any surviving `{ slot }`
-  // is misplaced — declared inside an Include or an override fill, or used in a standalone Template,
-  // none of which composition can reach. It would fail hard at render, so flag it here.
-  if ("slot" in item) {
-    ctx.findings.push({
-      path,
-      message: `unfilled slot "${item.slot}": a Slot must be declared directly in a Base template body`,
-    });
-    return;
-  }
-}
-
-async function lintListItems(groups: BodyItem[][], path: string, ctx: LintContext): Promise<void> {
-  for (const [i, group] of groups.entries()) {
-    await lintItems(group, `${path}[${i}]`, ctx);
+    case "paragraph": {
+      checkTextStyle(classified.item.paragraph, path, ctx);
+      return checkString(textOf(classified.item.paragraph), path, ctx);
+    }
+    case "clause":
+      return lintClause(classified.item, path, ctx);
+    case "article": {
+      const { heading } = classified.item.article;
+      if (heading !== undefined) checkString(heading, path, ctx);
+      return;
+    }
+    case "numberedList":
+    case "bulletList":
+    case "alphaList":
+    case "if":
+    case "for":
+      return;
+    case "partyHeader":
+      return checkString(classified.item.partyHeader.roleLabel, path, ctx);
+    case "keyValueTable":
+      return lintRows(classified.item.keyValueTable.rows, path, ctx);
+    case "signatures": {
+      for (const place of classified.item.signatures.places) {
+        if (place.name !== undefined) checkString(place.name, path, ctx);
+        if (place.role !== undefined) checkString(place.role, path, ctx);
+      }
+      return;
+    }
+    case "custom":
+      return lintCustom(classified.item.custom, path, ctx);
+    // `include` is resolved by expansion before the walk runs; an unresolved one is already a finding.
+    case "include":
+      return;
+    // A Slot is filled by composition before a Variant body reaches the lint, so any surviving `{ slot }`
+    // is misplaced — declared inside an Include or an override fill, or used in a standalone Template,
+    // none of which composition can reach. It would fail hard at render, so flag it here.
+    case "slot": {
+      ctx.findings.push({
+        path,
+        message: `unfilled slot "${classified.item.slot}": a Slot must be declared directly in a Base template body`,
+      });
+      return;
+    }
+    default: {
+      const unhandled: never = classified;
+      throw new Error(`Unhandled body item: ${JSON.stringify(unhandled)}`);
+    }
   }
 }
 

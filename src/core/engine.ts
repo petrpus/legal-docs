@@ -10,6 +10,7 @@ import { validateVars } from "./vars-schema";
 import { validatePayload } from "./payload";
 import { party } from "./schema-fragments";
 import { defaultHelpers, type HelperRegistry } from "./helpers";
+import { classify, type ClassifiedBodyItem } from "./body-traversal";
 
 /** Resolves a Clause reference (`id@vN` | `id@latest`) to a concrete Clause for a locale. */
 export type ClauseResolver = (ref: string, locale: string) => Promise<Clause>;
@@ -58,9 +59,13 @@ async function assembleItems(items: BodyItem[], frame: Frame, level: number): Pr
 
 /** Expand one body item into zero or more nodes. Control structures (`if`/`for`) expand variably. */
 async function expandItem(item: BodyItem, frame: Frame, level: number): Promise<DocumentNode[]> {
-  if ("if" in item) return assembleIf(item, frame, level);
-  if ("for" in item) return assembleFor(item, frame, level);
-  return [await toNode(item, frame, level)];
+  const classified = classify(item);
+  if (classified.class === "control") {
+    return classified.kind === "if"
+      ? assembleIf(classified.item, frame, level)
+      : assembleFor(classified.item, frame, level);
+  }
+  return [await toNode(classified, frame, level)];
 }
 
 async function assembleIf(
@@ -91,28 +96,58 @@ async function assembleFor(
   return groups.flat();
 }
 
-async function toNode(item: BodyItem, frame: Frame, level: number): Promise<DocumentNode> {
-  if ("title" in item) return textNode("title", item.title, frame);
-  if ("paragraph" in item) return textNode("paragraph", item.paragraph, frame);
-  if ("clause" in item) return clauseNode(item, frame);
-  if ("article" in item) return articleNode(item.article, frame, level);
-  if ("numberedList" in item) {
-    return { kind: "numberedList", items: await assembleListItems(item.numberedList, frame, level) };
+/** Assemble one non-control item into its node. Exhaustive over the classified union (`never` check). */
+async function toNode(
+  classified: Exclude<ClassifiedBodyItem, { class: "control" }>,
+  frame: Frame,
+  level: number,
+): Promise<DocumentNode> {
+  switch (classified.kind) {
+    case "title":
+      return textNode("title", classified.item.title, frame);
+    case "paragraph":
+      return textNode("paragraph", classified.item.paragraph, frame);
+    case "clause":
+      return clauseNode(classified.item, frame);
+    case "article":
+      return articleNode(classified.item.article, frame, level);
+    case "numberedList":
+      return {
+        kind: "numberedList",
+        items: await assembleListItems(classified.item.numberedList, frame, level),
+      };
+    case "bulletList":
+      return {
+        kind: "bulletList",
+        items: await assembleListItems(classified.item.bulletList, frame, level),
+      };
+    case "alphaList":
+      return {
+        kind: "alphaList",
+        items: await assembleListItems(classified.item.alphaList, frame, level),
+      };
+    case "partyHeader":
+      return partyHeaderNode(classified.item.partyHeader, frame);
+    case "keyValueTable":
+      return keyValueTableNode(classified.item.keyValueTable, frame);
+    case "signatures":
+      return signaturesNode(classified.item.signatures, frame);
+    case "custom":
+      return customNode(classified.item.custom, frame);
+    // Directives never reach assembly: Include expansion and Slot filling splice them away first.
+    case "include":
+      throw new Error(
+        `Unexpanded include "${classified.item.include}" reached tree assembly — expand Includes first`,
+      );
+    case "slot":
+      throw new Error(
+        `Unfilled slot "${classified.item.slot}" reached tree assembly — compose a Variant first`,
+      );
+    default: {
+      const unhandled: never = classified;
+      throw new Error(`Unhandled body item: ${JSON.stringify(unhandled)}`);
+    }
   }
-  if ("bulletList" in item) {
-    return { kind: "bulletList", items: await assembleListItems(item.bulletList, frame, level) };
-  }
-  if ("alphaList" in item) {
-    return { kind: "alphaList", items: await assembleListItems(item.alphaList, frame, level) };
-  }
-  if ("partyHeader" in item) return partyHeaderNode(item.partyHeader, frame);
-  if ("keyValueTable" in item) return keyValueTableNode(item.keyValueTable, frame);
-  if ("signatures" in item) return signaturesNode(item.signatures, frame);
-  if ("custom" in item) return customNode(item.custom, frame);
-  if ("slot" in item) {
-    throw new Error(`Unfilled slot "${item.slot}" reached tree assembly — compose a Variant first`);
-  }
-  throw new Error(`Unsupported body item: ${JSON.stringify(item)}`);
 }
 
 /**

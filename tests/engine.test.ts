@@ -29,6 +29,32 @@ describe("assembleTree", () => {
     await expect(assembleTree(template)).rejects.toThrow(/Unsupported body item/);
   });
 
+  it("rejects an unfilled slot reaching assembly", async () => {
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ slot: "intro" }],
+    };
+
+    await expect(assembleTree(template)).rejects.toThrow(
+      /Unfilled slot "intro" reached tree assembly — compose a Variant first/,
+    );
+  });
+
+  it("rejects an unexpanded include reaching assembly", async () => {
+    const template: Template = {
+      template: "t",
+      version: 1,
+      locale: "en",
+      body: [{ include: "greeting-block" }],
+    };
+
+    await expect(assembleTree(template)).rejects.toThrow(
+      /Unexpanded include "greeting-block" reached tree assembly — expand Includes first/,
+    );
+  });
+
   it("resolves a clause, binds vars, and renders its rich text", async () => {
     const clause: Clause = {
       clause: "counterparts",
