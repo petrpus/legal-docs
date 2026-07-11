@@ -304,3 +304,120 @@ describe("browser entry: inspectDocument", () => {
     expect(inspected.html).toBe(rendered);
   });
 });
+
+/**
+ * The "Variants & Slots" demo section (issue #128) composes a small Template family — one Base
+ * declaring shared structure (a `for: $parties` roster) plus two named Slots (`terms`, `guaranty`) —
+ * with two Variants that fill the Slots differently, one leaving `guaranty` empty. These tests pin the
+ * contract the demo depends on, all through the shared browser pipeline (`inspectDocument({ store,
+ * template: <family>, variant })`) rather than any hand-rolled slot filling: the Base region is shared
+ * byte-for-byte across Variants, the filled Slot diverges, and the unfilled Slot simply renders nothing
+ * (matching `compose.ts` "removed if unfilled"). Also pins that `resolveTemplate` forwards the variant,
+ * guarding against a silent regression of `src/browser.ts`'s `variant` plumbing.
+ */
+describe("browser entry: Variants & Slots", () => {
+  const familySeed: MemoryCatalogSeed = {
+    families: [
+      {
+        base: {
+          base: "nda",
+          version: 1,
+          locale: "en",
+          body: [
+            { title: "NON-DISCLOSURE AGREEMENT" },
+            // Shared Base structure: a party roster driven off the payload, identical for every Variant.
+            {
+              for: { each: "$parties", as: "party" },
+              body: [{ paragraph: "{{ $party.role }}: {{ $party.name }}" }],
+            },
+            { title: "TERMS" },
+            { slot: "terms" },
+            { slot: "guaranty" },
+          ],
+        },
+        variants: [
+          {
+            // Fills `terms`, leaves `guaranty` unfilled → the empty-slot state.
+            variant: "bilateral",
+            extends: "nda",
+            parties: ["discloser", "recipient"],
+            overrides: {
+              terms: [{ paragraph: "Both parties mutually protect the other's Confidential Information." }],
+            },
+          },
+          {
+            // Fills `terms` differently AND fills `guaranty` with an extra structural section.
+            variant: "with-guarantor",
+            extends: "nda",
+            parties: ["discloser", "recipient", "guarantor"],
+            overrides: {
+              terms: [{ paragraph: "The Recipient protects the Discloser's Confidential Information." }],
+              guaranty: [
+                { title: "GUARANTY" },
+                { paragraph: "The Guarantor unconditionally guarantees the Recipient's obligations." },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  };
+  // The same payload for both Variants, so the shared `for:` roster is identical between them.
+  const payload = {
+    parties: [
+      { role: "Discloser", name: "Acme s.r.o." },
+      { role: "Recipient", name: "Beta a.s." },
+    ],
+  };
+  const render = (variant: string) =>
+    inspectDocument({ store: new MemoryCatalogStore(familySeed), template: "nda", variant, data: payload });
+
+  it("both Variants resolve and render through the shared pipeline", async () => {
+    const bilateral = await render("bilateral");
+    const withGuarantor = await render("with-guarantor");
+    for (const result of [bilateral, withGuarantor]) {
+      expect(result.tree.body.length).toBeGreaterThan(0);
+      expect(result.html).toContain("NON-DISCLOSURE AGREEMENT");
+      // The shared Base roster (`for: $parties`) rendered for both.
+      expect(result.html).toContain("Discloser: Acme s.r.o.");
+      expect(result.html).toContain("Recipient: Beta a.s.");
+    }
+  });
+
+  it("the Base region is shared byte-for-byte across Variants", async () => {
+    const bilateral = await render("bilateral");
+    const withGuarantor = await render("with-guarantor");
+    // The first four nodes are the Base above the Slots: title, two roster paragraphs, "TERMS" title.
+    expect(bilateral.tree.body.slice(0, 4)).toEqual(withGuarantor.tree.body.slice(0, 4));
+  });
+
+  it("the filled `terms` Slot diverges between the two Variants", async () => {
+    const bilateral = await render("bilateral");
+    const withGuarantor = await render("with-guarantor");
+    expect(bilateral.html).toContain("Both parties mutually protect");
+    expect(withGuarantor.html).toContain("The Recipient protects the Discloser");
+    // Concretely different node content at the `terms` Slot position (5th node, index 4).
+    expect(bilateral.tree.body[4]).not.toEqual(withGuarantor.tree.body[4]);
+  });
+
+  it("the unfilled `guaranty` Slot renders nothing in `bilateral` but is present in `with-guarantor`", async () => {
+    const bilateral = await render("bilateral");
+    const withGuarantor = await render("with-guarantor");
+    // `bilateral` omits the guaranty content entirely — the empty Slot produces no nodes.
+    expect(bilateral.html).not.toContain("GUARANTY");
+    expect(bilateral.html).not.toContain("unconditionally guarantees");
+    expect(bilateral.tree.body.some((n) => "text" in n && n.text === "GUARANTY")).toBe(false);
+    // `with-guarantor` fills it, so the extra section appears.
+    expect(withGuarantor.html).toContain("GUARANTY");
+    expect(withGuarantor.html).toContain("unconditionally guarantees the Recipient");
+    expect(withGuarantor.tree.body.some((n) => "text" in n && n.text === "GUARANTY")).toBe(true);
+    // The unfilled Variant is strictly shorter — only the guaranty nodes are missing.
+    expect(bilateral.tree.body.length).toBeLessThan(withGuarantor.tree.body.length);
+  });
+
+  it("resolveTemplate forwards the selected variant onto the composed Template", async () => {
+    const store = new MemoryCatalogStore(familySeed);
+    expect((await resolveTemplate(store, "nda", "bilateral")).variant).toBe("bilateral");
+    expect((await resolveTemplate(store, "nda", "with-guarantor")).variant).toBe("with-guarantor");
+  });
+});
