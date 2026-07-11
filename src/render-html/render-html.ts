@@ -11,9 +11,8 @@ import type {
 } from "../core/document-tree";
 import { asDocumentTree } from "../core/document-tree";
 import type { RichRun, RichTextV1 } from "../core/rich-text";
-import { validatePayload } from "../core/payload";
 import { mergeTheme, type Theme } from "../theme";
-import { reportDegradation } from "../custom-block";
+import { dispatchCustomBlock } from "../custom-block";
 import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../custom-block";
 import { escapeHtml } from "./escape";
 import { themeCss } from "./theme-css";
@@ -137,24 +136,9 @@ function signaturesHtml(places: SignaturePlace[]): string {
 }
 
 function customHtml(node: Extract<DocumentNode, { kind: "custom" }>, cx: HtmlCtx): string {
-  const block = cx.blocks[node.component];
-  if (!block) throw new LegalDocsError(`Custom block "${node.component}" is not registered`);
-  if (typeof block.html !== "function") return degradeHtml(node.component, cx);
-  let props = node.props;
-  if (block.schema) {
-    try {
-      props = validatePayload(block.schema, node.props);
-    } catch (cause) {
-      const reason = cause instanceof Error ? cause.message : String(cause);
-      throw new LegalDocsError(`Custom block "${node.component}" received invalid props: ${reason}`, { cause });
-    }
-  }
+  const result = dispatchCustomBlock(node, "html", cx);
+  // Degradation marker policy (see dispatchCustomBlock): plain body text, escaped as HTML requires.
+  if ("marker" in result) return `<div class="legal-doc__unsupported">${escapeHtml(result.marker)}</div>`;
   // The block owns its markup (ADR-0006) — trusted consumer code, inserted raw (not escaped).
-  return block.html(props, { theme: cx.theme });
-}
-
-/** Degradation contract for HTML: a visible, logged placeholder, or a hard failure — never silent. */
-function degradeHtml(component: string, cx: HtmlCtx): string {
-  const marker = reportDegradation(component, "html", cx.degradation, cx.onDegrade);
-  return `<div class="legal-doc__unsupported">${escapeHtml(marker)}</div>`;
+  return result.rendered;
 }

@@ -30,9 +30,8 @@ import type {
 import { asDocumentTree } from "../core/document-tree";
 import type { RichParagraph, RichRun } from "../core/rich-text";
 import { MAX_LEVEL } from "../core/engine";
-import { validatePayload } from "../core/payload";
 import { mergeTheme, type Theme } from "../theme";
-import { reportDegradation } from "../custom-block";
+import { dispatchCustomBlock } from "../custom-block";
 import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../custom-block";
 import { eighths, halfPoints, twips } from "./theme-docx";
 
@@ -333,29 +332,16 @@ function signaturesDocx(places: SignaturePlace[], ctx: DocxCtx): Table {
 }
 
 function customDocx(node: Extract<DocumentNode, { kind: "custom" }>, ctx: DocxCtx): (Paragraph | Table)[] {
-  const block = ctx.blocks[node.component];
-  if (!block) throw new LegalDocsError(`Custom block "${node.component}" is not registered`);
-  if (typeof block.docx !== "function") return degradeDocx(node.component, ctx);
-  let props = node.props;
-  if (block.schema) {
-    try {
-      props = validatePayload(block.schema, node.props);
-    } catch (cause) {
-      const reason = cause instanceof Error ? cause.message : String(cause);
-      throw new LegalDocsError(`Custom block "${node.component}" received invalid props: ${reason}`, { cause });
-    }
+  const result = dispatchCustomBlock(node, "docx", ctx);
+  // Degradation marker policy (see dispatchCustomBlock): plain body text in the default paragraph style.
+  if ("marker" in result) {
+    return [
+      new Paragraph({
+        children: [new TextRun({ text: result.marker, color: hex(ctx.theme.color.text) })],
+      }),
+    ];
   }
-  return block.docx(props, { theme: ctx.theme });
-}
-
-/** Degradation contract for DOCX: a visible, logged placeholder paragraph, or a hard failure. */
-function degradeDocx(component: string, ctx: DocxCtx): Paragraph[] {
-  const marker = reportDegradation(component, "docx", ctx.degradation, ctx.onDegrade);
-  return [
-    new Paragraph({
-      children: [new TextRun({ text: marker, italics: true, color: hex(ctx.theme.color.text) })],
-    }),
-  ];
+  return result.rendered;
 }
 
 /** Concatenated plain text of an all-text list item (title / paragraph / richText only). */

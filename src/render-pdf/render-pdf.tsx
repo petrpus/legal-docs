@@ -5,10 +5,9 @@ import type { DocumentBody, DocumentNode, DocumentTree, PageFurniture } from "..
 import { asDocumentTree, PAGE_NUMBER_SENTINEL, PAGE_TOTAL_SENTINEL } from "../core/document-tree";
 import type { RichRun } from "../core/rich-text";
 import { MAX_LEVEL } from "../core/engine";
-import { validatePayload } from "../core/payload";
 import { defaultTheme, mergeTheme, type Theme } from "../theme";
 import { registerBundledFonts } from "./fonts";
-import { reportDegradation } from "../custom-block";
+import { dispatchCustomBlock } from "../custom-block";
 import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../custom-block";
 
 /** Render-time Custom-block context threaded through the visitor. */
@@ -209,35 +208,23 @@ function customElement(
   theme: Theme,
   cx: CustomCtx,
 ): ReactElement {
-  const block = cx.blocks[node.component];
-  if (!block) throw new LegalDocsError(`Custom block "${node.component}" is not registered`);
-  if (typeof block.pdf !== "function") {
-    // `pdf` is required by the contract, so this only fires for an untyped caller or a future format;
-    // the Degradation contract governs it (default: a visible, logged placeholder; never silent).
-    return degrade(node.component, key, theme, cx);
-  }
-  let props = node.props;
-  if (block.schema) {
-    try {
-      props = validatePayload(block.schema, node.props);
-    } catch (cause) {
-      const reason = cause instanceof Error ? cause.message : String(cause);
-      throw new LegalDocsError(`Custom block "${node.component}" received invalid props: ${reason}`, { cause });
-    }
+  const result = dispatchCustomBlock(node, "pdf", {
+    blocks: cx.blocks,
+    theme,
+    degradation: cx.degradation,
+    onDegrade: cx.onDegrade,
+  });
+  // Degradation marker policy (see dispatchCustomBlock): plain body text in the default paragraph style.
+  if ("marker" in result) {
+    return (
+      <Text key={key} style={{ fontSize: theme.fontSize.paragraph, color: theme.color.text }}>
+        {result.marker}
+      </Text>
+    );
   }
   // The block owns its layout (ADR-0005); inject only a key — no wrapper — so it controls its own
   // paging/break behaviour rather than us imposing keep-together.
-  return cloneElement(block.pdf(props, { theme }), { key });
-}
-
-/** Degradation contract: a visible, logged placeholder, or a hard failure — never silent omission. */
-function degrade(component: string, key: number, theme: Theme, cx: CustomCtx): ReactElement {
-  const marker = reportDegradation(component, "pdf", cx.degradation, cx.onDegrade);
-  return (
-    <Text key={key} style={{ fontSize: theme.fontSize.paragraph, color: theme.color.text }}>
-      {marker}
-    </Text>
-  );
+  return cloneElement(result.rendered, { key });
 }
 
 function listElement(
