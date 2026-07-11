@@ -1,4 +1,5 @@
 import { LegalDocsError } from "./core/errors";
+import { validatePayload } from "./core/payload";
 import type { ReactElement } from "react";
 import type { Paragraph, Table } from "docx";
 import type { ZodType } from "zod";
@@ -89,4 +90,66 @@ export function reportDegradation(
   }
   const unsupported: never = mode;
   throw new LegalDocsError(`Unknown degradation mode: ${String(unsupported)}`);
+}
+
+/** An output format a Custom block can implement. */
+export type CustomFormat = DegradationEvent["format"];
+
+/** What {@link dispatchCustomBlock} needs from a renderer's context. */
+export interface CustomDispatchContext {
+  blocks: CustomBlockRegistry;
+  theme: Theme;
+  degradation: DegradationMode;
+  onDegrade?: OnDegrade;
+}
+
+/**
+ * The format-agnostic dispatch of a `custom` DocumentNode — the single implementation of the
+ * escape-hatch contract (ADR-0005) shared by all Renderers: registry lookup (an unregistered
+ * component is a hard error), missing-format check (→ Degradation contract), props `schema`
+ * validation, then the implementation call.
+ *
+ * Returns either `{ rendered }` (the format-native output) or `{ marker }` (placeholder-mode
+ * degradation). **Marker policy**: the renderer presents the marker as plain, visible body text in
+ * its default paragraph style — no extra emphasis — escaping it where the format requires (HTML).
+ * Logging/throwing is handled here (via {@link reportDegradation}); the renderer only wraps.
+ */
+export function dispatchCustomBlock(
+  node: { component: string; props?: unknown },
+  format: "pdf",
+  cx: CustomDispatchContext,
+): { rendered: ReactElement } | { marker: string };
+export function dispatchCustomBlock(
+  node: { component: string; props?: unknown },
+  format: "html",
+  cx: CustomDispatchContext,
+): { rendered: string } | { marker: string };
+export function dispatchCustomBlock(
+  node: { component: string; props?: unknown },
+  format: "docx",
+  cx: CustomDispatchContext,
+): { rendered: (Paragraph | Table)[] } | { marker: string };
+export function dispatchCustomBlock(
+  node: { component: string; props?: unknown },
+  format: CustomFormat,
+  cx: CustomDispatchContext,
+): { rendered: ReactElement | string | (Paragraph | Table)[] } | { marker: string } {
+  const block = cx.blocks[node.component];
+  if (!block) throw new LegalDocsError(`Custom block "${node.component}" is not registered`);
+  const impl = block[format];
+  if (typeof impl !== "function") {
+    return { marker: reportDegradation(node.component, format, cx.degradation, cx.onDegrade) };
+  }
+  let props = node.props;
+  if (block.schema) {
+    try {
+      props = validatePayload(block.schema, node.props);
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : String(cause);
+      throw new LegalDocsError(`Custom block "${node.component}" received invalid props: ${reason}`, {
+        cause,
+      });
+    }
+  }
+  return { rendered: impl(props, { theme: cx.theme }) };
 }

@@ -53,6 +53,14 @@ typechecks **literal** props against the schema.
   placeholder is emitted inline, there is no `placeholder` core node.
 - impl present → called with `(props, { theme })`.
 
+> **Amended (pre-0.1.0, #116):** this dispatch sequence (lookup → hard error → format check →
+> schema validation → degradation) is implemented **once**, format-agnostically, in
+> `dispatchCustomBlock` next to the registry — not per renderer. Each Renderer only wraps the
+> result (or the degradation marker) in its native output type. Marker policy is unified: plain
+> body text in the format's default paragraph style, escaped where the format requires (HTML).
+> The "renderers share the contract, not code" principle (ADR-0006) covers the core-node
+> visitors, which remain independent; this escape-hatch pre-dispatch was always one contract.
+
 Because `pdf` is required, PDF output never degrades; the seam is built now as a runtime guard for
 untyped callers and goes live for `html`/`docx` in Phases 4–5.
 
