@@ -157,8 +157,16 @@ describe("browser entry: inspectDocument", () => {
     expect(result.references).toEqual([
       { ref: "counterparts@latest", clause: "counterparts", version: 2, locale: "en", resolvedLocale: "en" },
     ]);
-    // The resolved v2 Clause text made it into both the tree and the HTML.
-    expect(result.html).toContain("counterparts");
+    // The resolved v2 wording (not v1's "v1 text") made it into the HTML.
+    expect(result.html).toContain("In <strong>3</strong> counterparts.");
+    expect(result.html).not.toContain("v1 text");
+  });
+
+  it("surfaces pipeline errors (missing payload schema) instead of swallowing them", async () => {
+    const store = new MemoryCatalogStore(seed);
+    await expect(
+      inspectDocument({ store, template: "invoice", data: { amount: 42 } }),
+    ).rejects.toThrow(/No payload schema registered for "invoice@1"/);
   });
 
   it("returns html byte-equal to renderHtmlInBrowser for the same input", async () => {

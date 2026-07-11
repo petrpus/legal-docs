@@ -36,6 +36,7 @@ export {
   resolvePayload,
 };
 export type { CatalogStore, MemoryCatalogSeed, PayloadSchemaRegistry, DerivationRegistry, HelperRegistry, DeepPartial, Theme };
+export type { DocumentTree };
 
 export interface RenderHtmlInBrowserInput {
   store: CatalogStore;
@@ -70,7 +71,7 @@ export interface ClauseReference {
   /** The locale the assembly requested (the document's resolved locale). */
   locale: string;
   /** The locale of the Clause file that actually loaded — equal to `locale` unless the store fell back. */
-  resolvedLocale?: string;
+  resolvedLocale: string;
 }
 
 /** The intermediate artifacts of one browser render, exposed by `inspectDocument` for the demo inspector. */
