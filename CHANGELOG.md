@@ -6,8 +6,12 @@ All notable changes to `@petrpus/legal-docs` are recorded here. The format follo
 
 ## [Unreleased]
 
-The library was built phase by phase from the approved design plan ([`docs/PLAN.md`](docs/PLAN.md)).
-It is **feature-complete and publish-ready** but not yet published to npm.
+Nothing yet.
+
+## [0.1.0-beta.1] — 2026-07-11
+
+First published pre-release: `npm install @petrpus/legal-docs@beta`. Everything below was built
+phase by phase from the approved design plan ([`docs/PLAN.md`](docs/PLAN.md)) and ships in this beta.
 
 ### Documentation site redesign & live in-browser demo (ADR-0012)
 - **`docs/live-demo.html`** — a genuinely interactive demo: edit a JSON payload, the document re-renders
