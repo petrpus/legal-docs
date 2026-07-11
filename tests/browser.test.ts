@@ -131,6 +131,88 @@ describe("browser entry: clause-version propagation (pinned vs @latest)", () => 
   });
 });
 
+/**
+ * The Derivations panel demo (issue #127) surfaces each registered Derivation's live output from
+ * `inspectDocument().resolved.derived`, and drives `if:`/`for:` blocks off it. These tests are a
+ * faithful minimal mirror of the demo's `services-agreement` Template/derivations shape (see
+ * docs/demo-src/live-demo.html) and pin the exact contract the panel reads: `counterpartsCount`
+ * (from the plain `$parties` array) and `hasGuarantor` (the boolean an `if:` reads), in BOTH states.
+ */
+describe("browser entry: demo Derivations (Derivations panel contract)", () => {
+  const derivations = {
+    counterpartsCount: (payload: unknown) => {
+      const parties = (payload as { parties?: unknown }).parties;
+      return Array.isArray(parties) ? parties.length : 0;
+    },
+    hasGuarantor: (payload: unknown) => (payload as { guarantor?: unknown }).guarantor != null,
+  };
+  const demoSeed: MemoryCatalogSeed = {
+    templates: [
+      {
+        template: "services-agreement",
+        version: 1,
+        locale: "en",
+        derivations: ["counterpartsCount", "hasGuarantor"],
+        body: [
+          {
+            for: { each: "$parties", as: "party" },
+            body: [{ paragraph: "{{ $party.role }}: {{ $party.name }}" }],
+          },
+          {
+            if: "$derived.hasGuarantor",
+            then: [
+              { title: "GUARANTOR" },
+              { paragraph: "{{ $guarantor.name }} unconditionally guarantees the obligations." },
+            ],
+          },
+          { clause: "counterparts@latest", vars: { count: "$derived.counterpartsCount" } },
+        ],
+      },
+    ],
+    clauses: [
+      { clause: "counterparts", version: 1, locale: "en", vars: { count: { type: "integer", min: 1 } }, text: "In **{{ $count }}** counterparts." },
+      { clause: "counterparts", version: 2, locale: "en", vars: { count: { type: "integer", min: 1 } }, text: "In **{{ $count }}** counterparts, each party receiving one original." },
+    ],
+  };
+  const basePayload = {
+    parties: [
+      { role: "Client", name: "Acme s.r.o." },
+      { role: "Provider", name: "Ludwig Legal Studio" },
+    ],
+    guarantor: { name: "Berndt Holding a.s." },
+  };
+
+  it("guarantor present → hasGuarantor true, the if: section appears, counterpartsCount matches $parties length", async () => {
+    const store = new MemoryCatalogStore(demoSeed);
+    const result = await inspectDocument({ store, template: "services-agreement", data: basePayload, derivations });
+    expect(result.resolved.derived).toEqual({ counterpartsCount: 2, hasGuarantor: true });
+    // The if:-driven GUARANTOR section is in the tree and rendered HTML.
+    expect(result.tree.body.some((n) => "text" in n && n.text === "GUARANTOR")).toBe(true);
+    expect(result.html).toContain("unconditionally guarantees the obligations.");
+    expect(result.html).toContain("Berndt Holding a.s.");
+  });
+
+  it("guarantor removed → hasGuarantor false and the if: section disappears; counterpartsCount tracks $parties", async () => {
+    const store = new MemoryCatalogStore(demoSeed);
+    const noGuarantor = { parties: basePayload.parties };
+    const result = await inspectDocument({ store, template: "services-agreement", data: noGuarantor, derivations });
+    expect(result.resolved.derived).toEqual({ counterpartsCount: 2, hasGuarantor: false });
+    // The whole GUARANTOR section is absent — the Template only reads the derived boolean.
+    expect(result.tree.body.some((n) => "text" in n && n.text === "GUARANTOR")).toBe(false);
+    expect(result.html).not.toContain("unconditionally guarantees the obligations.");
+  });
+
+  it("counterpartsCount follows the $parties array length as the payload changes", async () => {
+    const store = new MemoryCatalogStore(demoSeed);
+    const threeParties = {
+      ...basePayload,
+      parties: [...basePayload.parties, { role: "Witness", name: "Dr. Novak" }],
+    };
+    const result = await inspectDocument({ store, template: "services-agreement", data: threeParties, derivations });
+    expect(result.resolved.derived).toMatchObject({ counterpartsCount: 3 });
+  });
+});
+
 describe("browser entry: renderHtmlInBrowser", () => {
   it("expands Includes and renders the resulting HTML", async () => {
     const store = new MemoryCatalogStore(seed);
