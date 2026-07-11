@@ -142,7 +142,8 @@ hr { border: none; border-top: 1px solid var(--line); margin: 2.2rem 0; }
     <div class="sidebar-footer"><a href="https://github.com/petrpus/legal-docs" target="_blank" rel="noopener">GitHub ↗</a></div>
   </nav>
   <main>
-    <article><h1 id="legal-docs-validate--github-action"><code>legal-docs validate</code> — GitHub Action</h1>
+    <article>
+      <h1 id="legal-docs-validate--github-action"><code>legal-docs validate</code> — GitHub Action</h1>
 <p>A composite action wrapping <code>legal-docs validate</code> (see the <a href="./index.html#cli">CLI</a>): lints a
 <code>@petrpus/legal-docs</code> catalog and fails the check with GitHub annotations if anything doesn&#39;t resolve
 (unregistered helper/derivation/Custom block, unresolved Clause ref, var-type mismatch, …).</p>
@@ -204,8 +205,9 @@ which will be updated to match).</p>
 file path — so annotations are emitted as <code>::error title=legal-docs::&lt;path&gt;: &lt;message&gt;</code> without a
 <code>file=</code>/<code>line=</code> property (which would misplace or drop the annotation). They show up in the PR&#39;s Checks
 summary rather than inline on a diff line.</p>
-</article>
-    <footer class="page-footer">MIT © Petr Puš — generated from the repository's markdown documentation.</footer>
+
+      <footer class="page-footer">MIT © Petr Puš — generated from the repository's markdown documentation.</footer>
+    </article>
   </main>
 </div>
 <script>

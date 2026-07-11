@@ -142,7 +142,8 @@ hr { border: none; border-top: 1px solid var(--line); margin: 2.2rem 0; }
     <div class="sidebar-footer"><a href="https://github.com/petrpus/legal-docs" target="_blank" rel="noopener">GitHub ↗</a></div>
   </nav>
   <main>
-    <article><h1 id="recipe-an-llm-drafts-a-clause-revision">Recipe: an LLM drafts a clause revision</h1>
+    <article>
+      <h1 id="recipe-an-llm-drafts-a-clause-revision">Recipe: an LLM drafts a clause revision</h1>
 <p>The runtime editing API (ADR-0009) already has the right seam for this — an LLM is just another
 producer of draft content. It calls <code>catalog.editing.createDraft(...)</code> exactly as a human editor&#39;s UI
 would, and the existing <strong><code>validate()</code>-gated publish</strong> is the guardrail: a bad draft (from a person or
@@ -255,8 +256,9 @@ just trust in the model&#39;s output.</li>
 Wire it into whatever review surface fits your application (a Slack approval flow, an internal admin
 UI, a CLI prompt). The demo&#39;s <a href="../demo.html">Editor tab</a> shows a <em>human</em>-driven version of the
 same <code>createDraft → previewDiff → publish</code> flow if you want a UI reference to adapt.</p>
-</article>
-    <footer class="page-footer">MIT © Petr Puš — generated from the repository's markdown documentation.</footer>
+
+      <footer class="page-footer">MIT © Petr Puš — generated from the repository's markdown documentation.</footer>
+    </article>
   </main>
 </div>
 <script>
