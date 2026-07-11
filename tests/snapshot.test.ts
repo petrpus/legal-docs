@@ -2,9 +2,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
-import { buildSnapshot, type SnapshotInput } from "../src/core/snapshot";
+import { buildSnapshot, assertValidSnapshot, SnapshotError, SNAPSHOT_SCHEMA_VERSION, type Snapshot, type SnapshotInput } from "../src/core/snapshot";
 import { Catalog } from "../src/catalog/catalog";
 import { renderDocument } from "../src/facade/render-document";
+import { renderFromSnapshot } from "../src/facade/render-from-snapshot";
 import { party } from "../src/core/schema-fragments";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -18,7 +19,7 @@ const gen: SnapshotInput = {
   payload: { parties: [{ name: "Acme" }] },
   resolved: { parties: [{ name: "Acme" }], derived: {} },
   pins: [{ ref: "pledge-security@v1", clause: "pledge-security", version: 1, locale: "en" }],
-  tree: [],
+  tree: { body: [] },
 };
 
 describe("buildSnapshot", () => {
@@ -29,14 +30,14 @@ describe("buildSnapshot", () => {
     expect(snap.payload).toEqual(gen.payload);
     expect(snap.resolved).toEqual(gen.resolved);
     expect(snap.pins).toEqual(gen.pins);
-    expect(snap.tree).toEqual([]);
+    expect(snap.tree).toEqual({ body: [] });
     expect(snap).toMatchObject({ template: "pledge-agreement", version: 1, variant: "two-party", locale: "en" });
   });
 
   it("freezes only the tree in tree mode", () => {
     const snap = buildSnapshot(gen, "tree");
 
-    expect(snap.tree).toEqual([]);
+    expect(snap.tree).toEqual({ body: [] });
     expect(snap.payload).toBeUndefined();
     expect(snap.resolved).toBeUndefined();
     expect(snap.pins).toBeUndefined();
@@ -50,6 +51,12 @@ describe("buildSnapshot", () => {
     expect(snap.tree).toBeUndefined();
   });
 
+  it("stamps the current schema version", () => {
+    expect(buildSnapshot(gen).schemaVersion).toBe(SNAPSHOT_SCHEMA_VERSION);
+    expect(buildSnapshot(gen, "tree").schemaVersion).toBe(SNAPSHOT_SCHEMA_VERSION);
+    expect(buildSnapshot(gen, "pins").schemaVersion).toBe(SNAPSHOT_SCHEMA_VERSION);
+  });
+
   it("computes a stable, mode-independent id", () => {
     const id = buildSnapshot(gen, "full").id;
 
@@ -57,6 +64,12 @@ describe("buildSnapshot", () => {
     expect(buildSnapshot(gen, "tree").id).toBe(id);
     expect(buildSnapshot(gen, "pins").id).toBe(id);
     expect(buildSnapshot(gen, "full").id).toBe(id); // deterministic for identical input
+  });
+
+  it("keeps the pre-furniture (v1) id for a furniture-less document", () => {
+    // Locks the concrete digest so a future reorder of the hashed keys can't silently churn every
+    // persisted id. `gen` has no header/footer, so its id must match what v1 produced.
+    expect(buildSnapshot(gen, "full").id).toBe("a356ab1f231ec2ba");
   });
 
   it("omits variant when the generation has none", () => {
@@ -72,6 +85,32 @@ describe("buildSnapshot", () => {
     const snap = buildSnapshot({ ...gen, pins: [b, a, b] }, "pins");
 
     expect(snap.pins).toEqual([a, b]);
+  });
+});
+
+describe("snapshot schema-version guard", () => {
+  const valid = buildSnapshot({ ...gen, tree: { body: [{ kind: "paragraph", text: "hi" }] } }, "tree");
+
+  it("accepts a well-formed current-version snapshot", () => {
+    expect(() => assertValidSnapshot(valid)).not.toThrow();
+  });
+
+  it("rejects a non-object, an unknown version, and a malformed snapshot", () => {
+    expect(() => assertValidSnapshot(null)).toThrow(SnapshotError);
+    expect(() => assertValidSnapshot({ ...valid, schemaVersion: 999 })).toThrow(/schemaVersion 999/);
+    const noVersion: Record<string, unknown> = { ...valid };
+    delete noVersion.schemaVersion;
+    expect(() => assertValidSnapshot(noVersion)).toThrow(SnapshotError);
+    expect(() => assertValidSnapshot({ ...valid, template: 123 })).toThrow(/Malformed/);
+    expect(() => assertValidSnapshot({ ...valid, mode: "bogus" })).toThrow(/unknown mode/);
+    expect(() => assertValidSnapshot({ ...valid, tree: null })).toThrow(/no tree body array/);
+    // A v1-shape snapshot (bare array `tree`, no `body`) is malformed under v2.
+    expect(() => assertValidSnapshot({ ...valid, tree: [{ kind: "paragraph", text: "hi" }] })).toThrow(/no tree body array/);
+  });
+
+  it("blocks renderFromSnapshot on an unknown-version snapshot", async () => {
+    const stale = { ...valid, schemaVersion: 999 } as unknown as Snapshot;
+    await expect(renderFromSnapshot(stale, { format: "html" })).rejects.toThrow(SnapshotError);
   });
 });
 
@@ -99,7 +138,7 @@ describe("renderDocument snapshots", () => {
       locale: "en",
       resolvedLocale: "en",
     });
-    expect(snapshot.tree?.length).toBeGreaterThan(0);
+    expect(snapshot.tree?.body.length).toBeGreaterThan(0);
   });
 
   it("honours the requested snapshot mode", async () => {

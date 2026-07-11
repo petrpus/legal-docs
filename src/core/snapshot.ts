@@ -1,3 +1,4 @@
+import { LegalDocsError } from "./errors";
 import { createHash } from "node:crypto";
 import type { DocumentTree } from "./document-tree";
 
@@ -11,6 +12,24 @@ export type SnapshotMode = "full" | "tree" | "pins";
 
 /** The default Snapshot mode when a caller does not specify one. */
 export const DEFAULT_SNAPSHOT_MODE: SnapshotMode = "full";
+
+/**
+ * The snapshot format version. A {@link Snapshot} is a long-lived, persisted audit artifact, so its
+ * shape is versioned: {@link renderFromSnapshot} rejects a snapshot whose `schemaVersion` it doesn't
+ * understand instead of failing obscurely deep inside a renderer. Bump this on any breaking shape change.
+ *
+ * v2: `tree` changed from a bare `DocumentNode[]` to a `DocumentTree` object (`{ body, header?, footer? }`)
+ * so page furniture is frozen for re-render (ADR-0011). v1 snapshots (array `tree`) are rejected.
+ */
+export const SNAPSHOT_SCHEMA_VERSION = 2;
+
+/** Thrown when a value handed to `renderFromSnapshot` is not a valid/known-version Snapshot. */
+export class SnapshotError extends LegalDocsError {
+  constructor(message: string) {
+    super(message);
+    this.name = "SnapshotError";
+  }
+}
 
 /** A concrete Clause version resolved during assembly — the audit pin for `@latest`/`@vN` refs. */
 export interface ClausePin {
@@ -35,6 +54,8 @@ export interface ClausePin {
  * `version` and `locale` are always present.
  */
 export interface Snapshot {
+  /** Format version of this snapshot's shape (see {@link SNAPSHOT_SCHEMA_VERSION}). */
+  schemaVersion: number;
   /** Stable digest of the generation (template/version/variant/tree/payload) — mode-independent. */
   id: string;
   mode: SnapshotMode;
@@ -70,6 +91,7 @@ export interface SnapshotInput {
 /** Build a {@link Snapshot} for the chosen mode. The `id` is computed before any field is dropped. */
 export function buildSnapshot(gen: SnapshotInput, mode: SnapshotMode = DEFAULT_SNAPSHOT_MODE): Snapshot {
   const base: Snapshot = {
+    schemaVersion: SNAPSHOT_SCHEMA_VERSION,
     id: snapshotId(gen),
     mode,
     template: gen.template,
@@ -97,6 +119,40 @@ function normalizePins(pins: ClausePin[]): ClausePin[] {
   );
 }
 
+/**
+ * Guard a value about to be re-rendered as a {@link Snapshot}: reject a non-object, an unknown
+ * `schemaVersion`, or a snapshot missing its always-present fields — with a clear {@link SnapshotError}
+ * rather than an obscure failure deep in a renderer.
+ */
+export function assertValidSnapshot(value: unknown): asserts value is Snapshot {
+  if (typeof value !== "object" || value === null) {
+    throw new SnapshotError("Not a snapshot (expected an object)");
+  }
+  const s = value as Partial<Snapshot>;
+  // v1 has no predecessors, so any other version is definitionally garbage — reject rather than
+  // migrate. When a v2 lands this becomes a migration decision (migrate step or an explicit policy).
+  if (s.schemaVersion !== SNAPSHOT_SCHEMA_VERSION) {
+    throw new SnapshotError(
+      `Unsupported snapshot schemaVersion ${JSON.stringify(s.schemaVersion)} (this build understands ${SNAPSHOT_SCHEMA_VERSION}) — re-generate the snapshot`,
+    );
+  }
+  if (s.mode !== "full" && s.mode !== "tree" && s.mode !== "pins") {
+    throw new SnapshotError(`Malformed snapshot: unknown mode ${JSON.stringify(s.mode)}`);
+  }
+  if (typeof s.template !== "string" || typeof s.version !== "number" || typeof s.locale !== "string") {
+    throw new SnapshotError("Malformed snapshot: missing one of template/version/locale");
+  }
+  // Tree-bearing modes must carry a DocumentTree whose `body` is an array, else the renderer fails deep
+  // (the very thing this guard exists to prevent). A v1 array-`tree` snapshot fails here after the
+  // schemaVersion check already rejected it.
+  if (s.mode === "full" || s.mode === "tree") {
+    const tree = s.tree as { body?: unknown } | undefined;
+    if (typeof tree !== "object" || tree === null || !Array.isArray(tree.body)) {
+      throw new SnapshotError(`Malformed snapshot: ${s.mode}-mode snapshot has no tree body array`);
+    }
+  }
+}
+
 function snapshotId(gen: SnapshotInput): string {
   return createHash("sha256")
     .update(
@@ -105,7 +161,11 @@ function snapshotId(gen: SnapshotInput): string {
         version: gen.version,
         variant: gen.variant ?? null,
         locale: gen.locale,
-        tree: gen.tree,
+        // Hash the body under the `tree` key (as v1 did) so a document with no furniture keeps its
+        // v1 id; header/footer only perturb the id of documents that actually declare them.
+        tree: gen.tree.body,
+        ...(gen.tree.header !== undefined ? { header: gen.tree.header } : {}),
+        ...(gen.tree.footer !== undefined ? { footer: gen.tree.footer } : {}),
         payload: gen.payload ?? null,
       }),
     )

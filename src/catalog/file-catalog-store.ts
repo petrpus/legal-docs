@@ -3,8 +3,9 @@ import type { Dirent } from "node:fs";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { CatalogStore } from "./catalog-store";
-import type { BaseTemplate, BodyItem, Include, Template, Variant } from "../core/template";
+import type { BaseTemplate, BodyItem, Include, PageFurnitureSpec, Template, Variant } from "../core/template";
 import type { Clause } from "../core/clause";
+import { LegalDocsError, NotFoundError } from "../core/errors";
 import type { VarsSchema } from "../core/vars-schema";
 
 /**
@@ -43,12 +44,12 @@ export class FileCatalogStore implements CatalogStore {
 
   async loadBase(family: string): Promise<BaseTemplate> {
     const file = await this.resolveFamilyFile(family, "base");
-    return toBase(parseYaml(await readFile(file, "utf8")), family);
+    return toBase(parseYamlFile(await readFile(file, "utf8"), file), family);
   }
 
   async loadVariant(family: string, variant: string): Promise<Variant> {
     const file = await this.resolveFamilyFile(family, variant);
-    return toVariant(parseYaml(await readFile(file, "utf8")), family, variant);
+    return toVariant(parseYamlFile(await readFile(file, "utf8"), file), family, variant);
   }
 
   private async hasBase(family: string): Promise<boolean> {
@@ -63,13 +64,17 @@ export class FileCatalogStore implements CatalogStore {
       const file = path.join(this.familyDir(family), `${name}${ext}`);
       if (await fileExists(file)) return file;
     }
-    throw new Error(`"${name}" not found in family "${family}" (${this.familyDir(family)})`);
+    throw new NotFoundError(
+      name === "base" ? "base" : "variant",
+      name === "base" ? { family } : { family, variant: name },
+      `"${name}" not found in family "${family}" (${this.familyDir(family)})`,
+    );
   }
 
   async loadTemplate(id: string): Promise<Template> {
     const file = await this.resolveTemplateFile(id);
     const raw = await readFile(file, "utf8");
-    return toTemplate(parseYaml(raw), id);
+    return toTemplate(parseYamlFile(raw, file), id);
   }
 
   /** Resolve `<id>.yaml` or `<id>.yml`, mirroring what `templateIds()` discovers. */
@@ -78,15 +83,32 @@ export class FileCatalogStore implements CatalogStore {
       const file = path.join(this.templatesDir(), `${id}${ext}`);
       if (await fileExists(file)) return file;
     }
-    throw new Error(`Template "${id}" not found in ${this.templatesDir()}`);
+    throw new NotFoundError("template", { id }, `Template "${id}" not found in ${this.templatesDir()}`);
   }
 
   async loadInclude(id: string): Promise<Include> {
     for (const ext of [".yaml", ".yml"]) {
       const file = path.join(this.partialsDir(), `${id}${ext}`);
-      if (await fileExists(file)) return toInclude(parseYaml(await readFile(file, "utf8")), id);
+      if (await fileExists(file)) return toInclude(parseYamlFile(await readFile(file, "utf8"), file), id);
     }
-    throw new Error(`Include "${id}" not found in ${this.partialsDir()}`);
+    throw new NotFoundError("include", { id }, `Include "${id}" not found in ${this.partialsDir()}`);
+  }
+
+  /** Each `clauses/<id>/` subdirectory is a Clause id. */
+  async clauseIds(): Promise<string[]> {
+    const entries = await readdir(this.clausesDir(), { withFileTypes: true }).catch(emptyIfMissing<Dirent>);
+    return entries
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort();
+  }
+
+  async includeIds(): Promise<string[]> {
+    const entries = await readdir(this.partialsDir()).catch(emptyIfMissing<string>);
+    return entries
+      .filter((f) => /\.ya?ml$/.test(f))
+      .map((f) => f.replace(/\.ya?ml$/, ""))
+      .sort();
   }
 
   async clauseVersions(id: string): Promise<number[]> {
@@ -113,7 +135,7 @@ export class FileCatalogStore implements CatalogStore {
   async loadClause(id: string, version: number, locale: string): Promise<Clause> {
     const file = await this.resolveClauseFile(id, version, locale);
     const raw = await readFile(file, "utf8");
-    return toClause(parseYaml(raw), id, version);
+    return toClause(parseYamlFile(raw, file), id, version);
   }
 
   /** Prefer `v<N>.<locale>.yaml`; fall back to any locale of that version. */
@@ -125,7 +147,8 @@ export class FileCatalogStore implements CatalogStore {
     const entries = await readdir(this.clauseDir(id)).catch(() => [] as string[]);
     const fallback = entries.find((f) => new RegExp(`^v${version}\\.[^.]+\\.ya?ml$`).test(f));
     if (fallback) return path.join(this.clauseDir(id), fallback);
-    throw new Error(`Clause "${id}" v${version} not found for locale "${locale}"`);
+    // Fires after the sibling-locale fallback, so the miss is really the version — align ref with the other stores.
+    throw new NotFoundError("clause", { id, version }, `Clause "${id}" v${version} not found for locale "${locale}"`);
   }
 
   private templatesDir(): string {
@@ -138,6 +161,10 @@ export class FileCatalogStore implements CatalogStore {
 
   private familyDir(family: string): string {
     return path.join(this.templatesDir(), family);
+  }
+
+  private clausesDir(): string {
+    return path.join(this.dir, "clauses");
   }
 
   private clauseDir(id: string): string {
@@ -160,16 +187,31 @@ function emptyIfMissing<T>(error: unknown): T[] {
   throw error;
 }
 
+/**
+ * Parse a catalog YAML file, wrapping a syntactic `YAMLParseError` in a typed `LegalDocsError` that
+ * names the offending file. Without this a raw `yaml` parse error escapes untyped (a consumer catching
+ * `LegalDocsError` would miss it) and carries no file context. The shape converters
+ * (`toTemplate`/`toClause`/…) then handle structural validity on the parsed value.
+ */
+function parseYamlFile(raw: string, file: string): unknown {
+  try {
+    return parseYaml(raw);
+  } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    throw new LegalDocsError(`Malformed YAML in ${file}: ${reason}`, { cause });
+  }
+}
+
 function toTemplate(value: unknown, id: string): Template {
   if (value === null || typeof value !== "object") {
-    throw new Error(`Template "${id}" is not a YAML object`);
+    throw new LegalDocsError(`Template "${id}" is not a YAML object`);
   }
   const v = value as Record<string, unknown>;
   if (typeof v.template !== "string") {
-    throw new Error(`Template "${id}" is missing a string "template" id`);
+    throw new LegalDocsError(`Template "${id}" is missing a string "template" id`);
   }
   if (!Array.isArray(v.body)) {
-    throw new Error(`Template "${id}" is missing a "body" array`);
+    throw new LegalDocsError(`Template "${id}" is missing a "body" array`);
   }
   return {
     template: v.template,
@@ -179,19 +221,57 @@ function toTemplate(value: unknown, id: string): Template {
     derivations: Array.isArray(v.derivations)
       ? v.derivations.filter((d): d is string => typeof d === "string")
       : undefined,
+    ...furnitureFields(v, `Template "${id}"`),
     // Per-item shape is validated lazily by the engine; payload (zod) validation is applied to the
     // data, not the template, in the facade.
     body: v.body as BodyItem[],
   };
 }
 
+/**
+ * Parse optional `header` / `footer` page-furniture specs from a raw template object. Each is a
+ * `{ left?, center?, right? }` of strings; a non-object or a non-string slot is a clear authoring error.
+ * (Furniture on a family Base/Variant is a separate future extension — standalone Templates only here.)
+ */
+function furnitureFields(v: Record<string, unknown>, label: string): { header?: PageFurnitureSpec; footer?: PageFurnitureSpec } {
+  const header = v.header !== undefined ? toFurniture(v.header, `${label} header`) : undefined;
+  const footer = v.footer !== undefined ? toFurniture(v.footer, `${label} footer`) : undefined;
+  return {
+    ...(header !== undefined ? { header } : {}),
+    ...(footer !== undefined ? { footer } : {}),
+  };
+}
+
+/** Returns `undefined` for a slot-less spec, so a present-but-empty `header: {}` converges with "absent". */
+function toFurniture(value: unknown, label: string): PageFurnitureSpec | undefined {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new LegalDocsError(`${label} must be an object with left/center/right slots`);
+  }
+  const v = value as Record<string, unknown>;
+  const slot = (key: "left" | "center" | "right"): string | undefined => {
+    const s = v[key];
+    if (s === undefined) return undefined;
+    if (typeof s !== "string") throw new LegalDocsError(`${label} "${key}" must be a string`);
+    return s;
+  };
+  const left = slot("left");
+  const center = slot("center");
+  const right = slot("right");
+  if (left === undefined && center === undefined && right === undefined) return undefined;
+  return {
+    ...(left !== undefined ? { left } : {}),
+    ...(center !== undefined ? { center } : {}),
+    ...(right !== undefined ? { right } : {}),
+  };
+}
+
 function toBase(value: unknown, family: string): BaseTemplate {
   if (value === null || typeof value !== "object") {
-    throw new Error(`Base of family "${family}" is not a YAML object`);
+    throw new LegalDocsError(`Base of family "${family}" is not a YAML object`);
   }
   const v = value as Record<string, unknown>;
   if (!Array.isArray(v.body)) {
-    throw new Error(`Base of family "${family}" is missing a "body" array`);
+    throw new LegalDocsError(`Base of family "${family}" is missing a "body" array`);
   }
   return {
     base: typeof v.base === "string" ? v.base : family,
@@ -208,7 +288,7 @@ function toBase(value: unknown, family: string): BaseTemplate {
 
 function toVariant(value: unknown, family: string, variant: string): Variant {
   if (value === null || typeof value !== "object") {
-    throw new Error(`Variant "${variant}" of family "${family}" is not a YAML object`);
+    throw new LegalDocsError(`Variant "${variant}" of family "${family}" is not a YAML object`);
   }
   const v = value as Record<string, unknown>;
   return {
@@ -230,11 +310,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function toInclude(value: unknown, id: string): Include {
   if (value === null || typeof value !== "object") {
-    throw new Error(`Include "${id}" is not a YAML object`);
+    throw new LegalDocsError(`Include "${id}" is not a YAML object`);
   }
   const v = value as Record<string, unknown>;
   if (!Array.isArray(v.body)) {
-    throw new Error(`Include "${id}" is missing a "body" array`);
+    throw new LegalDocsError(`Include "${id}" is missing a "body" array`);
   }
   return {
     id: typeof v.id === "string" ? v.id : id,
@@ -246,11 +326,11 @@ function toInclude(value: unknown, id: string): Include {
 
 function toClause(value: unknown, id: string, version: number): Clause {
   if (value === null || typeof value !== "object") {
-    throw new Error(`Clause "${id}" v${version} is not a YAML object`);
+    throw new LegalDocsError(`Clause "${id}" v${version} is not a YAML object`);
   }
   const v = value as Record<string, unknown>;
   if (typeof v.text !== "string") {
-    throw new Error(`Clause "${id}" v${version} is missing a string "text"`);
+    throw new LegalDocsError(`Clause "${id}" v${version} is missing a string "text"`);
   }
   return {
     clause: typeof v.clause === "string" ? v.clause : id,

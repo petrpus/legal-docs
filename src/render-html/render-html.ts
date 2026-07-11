@@ -1,17 +1,20 @@
+import { LegalDocsError } from "../core/errors";
 import type {
   Align,
   BlockIndent,
+  DocumentBody,
   DocumentNode,
   DocumentTree,
   KeyValueRow,
   PartyIdentification,
   SignaturePlace,
 } from "../core/document-tree";
+import { asDocumentTree } from "../core/document-tree";
 import type { RichRun, RichTextV1 } from "../core/rich-text";
 import { validatePayload } from "../core/payload";
-import { defaultTheme, type Theme } from "../render-pdf/theme";
-import { reportDegradation } from "../render-pdf/custom-block";
-import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../render-pdf/custom-block";
+import { mergeTheme, type Theme } from "../theme";
+import { reportDegradation } from "../custom-block";
+import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../custom-block";
 import { escapeHtml } from "./escape";
 import { themeCss } from "./theme-css";
 
@@ -27,15 +30,13 @@ interface HtmlCtx {
  * Output is a self-contained `<div class="legal-doc">` fragment with a scoped `<style>`. All
  * core-emitted text is escaped; a Custom block's HTML is trusted and inserted raw.
  */
-export function renderTreeToHtml(
-  tree: DocumentTree,
-  theme: Theme = defaultTheme,
-  customBlocks: CustomBlockRegistry = {},
-  degradation: DegradationMode = "placeholder",
-  onDegrade?: OnDegrade,
-): string {
-  const cx: HtmlCtx = { blocks: customBlocks, degradation, onDegrade, theme };
-  const body = tree.map((node) => nodeToHtml(node, cx)).join("");
+export function renderTreeToHtml(input: DocumentTree | DocumentBody, options: RenderTreeOptions = {}): string {
+  const tree = asDocumentTree(input);
+  const theme = mergeTheme(options.theme);
+  const cx: HtmlCtx = { blocks: options.customBlocks ?? {}, degradation: options.degradation ?? "placeholder", onDegrade: options.onDegrade, theme };
+  // HTML is a page-less fragment, so page header/footer furniture (`tree.header`/`tree.footer`) is
+  // intentionally ignored here — it is paged-output-only (PDF/DOCX), like `theme.page.*` (ADR-0011).
+  const body = tree.body.map((node) => nodeToHtml(node, cx)).join("");
   return `<div class="legal-doc"><style>${themeCss(theme)}</style>${body}</div>`;
 }
 
@@ -75,7 +76,7 @@ function nodeToHtml(node: DocumentNode, cx: HtmlCtx): string {
       return customHtml(node, cx);
     default: {
       const unhandled: never = node;
-      throw new Error(`Unsupported node kind: ${JSON.stringify(unhandled)}`);
+      throw new LegalDocsError(`Unsupported node kind: ${JSON.stringify(unhandled)}`);
     }
   }
 }
@@ -137,7 +138,7 @@ function signaturesHtml(places: SignaturePlace[]): string {
 
 function customHtml(node: Extract<DocumentNode, { kind: "custom" }>, cx: HtmlCtx): string {
   const block = cx.blocks[node.component];
-  if (!block) throw new Error(`Custom block "${node.component}" is not registered`);
+  if (!block) throw new LegalDocsError(`Custom block "${node.component}" is not registered`);
   if (typeof block.html !== "function") return degradeHtml(node.component, cx);
   let props = node.props;
   if (block.schema) {
@@ -145,7 +146,7 @@ function customHtml(node: Extract<DocumentNode, { kind: "custom" }>, cx: HtmlCtx
       props = validatePayload(block.schema, node.props);
     } catch (cause) {
       const reason = cause instanceof Error ? cause.message : String(cause);
-      throw new Error(`Custom block "${node.component}" received invalid props: ${reason}`, { cause });
+      throw new LegalDocsError(`Custom block "${node.component}" received invalid props: ${reason}`, { cause });
     }
   }
   // The block owns its markup (ADR-0006) — trusted consumer code, inserted raw (not escaped).

@@ -14,6 +14,7 @@
  * exhaustiveness for Body items is enforced here, once, via the `never` check in {@link classify}.
  */
 
+import { LegalDocsError } from "./errors";
 import type { BodyItem } from "./template";
 
 export type TitleItem = Extract<BodyItem, { title: unknown }>;
@@ -140,7 +141,7 @@ export function classify(item: BodyItem): ClassifiedBodyItem {
   if ("slot" in item) return { class: "directive", kind: "slot", item };
   const unhandled: never = item;
   // Authored YAML is cast, not zod-validated, so a malformed item can still arrive at runtime.
-  throw new Error(`Unsupported body item: ${JSON.stringify(unhandled)}`);
+  throw new LegalDocsError(`Unsupported body item: ${JSON.stringify(unhandled)}`);
 }
 
 /**

@@ -1,29 +1,39 @@
+import { LegalDocsError } from "../core/errors";
 import {
   AlignmentType,
   BorderStyle,
   Document,
+  Footer,
+  Header,
   Packer,
+  PageNumber,
   Paragraph,
   Table,
   TableCell,
   TableRow,
+  TabStopType,
+  TabStopPosition,
   TextRun,
   WidthType,
 } from "docx";
+import { PAGE_NUMBER_SENTINEL, PAGE_TOTAL_SENTINEL } from "../core/document-tree";
+import type { PageFurniture } from "../core/document-tree";
 import type {
   Align,
+  DocumentBody,
   DocumentNode,
   DocumentTree,
   KeyValueRow,
   PartyIdentification,
   SignaturePlace,
 } from "../core/document-tree";
+import { asDocumentTree } from "../core/document-tree";
 import type { RichParagraph, RichRun } from "../core/rich-text";
 import { MAX_LEVEL } from "../core/engine";
 import { validatePayload } from "../core/payload";
-import { defaultTheme, type Theme } from "../render-pdf/theme";
-import { reportDegradation } from "../render-pdf/custom-block";
-import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../render-pdf/custom-block";
+import { mergeTheme, type Theme } from "../theme";
+import { reportDegradation } from "../custom-block";
+import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../custom-block";
 import { eighths, halfPoints, twips } from "./theme-docx";
 
 interface DocxCtx {
@@ -40,18 +50,24 @@ interface DocxCtx {
  * Word has no nested block container, so nested nodes flatten into a flat `(Paragraph | Table)[]` with
  * indentation/markers carried as paragraph properties. The library handles XML escaping.
  */
-export async function renderTreeToDocx(
-  tree: DocumentTree,
-  theme: Theme = defaultTheme,
-  customBlocks: CustomBlockRegistry = {},
-  degradation: DegradationMode = "placeholder",
-  onDegrade?: OnDegrade,
-): Promise<Buffer> {
+export async function renderTreeToDocx(input: DocumentTree | DocumentBody, options: RenderTreeOptions = {}): Promise<Buffer> {
   // `async` so a synchronous build error (unregistered component, throw-mode degradation) surfaces as
   // a rejected promise rather than a sync throw.
-  const ctx: DocxCtx = { theme, blocks: customBlocks, degradation, onDegrade, depth: 0 };
-  const children = tree.flatMap((node) => nodeToDocx(node, ctx));
-  const doc = new Document({ sections: [{ children }] });
+  const tree = asDocumentTree(input);
+  const theme = mergeTheme(options.theme);
+  const ctx: DocxCtx = { theme, blocks: options.customBlocks ?? {}, degradation: options.degradation ?? "placeholder", onDegrade: options.onDegrade, depth: 0 };
+  const children = tree.body.flatMap((node) => nodeToDocx(node, ctx));
+  // Set the document-default run font (the reader's app substitutes if it lacks the family).
+  const doc = new Document({
+    styles: { default: { document: { run: { font: theme.font.family } } } },
+    sections: [
+      {
+        ...(tree.header ? { headers: { default: new Header({ children: [furnitureParagraph(tree.header, "header", theme)] }) } } : {}),
+        ...(tree.footer ? { footers: { default: new Footer({ children: [furnitureParagraph(tree.footer, "footer", theme)] }) } } : {}),
+        children,
+      },
+    ],
+  });
   return Packer.toBuffer(doc);
 }
 
@@ -96,13 +112,46 @@ function nodeToDocx(node: DocumentNode, ctx: DocxCtx): (Paragraph | Table)[] {
       return customDocx(node, ctx);
     default: {
       const unhandled: never = node;
-      throw new Error(`Unsupported node kind: ${JSON.stringify(unhandled)}`);
+      throw new LegalDocsError(`Unsupported node kind: ${JSON.stringify(unhandled)}`);
     }
   }
 }
 
 function run(text: string, sizePt: number, opts: { bold?: boolean; italics?: boolean; color?: string } = {}): TextRun {
   return new TextRun({ text, size: halfPoints(sizePt), ...opts });
+}
+
+/**
+ * A header/footer paragraph: a classic Word three-column layout via center + right tab stops. Each
+ * slot's page-number sentinels are split into `PageNumber` field runs (which Word fills per page); the
+ * text between them becomes plain runs. `theme.header`/`footer` drives size and colour.
+ */
+function furnitureParagraph(furniture: PageFurniture, kind: "header" | "footer", theme: Theme): Paragraph {
+  const style = kind === "header" ? theme.header : theme.footer;
+  const runOpts = { size: halfPoints(style.fontSize), color: hex(style.color) };
+  // Fresh tab run per position — a docx node should not be shared across two slots in the graph.
+  const tab = (): TextRun => new TextRun({ text: "\t", ...runOpts });
+  return new Paragraph({
+    tabStops: [
+      { type: TabStopType.CENTER, position: TabStopPosition.MAX / 2 },
+      { type: TabStopType.RIGHT, position: TabStopPosition.MAX },
+    ],
+    children: [...slotRuns(furniture.left, runOpts), tab(), ...slotRuns(furniture.center, runOpts), tab(), ...slotRuns(furniture.right, runOpts)],
+  });
+}
+
+/** Split a resolved furniture slot on the page-number sentinels into text runs + `PageNumber` field runs. */
+function slotRuns(slot: string | undefined, runOpts: { size: number; color: string }): TextRun[] {
+  if (!slot) return [];
+  const escape = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const parts = slot.split(new RegExp(`(${escape(PAGE_NUMBER_SENTINEL)}|${escape(PAGE_TOTAL_SENTINEL)})`));
+  return parts
+    .filter((part) => part !== "")
+    .map((part) => {
+      if (part === PAGE_NUMBER_SENTINEL) return new TextRun({ children: [PageNumber.CURRENT], ...runOpts });
+      if (part === PAGE_TOTAL_SENTINEL) return new TextRun({ children: [PageNumber.TOTAL_PAGES], ...runOpts });
+      return new TextRun({ text: part, ...runOpts });
+    });
 }
 
 /**
@@ -285,7 +334,7 @@ function signaturesDocx(places: SignaturePlace[], ctx: DocxCtx): Table {
 
 function customDocx(node: Extract<DocumentNode, { kind: "custom" }>, ctx: DocxCtx): (Paragraph | Table)[] {
   const block = ctx.blocks[node.component];
-  if (!block) throw new Error(`Custom block "${node.component}" is not registered`);
+  if (!block) throw new LegalDocsError(`Custom block "${node.component}" is not registered`);
   if (typeof block.docx !== "function") return degradeDocx(node.component, ctx);
   let props = node.props;
   if (block.schema) {
@@ -293,7 +342,7 @@ function customDocx(node: Extract<DocumentNode, { kind: "custom" }>, ctx: DocxCt
       props = validatePayload(block.schema, node.props);
     } catch (cause) {
       const reason = cause instanceof Error ? cause.message : String(cause);
-      throw new Error(`Custom block "${node.component}" received invalid props: ${reason}`, { cause });
+      throw new LegalDocsError(`Custom block "${node.component}" received invalid props: ${reason}`, { cause });
     }
   }
   return block.docx(props, { theme: ctx.theme });

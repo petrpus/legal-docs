@@ -6,15 +6,16 @@ switch locale and format, restyle live via the **whole Theme** token surface, ed
 
 ## How it works
 
-PDF, DOCX and the file Catalog are **Node-side**, so rendering runs in the Vite **dev server** (a tiny
-API in `vite.config.ts`); the browser only sends `{ template, variant, locale, theme, data, format }`
-and displays the returned **HTML** (or downloads the **PDF/DOCX** binary). This is the seam a real app
-puts behind its own server — the React client never imports the library. The server also holds the
-code-side pieces some templates need (payload **schemas**, **derivations**, and the signature-grid
-**Custom block**), keyed by template.
+PDF, DOCX and the file Catalog are **Node-side**, so rendering runs on the server — in dev, the Vite
+dev server; deployed, the standalone `server.mjs` (see **Deploy** below). Both mount the same
+framework-agnostic `/api/*` handler (`server/api.mjs`), so there is exactly one implementation of the
+render/diff/schema/editor logic. The browser only sends `{ template, variant, locale, theme, data,
+format }` and displays the returned **HTML** (or downloads the **PDF/DOCX** binary) — the React client
+never imports the library. The handler also holds the code-side pieces some templates need (payload
+**schemas**, **derivations**, and the signature-grid **Custom block**), keyed by template.
 
 ```
-React UI ──POST /api/render {template, variant, locale, theme, data, format}──▶ dev-server (Node) ─▶ renderDocument
+React UI ──POST /api/render {template, variant, locale, theme, data, format}──▶ server (Node) ─▶ renderDocument
         ◀──────────────────── { html }  or  { base64 } (pdf/docx) ──────────────────────────────┘
 ```
 
@@ -59,6 +60,13 @@ npm run dev        # → http://localhost:5173
   `signatures` node can't express, rendered across html/pdf/docx (source: [`../signature-grid.tsx`](../signature-grid.tsx)).
 - **Formats** — `html` previews inline; `pdf` / `docx` download.
 - **Clause diff** — diff two versions of the `counterparts` Clause, rendered via `renderClauseDiff`.
+- **Editor (Phase 7 / ADR-0009)** — a runtime **Clause editor** over the library's editing API
+  (`catalog.editing`): create a draft new version, **submit → publish** through the `draft → in_review
+  → published` workflow, see the **old→new review diff** (`previewDiff`) and the **edit audit log**.
+  Publishing runs the `validate()` **gate** (a draft that would break a consuming template is blocked
+  with findings). Backed by the in-memory `MemoryEditableCatalogStore` (state resets when the dev
+  server restarts); the persistent alternative is the `node:sqlite` adapter in
+  [`../../adapters/sqlite/`](../../adapters/sqlite/), which passes the same conformance suite.
 
 ## A note on safety
 
@@ -68,8 +76,44 @@ this demo (`signature-grid`) escapes its own data with the library's `escapeHtml
 HTML output is inserted **raw** and trusted — if you register one that emits unescaped user input, or
 feed user-authored templates, you reintroduce an XSS surface. Sanitize accordingly.
 
-## What this demo does NOT include
+## Deploy
 
-Live editing of clauses/templates from the UI (CRUD, draft → publish) is the future **DB-backed
-`CatalogStore` + runtime editing API** (roadmap Phase 7). Today the catalog is the file-based sample
-catalog; an app could also implement an in-memory `CatalogStore` via `Catalog.fromStore(...)`.
+The demo can run anywhere as a small Node server — fully interactive (render, theme editor, clause
+editor, diff), not a static export (PDF/DOCX rendering is Node-only).
+
+**Build once** (from the repo root):
+
+```sh
+npm install && npm run build                              # the library
+cd examples/demo && npm install && npm run build           # the client (vite build)
+```
+
+**Run the standalone server** (serves the built client + the same `/api/*` logic as `npm run dev`):
+
+```sh
+npm run serve            # PORT env var, default 8080 → http://localhost:8080
+```
+
+**Docker** — build context must be the **repo root** (the demo consumes `../../dist` and
+`../../legal-docs`):
+
+```sh
+docker build -f examples/demo/Dockerfile -t legal-docs-demo .
+docker run -p 8080:8080 legal-docs-demo
+```
+
+Push that image to any container host — Fly.io (`fly launch` pointed at the Dockerfile), Render (a
+Docker web service), a VPS (`docker run` behind a reverse proxy), etc.
+
+> **One instance only.** The Editor tab's drafts live in the in-memory `MemoryEditableCatalogStore` —
+> they don't survive a restart and aren't shared across replicas. Don't scale this deploy to multiple
+> instances/autoscaling; for persistent, multi-instance editing, swap in the `node:sqlite` adapter
+> (`adapters/sqlite/`), which passes the same conformance suite.
+
+## Notes
+
+- The **Render** and **Clause diff** tabs read the file-based sample catalog (`Catalog.fromDir`).
+- The **Editor** tab uses a separate in-memory editable catalog (`MemoryEditableCatalogStore` via
+  `Catalog.fromStore`), so its edits are isolated from the sample catalog and reset when the dev server
+  restarts. The persistent alternative is the `node:sqlite` adapter in
+  [`../../adapters/sqlite/`](../../adapters/sqlite/).

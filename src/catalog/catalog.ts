@@ -1,5 +1,6 @@
-import { FileCatalogStore } from "./file-catalog-store";
 import type { CatalogStore } from "./catalog-store";
+import { isEditableStore } from "./editable-catalog-store";
+import { createEditingApi, type EditingApi } from "./editing-facade";
 import {
   validateCatalog,
   type ValidateOptions,
@@ -7,10 +8,10 @@ import {
 } from "./validate";
 import type { Include, Template } from "../core/template";
 import type { Clause } from "../core/clause";
-import { parseClauseRef } from "../core/clause-ref";
-import { composeTemplate } from "../core/compose";
+import { LegalDocsError } from "../core/errors";
 import { parseRichText } from "../core/rich-text";
 import { diffRichText, type ClauseDiff } from "../core/clause-diff";
+import { resolveClause, resolveTemplate } from "./resolve";
 
 /** Options for a Clause version diff. */
 export interface ClauseDiffOptions {
@@ -28,8 +29,13 @@ export interface ClauseDiffOptions {
 export class Catalog {
   private constructor(private readonly store: CatalogStore) {}
 
-  /** Load a file-based catalog from a directory (uses FileCatalogStore). */
+  /**
+   * Load a file-based catalog from a directory (uses FileCatalogStore). Dynamically imported so that
+   * importing `Catalog` alone (e.g. the browser-safe entry, `src/browser.ts`) never pulls in
+   * FileCatalogStore's `node:fs`/`node:path` dependency.
+   */
   static async fromDir(dir: string): Promise<Catalog> {
+    const { FileCatalogStore } = await import("./file-catalog-store");
     return new Catalog(new FileCatalogStore(dir));
   }
 
@@ -43,16 +49,7 @@ export class Catalog {
    * composes the family's Base template + that Variant into a concrete Template (Slots filled).
    */
   getTemplate(id: string, variant?: string): Promise<Template> {
-    if (variant === undefined) return this.store.loadTemplate(id);
-    return this.composeVariant(id, variant);
-  }
-
-  private async composeVariant(family: string, variant: string): Promise<Template> {
-    const [base, spec] = await Promise.all([
-      this.store.loadBase(family),
-      this.store.loadVariant(family, variant),
-    ]);
-    return composeTemplate(base, spec);
+    return resolveTemplate(this.store, id, variant);
   }
 
   templateIds(): Promise<string[]> {
@@ -69,16 +66,29 @@ export class Catalog {
     return this.store.variantIds(family);
   }
 
+  /** Ids of all Clauses in the catalog (ascending). */
+  clauseIds(): Promise<string[]> {
+    return this.store.clauseIds();
+  }
+
+  /** Ids of all shared Includes (ascending). */
+  includeIds(): Promise<string[]> {
+    return this.store.includeIds();
+  }
+
+  /** The published versions of a Clause (ascending). */
+  clauseVersions(id: string): Promise<number[]> {
+    return this.store.clauseVersions(id);
+  }
+
   /** Load a shared Include (Partial) by id. */
   loadInclude(id: string): Promise<Include> {
     return this.store.loadInclude(id);
   }
 
   /** Resolve a Clause reference (`id@vN` | `id@latest` | `id`) to a concrete Clause for a locale. */
-  async getClause(ref: string, locale: string): Promise<Clause> {
-    const { id, version } = parseClauseRef(ref);
-    const concrete = version === "latest" ? await this.latestVersion(id) : version;
-    return this.store.loadClause(id, concrete, locale);
+  getClause(ref: string, locale: string): Promise<Clause> {
+    return resolveClause(this.store, ref, locale);
   }
 
   private clausesApi?: { diff: (id: string, options: ClauseDiffOptions) => Promise<ClauseDiff> };
@@ -108,7 +118,7 @@ export class Catalog {
       return await this.store.loadClause(id, version, locale);
     } catch (cause) {
       const reason = cause instanceof Error ? cause.message : String(cause);
-      throw new Error(`Cannot diff clause "${id}" v${version} (${locale}): ${reason}`, { cause });
+      throw new LegalDocsError(`Cannot diff clause "${id}" v${version} (${locale}): ${reason}`, { cause });
     }
   }
 
@@ -117,15 +127,23 @@ export class Catalog {
     return this.store.clauseLocales(id, version);
   }
 
-  private async latestVersion(id: string): Promise<number> {
-    const versions = await this.store.clauseVersions(id);
-    const latest = versions.at(-1);
-    if (latest === undefined) throw new Error(`Clause "${id}" has no versions`);
-    return latest;
-  }
-
   /** Integrity lint: returns path-precise findings for unresolved refs, unregistered helpers, etc. */
   validate(options?: ValidateOptions): Promise<ValidationResult> {
     return validateCatalog(this, options);
+  }
+
+  private editingApi?: EditingApi;
+
+  /**
+   * The runtime editing API (ADR-0009) — drafting, the draft→in_review→published workflow, a
+   * validate()-gated publish, and review diffs. Available only when the underlying store is editable
+   * (implements `EditableCatalogStore`); throws otherwise. A stable object across accesses.
+   */
+  get editing(): EditingApi {
+    if (!isEditableStore(this.store)) {
+      throw new LegalDocsError("This Catalog's store is not editable — build it over an EditableCatalogStore (e.g. MemoryEditableCatalogStore)");
+    }
+    const store = this.store;
+    return (this.editingApi ??= createEditingApi(store, (overlay, options) => Catalog.fromStore(overlay).validate(options)));
   }
 }

@@ -1,15 +1,18 @@
+import { LegalDocsError, NotFoundError } from "../core/errors";
 import { Readable } from "node:stream";
 import type { Catalog } from "../catalog/catalog";
-import { assembleTree, type ClauseResolver } from "../core/engine";
+import { assembleDocument, type ClauseResolver } from "../core/engine";
 import { expandIncludes } from "../core/includes";
 import type { HelperRegistry } from "../core/helpers";
+import { assertValidSnapshot } from "../core/snapshot";
 import type { ClausePin, Snapshot } from "../core/snapshot";
 import type { DocumentTree } from "../core/document-tree";
-import { renderTreeToBuffer } from "../render-pdf/render-pdf";
+import { renderTreeToPdf } from "../render-pdf/render-pdf";
+import type { RenderTreeOptions } from "../custom-block";
 import { renderTreeToHtml } from "../render-html/render-html";
 import { renderTreeToDocx } from "../render-docx/render-docx";
-import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../render-pdf/custom-block";
-import type { Theme } from "../render-pdf/theme";
+import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../custom-block";
+import type { DeepPartial, Theme } from "../theme";
 
 export interface RenderFromSnapshotOptions {
   /** Required for a `pins`-mode Snapshot (which re-runs the engine); unused for `full`/`tree`. */
@@ -27,7 +30,7 @@ export interface RenderFromSnapshotOptions {
   onDegrade?: OnDegrade;
   /** Output format (defaults to `pdf`). */
   format?: "pdf" | "html" | "docx";
-  theme?: Theme;
+  theme?: DeepPartial<Theme>;
 }
 
 export interface PdfFromSnapshot {
@@ -79,21 +82,25 @@ export async function renderFromSnapshot(
   snapshot: Snapshot,
   options: RenderFromSnapshotOptions = {},
 ): Promise<RenderFromSnapshotResult> {
+  // Snapshots are persisted audit artifacts; reject an unknown-version / malformed one up front with a
+  // clear error rather than failing obscurely inside a renderer (accepts a runtime-typed `unknown`).
+  assertValidSnapshot(snapshot);
   const tree = snapshot.tree ?? (await reassembleFromPins(snapshot, options));
+  const treeOptions: RenderTreeOptions = { theme: options.theme, customBlocks: options.customBlocks, degradation: options.degradation, onDegrade: options.onDegrade };
   const format = options.format ?? "pdf";
   if (format === "html") {
-    return { format: "html", html: renderTreeToHtml(tree, options.theme, options.customBlocks, options.degradation, options.onDegrade) };
+    return { format: "html", html: renderTreeToHtml(tree, treeOptions) };
   }
   if (format === "pdf") {
-    const buffer = await renderTreeToBuffer(tree, options.theme, options.customBlocks, options.degradation, options.onDegrade);
+    const buffer = await renderTreeToPdf(tree, treeOptions);
     return { format: "pdf", buffer, stream: Readable.from(buffer) };
   }
   if (format === "docx") {
-    const buffer = await renderTreeToDocx(tree, options.theme, options.customBlocks, options.degradation, options.onDegrade);
+    const buffer = await renderTreeToDocx(tree, treeOptions);
     return { format: "docx", buffer, stream: Readable.from(buffer) };
   }
   const unsupported: never = format;
-  throw new Error(`Unsupported format: ${String(unsupported)}`);
+  throw new LegalDocsError(`Unsupported format: ${String(unsupported)}`);
 }
 
 async function reassembleFromPins(
@@ -102,11 +109,11 @@ async function reassembleFromPins(
 ): Promise<DocumentTree> {
   const { catalog } = options;
   if (!catalog) {
-    throw new Error("renderFromSnapshot: a `pins`-mode Snapshot needs a `catalog` to re-render");
+    throw new LegalDocsError("renderFromSnapshot: a `pins`-mode Snapshot needs a `catalog` to re-render");
   }
   const template = await catalog.getTemplate(snapshot.template, snapshot.variant);
   const body = await expandIncludes(template.body, (id) => catalog.loadInclude(id));
-  return assembleTree(
+  return assembleDocument(
     { ...template, body },
     {
       scope: snapshot.resolved ?? {},
@@ -124,14 +131,14 @@ function pinnedResolver(pins: ClausePin[], catalog: Catalog): ClauseResolver {
   return async (ref, locale) => {
     const pin = byRef.get(`${ref}|${locale}`);
     if (!pin) {
-      throw new Error(`Snapshot has no pin for clause "${ref}" (${locale}) — cannot re-render`);
+      throw new NotFoundError("pin", { id: ref, locale }, `Snapshot has no pin for clause "${ref}" (${locale}) — cannot re-render`);
     }
     try {
       // Load the exact locale file that originally resolved (not a re-run of the store's fallback).
       return await catalog.getClause(`${pin.clause}@v${pin.version}`, pin.resolvedLocale ?? locale);
     } catch (cause) {
       const reason = cause instanceof Error ? cause.message : String(cause);
-      throw new Error(
+      throw new LegalDocsError(
         `Pinned clause "${pin.clause}@v${pin.version}" cannot be resolved: ${reason}`,
         { cause },
       );

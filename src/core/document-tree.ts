@@ -61,4 +61,44 @@ export type DocumentNode =
   // is the bound, JSON-serializable payload the registered implementation receives.
   | { kind: "custom"; component: string; props: unknown };
 
-export type DocumentTree = DocumentNode[];
+/** The assembled document body — the ordered node list a renderer visits. */
+export type DocumentBody = DocumentNode[];
+
+/**
+ * A resolved page header or footer (paged output only). Each slot is a fully-interpolated string; a
+ * page-number token survives as a {@link PAGE_NUMBER_SENTINEL}/{@link PAGE_TOTAL_SENTINEL} marker that
+ * a paged renderer substitutes per page (PDF/DOCX). HTML — a page-less fragment — ignores furniture.
+ * The marker uses private-use codepoints so it never collides with authored content.
+ */
+export interface PageFurniture {
+  left?: string;
+  center?: string;
+  right?: string;
+}
+
+/**
+ * The renderer- and snapshot-facing document: the body plus optional resolved page furniture. Enriched
+ * from a bare `DocumentNode[]` so headers/footers are frozen in the Snapshot and re-render deterministically.
+ */
+export interface DocumentTree {
+  body: DocumentBody;
+  header?: PageFurniture;
+  footer?: PageFurniture;
+}
+
+/**
+ * Normalize a renderer input: a bare `DocumentNode[]` is treated as a document body with no furniture
+ * (`{ body }`). This keeps the tree renderers back-compatible with a caller holding a plain node array.
+ */
+export function asDocumentTree(input: DocumentTree | DocumentBody): DocumentTree {
+  return Array.isArray(input) ? { body: input } : input;
+}
+
+/**
+ * Sentinels standing in for `$page.number` / `$page.total` in a resolved furniture slot. Assembly
+ * interpolates furniture against the scope augmented with `$page = { number, total }` bound to these
+ * markers; a paged renderer replaces them with the real per-page values it alone knows.
+ */
+const PAGE_TOKEN_MARK = "\uE000";
+export const PAGE_NUMBER_SENTINEL = `${PAGE_TOKEN_MARK}page.number${PAGE_TOKEN_MARK}`;
+export const PAGE_TOTAL_SENTINEL = `${PAGE_TOKEN_MARK}page.total${PAGE_TOKEN_MARK}`;

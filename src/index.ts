@@ -1,9 +1,29 @@
 export { Catalog } from "./catalog/catalog";
 export type { ClauseDiffOptions } from "./catalog/catalog";
 export { FileCatalogStore } from "./catalog/file-catalog-store";
+export { MemoryCatalogStore } from "./catalog/memory-catalog-store";
+export type { MemoryCatalogSeed, MemoryFamily } from "./catalog/memory-catalog-store";
+export { MemoryEditableCatalogStore } from "./catalog/memory-editable-catalog-store";
+export type { MemoryEditableOptions } from "./catalog/memory-editable-catalog-store";
 export { diffRichText } from "./core/clause-diff";
 export type { ClauseDiff, ClauseDiffChange } from "./core/clause-diff";
 export type { CatalogStore } from "./catalog/catalog-store";
+export { isEditableStore } from "./catalog/editable-catalog-store";
+export type {
+  EditableCatalogStore,
+  Actor,
+  ElementStatus,
+  ElementRef,
+  ElementContent,
+  DraftRef,
+  DraftHandle,
+  PublishResult,
+} from "./catalog/editable-catalog-store";
+export type { AuditEntry, AuditAction } from "./catalog/audit";
+export { LegalDocsError, NotFoundError } from "./core/errors";
+export type { NotFoundKind, NotFoundRef } from "./core/errors";
+export { PublishValidationError } from "./catalog/editing-facade";
+export type { EditingApi } from "./catalog/editing-facade";
 export type {
   ValidationResult,
   ValidationFinding,
@@ -26,10 +46,10 @@ export type {
   HtmlFromSnapshot,
   DocxFromSnapshot,
 } from "./facade/render-from-snapshot";
-export { buildSnapshot, DEFAULT_SNAPSHOT_MODE } from "./core/snapshot";
+export { buildSnapshot, DEFAULT_SNAPSHOT_MODE, SNAPSHOT_SCHEMA_VERSION, SnapshotError, assertValidSnapshot } from "./core/snapshot";
 export type { Snapshot, SnapshotMode, ClausePin, SnapshotInput } from "./core/snapshot";
 
-export { assembleTree } from "./core/engine";
+export { assembleTree, assembleDocument } from "./core/engine";
 export type { AssembleContext, ClauseResolver } from "./core/engine";
 export type {
   Template,
@@ -40,13 +60,17 @@ export type {
   ArticleItem,
   KeyValueRows,
   SignaturePlaceSpec,
+  PageFurnitureSpec,
 } from "./core/template";
 export { expandIncludes, IncludeError } from "./core/includes";
 export type { IncludeLoader } from "./core/includes";
 export { composeTemplate, CompositionError } from "./core/compose";
+export { asDocumentTree, PAGE_NUMBER_SENTINEL, PAGE_TOTAL_SENTINEL } from "./core/document-tree";
 export type {
   DocumentNode,
   DocumentTree,
+  DocumentBody,
+  PageFurniture,
   InlineRich,
   PartyIdentification,
   KeyValueRow,
@@ -71,11 +95,17 @@ export { resolvePayload } from "./core/resolve";
 export type { Derivation, DerivationRegistry, ResolvedPayload } from "./core/resolve";
 export { money, loan, party } from "./core/schema-fragments";
 export type { Money, Loan, Party } from "./core/schema-fragments";
-export { defaultHelpers } from "./core/helpers";
+export { exportPayloadSchema, exportPayloadSchemas } from "./core/json-schema";
+export type { JsonSchema, JsonSchemaTarget, JsonSchemaOptions } from "./core/json-schema";
+export { defaultHelpers, makeDefaultHelpers } from "./core/helpers";
 export type { Helper, HelperRegistry } from "./core/helpers";
 
-export { defaultTheme } from "./render-pdf/theme";
-export type { Theme } from "./render-pdf/theme";
+export { defaultTheme, mergeTheme, DEFAULT_FONT_FAMILY } from "./theme";
+export type { Theme, DeepPartial } from "./theme";
+// Re-export react-pdf's Font so consumers can register their own PDF fonts (e.g. a branded family), plus
+// the bundled diacritics-safe default registration. See docs/THEMING.md.
+export { Font } from "@react-pdf/renderer";
+export { registerBundledFonts } from "./render-pdf/fonts";
 export type {
   CustomBlock,
   CustomBlockRegistry,
@@ -86,7 +116,9 @@ export type {
   DegradationMode,
   DegradationEvent,
   OnDegrade,
-} from "./render-pdf/custom-block";
+} from "./custom-block";
+export type { RenderTreeOptions } from "./custom-block";
+export { renderTreeToPdf } from "./render-pdf/render-pdf";
 export { renderTreeToHtml } from "./render-html/render-html";
 export { escapeHtml } from "./render-html/escape";
 export { renderClauseDiff } from "./render-html/clause-diff-html";

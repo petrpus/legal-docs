@@ -12,7 +12,38 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # node:sqlite (the adapters/sqlite conformance test) needs Node >=22.5 — the published
+          # library itself stays Node >=20 (package.json#engines); this only affects running `verify`.
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run verify
+      # Smoke-test the built CLI bin (shebang, bin wiring, dist chunking) — vitest exercises the
+      # command logic directly via runCli(), pre-build; this covers what that can't.
+      - run: node dist/cli.js --help
+      - run: node dist/cli.js validate --catalog legal-docs --config tests/fixtures/cli-registry.mjs
+      # Guard against a future src/browser.ts change re-introducing a Node built-in into the bundle
+      # tsup produces for the in-browser demo — vitest covers its logic, but only the built output can
+      # be checked for an actual `node:*` import specifier (esbuild leaves these unresolved verbatim).
+      # In practice esbuild's `platform: "browser"` already fails the build outright on any unresolvable
+      # `node:` import, so this is defense-in-depth for e.g. a dependency whose "browser" field stubs
+      # one built-in but not another; match any `node:` scheme, not an enumerated allowlist.
+      - run: |
+          if grep -qE '"node:' docs/assets/browser-demo.js; then
+            echo "docs/assets/browser-demo.js references a node: built-in — it must stay browser-safe" >&2
+            exit 1
+          fi
+      # The docs/*.html site is committed (it's the deployed artifact, not built on demand), so a
+      # markdown edit without a matching `npm run docs:build` would silently drift. Regenerate and
+      # fail if that leaves an uncommitted diff.
+      - run: npm run docs:build
+      - run: git diff --exit-code -- docs/
+
+  action-self-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./actions/validate
+        with:
+          catalog: legal-docs
+          config: tests/fixtures/cli-registry.mjs

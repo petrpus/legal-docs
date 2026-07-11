@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import { renderClauseDiff } from "../src/render-html/clause-diff-html";
 import { Catalog } from "../src/catalog/catalog";
-import { defaultTheme } from "../src/render-pdf/theme";
+import { defaultTheme } from "../src/theme";
 import type { ClauseDiff } from "../src/core/clause-diff";
 
 const here = path.dirname(fileURLToPath(import.meta.url));

@@ -1,12 +1,15 @@
+import { LegalDocsError } from "../core/errors";
 import { Document, Page, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { cloneElement, createElement, type ReactElement } from "react";
-import type { DocumentNode, DocumentTree } from "../core/document-tree";
+import type { DocumentBody, DocumentNode, DocumentTree, PageFurniture } from "../core/document-tree";
+import { asDocumentTree, PAGE_NUMBER_SENTINEL, PAGE_TOTAL_SENTINEL } from "../core/document-tree";
 import type { RichRun } from "../core/rich-text";
 import { MAX_LEVEL } from "../core/engine";
 import { validatePayload } from "../core/payload";
-import { defaultTheme, type Theme } from "./theme";
-import { reportDegradation } from "./custom-block";
-import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "./custom-block";
+import { defaultTheme, mergeTheme, type Theme } from "../theme";
+import { registerBundledFonts } from "./fonts";
+import { reportDegradation } from "../custom-block";
+import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../custom-block";
 
 /** Render-time Custom-block context threaded through the visitor. */
 interface CustomCtx {
@@ -190,7 +193,7 @@ function nodeToElement(
       // Exhaustive over the Core node set: a new kind makes this assignment a compile error,
       // and this also guards untyped JS callers at runtime.
       const unhandled: never = node;
-      throw new Error(`Unsupported node kind: ${JSON.stringify(unhandled)}`);
+      throw new LegalDocsError(`Unsupported node kind: ${JSON.stringify(unhandled)}`);
     }
   }
 }
@@ -207,7 +210,7 @@ function customElement(
   cx: CustomCtx,
 ): ReactElement {
   const block = cx.blocks[node.component];
-  if (!block) throw new Error(`Custom block "${node.component}" is not registered`);
+  if (!block) throw new LegalDocsError(`Custom block "${node.component}" is not registered`);
   if (typeof block.pdf !== "function") {
     // `pdf` is required by the contract, so this only fires for an untyped caller or a future format;
     // the Degradation contract governs it (default: a visible, logged placeholder; never silent).
@@ -219,7 +222,7 @@ function customElement(
       props = validatePayload(block.schema, node.props);
     } catch (cause) {
       const reason = cause instanceof Error ? cause.message : String(cause);
-      throw new Error(`Custom block "${node.component}" received invalid props: ${reason}`, { cause });
+      throw new LegalDocsError(`Custom block "${node.component}" received invalid props: ${reason}`, { cause });
     }
   }
   // The block owns its layout (ADR-0005); inject only a key — no wrapper — so it controls its own
@@ -280,18 +283,53 @@ export function documentElement(
   return createElement(
     Document,
     null,
-    <Page size={theme.page.size} style={{ padding: theme.page.padding, color: theme.color.text }}>
-      {tree.map((node, i) => nodeToElement(node, i, theme, cx))}
+    // fontFamily on the Page cascades to all Text (react-pdf resolves bold/italic within the family).
+    <Page size={theme.page.size} style={{ padding: theme.page.padding, color: theme.color.text, fontFamily: theme.font.family }}>
+      {tree.header ? furnitureElement(tree.header, "header", theme) : null}
+      {tree.body.map((node, i) => nodeToElement(node, i, theme, cx))}
+      {tree.footer ? furnitureElement(tree.footer, "footer", theme) : null}
     </Page>,
   );
 }
 
-export function renderTreeToBuffer(
-  tree: DocumentTree,
-  theme?: Theme,
-  customBlocks?: CustomBlockRegistry,
-  degradation?: DegradationMode,
-  onDegrade?: OnDegrade,
-): Promise<Buffer> {
-  return renderToBuffer(documentElement(tree, theme, customBlocks, degradation, onDegrade));
+/**
+ * A page header/footer: a `fixed` (repeats on every page), absolutely-positioned three-column row.
+ * Each slot's page-number sentinels are substituted per page via react-pdf's `render` callback, which
+ * is the only place `pageNumber`/`totalPages` are known.
+ */
+function furnitureElement(furniture: PageFurniture, kind: "header" | "footer", theme: Theme): ReactElement {
+  const style = kind === "header" ? theme.header : theme.footer;
+  const edge = kind === "header" ? { top: style.margin } : { bottom: style.margin };
+  const fill =
+    (slot: string) =>
+    ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }): string =>
+      slot.split(PAGE_NUMBER_SENTINEL).join(String(pageNumber)).split(PAGE_TOTAL_SENTINEL).join(String(totalPages));
+  const column = { flexGrow: 1, flexBasis: 0 } as const;
+  return (
+    <View
+      key={kind}
+      fixed
+      style={{
+        position: "absolute",
+        left: theme.page.padding,
+        right: theme.page.padding,
+        ...edge,
+        flexDirection: "row",
+        fontSize: style.fontSize,
+        color: style.color,
+      }}
+    >
+      <Text style={{ ...column, textAlign: "left" }} render={fill(furniture.left ?? "")} />
+      <Text style={{ ...column, textAlign: "center" }} render={fill(furniture.center ?? "")} />
+      <Text style={{ ...column, textAlign: "right" }} render={fill(furniture.right ?? "")} />
+    </View>
+  );
+}
+
+export function renderTreeToPdf(input: DocumentTree | DocumentBody, options: RenderTreeOptions = {}): Promise<Buffer> {
+  // Register the bundled diacritics-safe font before rendering (idempotent). A consumer who sets a
+  // different `theme.font.family` registers that family themselves via the re-exported `Font`.
+  registerBundledFonts();
+  const theme = mergeTheme(options.theme);
+  return renderToBuffer(documentElement(asDocumentTree(input), theme, options.customBlocks, options.degradation, options.onDegrade));
 }

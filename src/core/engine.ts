@@ -1,6 +1,7 @@
-import type { ArticleItem, BodyItem, KeyValueRows, SignaturePlaceSpec, Template, TextSpec } from "./template";
-import type { BlockIndent, DocumentNode, DocumentTree, KeyValueRow, SignaturePlace } from "./document-tree";
-import { ALIGN_VALUES, isAlign } from "./document-tree";
+import type { ArticleItem, BodyItem, KeyValueRows, PageFurnitureSpec, SignaturePlaceSpec, Template, TextSpec } from "./template";
+import { LegalDocsError } from "./errors";
+import type { BlockIndent, DocumentNode, DocumentTree, KeyValueRow, PageFurniture, SignaturePlace } from "./document-tree";
+import { ALIGN_VALUES, isAlign, PAGE_NUMBER_SENTINEL, PAGE_TOTAL_SENTINEL } from "./document-tree";
 import type { Clause } from "./clause";
 import { evaluate, evaluatePath, evaluatePredicate, type EvalContext } from "./expression";
 import { deepBind } from "./deep-bind";
@@ -9,7 +10,7 @@ import { parseRichText } from "./rich-text";
 import { validateVars } from "./vars-schema";
 import { validatePayload } from "./payload";
 import { party } from "./schema-fragments";
-import { defaultHelpers, type HelperRegistry } from "./helpers";
+import { makeDefaultHelpers, type HelperRegistry } from "./helpers";
 import { classify, type ClassifiedBodyItem } from "./body-traversal";
 
 /** Resolves a Clause reference (`id@vN` | `id@latest`) to a concrete Clause for a locale. */
@@ -43,13 +44,61 @@ export const MAX_LEVEL = 3;
 export async function assembleTree(
   template: Template,
   context: AssembleContext = {},
+): Promise<DocumentNode[]> {
+  return assembleItems(template.body, buildFrame(template, context), 1);
+}
+
+/**
+ * Assemble a full {@link DocumentTree}: the body plus the resolved page header/footer (paged output).
+ * Furniture slots are interpolated against the payload scope; a `$page.number` / `$page.total` token
+ * resolves to a sentinel that the paged renderer substitutes per page.
+ */
+export async function assembleDocument(
+  template: Template,
+  context: AssembleContext = {},
 ): Promise<DocumentTree> {
-  const frame: Frame = {
-    evalCtx: { scope: context.scope ?? {}, helpers: { ...defaultHelpers, ...context.helpers } },
-    context,
-    locale: context.locale ?? template.locale,
+  const frame = buildFrame(template, context);
+  const body = await assembleItems(template.body, frame, 1);
+  const header = resolveFurniture(template.header, frame);
+  const footer = resolveFurniture(template.footer, frame);
+  return {
+    body,
+    ...(header !== undefined ? { header } : {}),
+    ...(footer !== undefined ? { footer } : {}),
   };
-  return assembleItems(template.body, frame, 1);
+}
+
+function buildFrame(template: Template, context: AssembleContext): Frame {
+  const locale = context.locale ?? template.locale;
+  return {
+    // Bind the render locale into the built-in helpers so `formatMoney`/`formatDateLong` format for it;
+    // consumer `helpers` win on name collision.
+    evalCtx: { scope: context.scope ?? {}, helpers: { ...makeDefaultHelpers(locale), ...context.helpers } },
+    context,
+    locale,
+  };
+}
+
+/**
+ * Interpolate a header/footer spec's slots against the payload scope augmented with the reserved
+ * `$page` namespace (bound to the per-page sentinels). Returns `undefined` if the spec is absent or all
+ * its slots are.
+ */
+function resolveFurniture(spec: PageFurnitureSpec | undefined, frame: Frame): PageFurniture | undefined {
+  if (!spec) return undefined;
+  // `$page.number` / `$page.total` resolve to sentinels here; the paged renderer swaps them per page.
+  const scope = { ...frame.evalCtx.scope, page: { number: PAGE_NUMBER_SENTINEL, total: PAGE_TOTAL_SENTINEL } };
+  const ctx: EvalContext = { ...frame.evalCtx, scope };
+  const slot = (s: string | undefined): string | undefined => (s === undefined ? undefined : interpolate(s, ctx));
+  const left = slot(spec.left);
+  const center = slot(spec.center);
+  const right = slot(spec.right);
+  if (left === undefined && center === undefined && right === undefined) return undefined;
+  return {
+    ...(left !== undefined ? { left } : {}),
+    ...(center !== undefined ? { center } : {}),
+    ...(right !== undefined ? { right } : {}),
+  };
 }
 
 async function assembleItems(items: BodyItem[], frame: Frame, level: number): Promise<DocumentNode[]> {
@@ -84,7 +133,7 @@ async function assembleFor(
 ): Promise<DocumentNode[]> {
   const list = evaluatePath(item.for.each, frame.evalCtx);
   if (!Array.isArray(list)) {
-    throw new Error(`for: "${item.for.each}" did not resolve to an array`);
+    throw new LegalDocsError(`for: "${item.for.each}" did not resolve to an array`);
   }
   const groups: DocumentNode[][] = [];
   for (let index = 0; index < list.length; index++) {
@@ -136,16 +185,16 @@ async function toNode(
       return customNode(classified.item.custom, frame);
     // Directives never reach assembly: Include expansion and Slot filling splice them away first.
     case "include":
-      throw new Error(
+      throw new LegalDocsError(
         `Unexpanded include "${classified.item.include}" reached tree assembly — expand Includes first`,
       );
     case "slot":
-      throw new Error(
+      throw new LegalDocsError(
         `Unfilled slot "${classified.item.slot}" reached tree assembly — compose a Variant first`,
       );
     default: {
       const unhandled: never = classified;
-      throw new Error(`Unhandled body item: ${JSON.stringify(unhandled)}`);
+      throw new LegalDocsError(`Unhandled body item: ${JSON.stringify(unhandled)}`);
     }
   }
 }
@@ -163,7 +212,7 @@ function textNode(kind: "title" | "paragraph", spec: string | TextSpec, frame: F
   // point every template flows through. This makes `align`/`indent` well-formed for every renderer.
   const { align } = spec;
   if (align !== undefined && !isAlign(align)) {
-    throw new Error(`Invalid ${kind} align "${String(align)}"; expected one of ${ALIGN_VALUES.join(", ")}`);
+    throw new LegalDocsError(`Invalid ${kind} align "${String(align)}"; expected one of ${ALIGN_VALUES.join(", ")}`);
   }
   const indent = buildIndent(kind, spec);
   return {
@@ -181,7 +230,7 @@ function buildIndent(kind: string, spec: TextSpec): BlockIndent | undefined {
     // v1 is non-negative only; negative (hanging/outdent) is a deferred feature (ADR-0008) — rejecting
     // it here keeps all three renderers consistent (they'd otherwise diverge on a negative value).
     if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
-      throw new Error(`Invalid ${kind} ${name} "${String(value)}"; expected a non-negative number (design points)`);
+      throw new LegalDocsError(`Invalid ${kind} ${name} "${String(value)}"; expected a non-negative number (design points)`);
     }
     return value;
   };
@@ -209,7 +258,7 @@ function signaturesNode(spec: { places: SignaturePlaceSpec[] }, frame: Frame): D
 
 function toPlace(spec: SignaturePlaceSpec, evalCtx: EvalContext): SignaturePlace {
   if (spec.party !== undefined && spec.name !== undefined) {
-    throw new Error("signatures: a place has both `party` and `name`; use exactly one");
+    throw new LegalDocsError("signatures: a place has both `party` and `name`; use exactly one");
   }
   let name: string;
   if (spec.party !== undefined) {
@@ -218,7 +267,7 @@ function toPlace(spec: SignaturePlaceSpec, evalCtx: EvalContext): SignaturePlace
   } else if (spec.name !== undefined) {
     name = interpolate(spec.name, evalCtx);
   } else {
-    throw new Error("signatures: a place needs either `party` or `name`");
+    throw new LegalDocsError("signatures: a place needs either `party` or `name`");
   }
   return { name, ...(spec.role !== undefined ? { role: interpolate(spec.role, evalCtx) } : {}) };
 }
@@ -229,7 +278,7 @@ function partyHeaderNode(
 ): DocumentNode {
   const resolved = evaluate(spec.party, frame.evalCtx);
   if (resolved === undefined || resolved === null) {
-    throw new Error(`partyHeader: "${spec.party}" resolved to no party`);
+    throw new LegalDocsError(`partyHeader: "${spec.party}" resolved to no party`);
   }
   const identification = validatePayload(party, resolved);
   return {
@@ -251,7 +300,7 @@ function buildRows(rows: KeyValueRows, evalCtx: EvalContext): KeyValueRow[] {
     }));
   }
   const builder = evalCtx.helpers[rows.fn];
-  if (!builder) throw new Error(`Unknown row-builder helper: ${rows.fn}`);
+  if (!builder) throw new LegalDocsError(`Unknown row-builder helper: ${rows.fn}`);
   const args = (rows.args ?? []).map((arg) =>
     typeof arg === "string" && arg.startsWith("$") ? evaluate(arg, evalCtx) : arg,
   );
@@ -260,18 +309,18 @@ function buildRows(rows: KeyValueRows, evalCtx: EvalContext): KeyValueRow[] {
     produced = builder(...args);
   } catch (cause) {
     const reason = cause instanceof Error ? cause.message : String(cause);
-    throw new Error(`Row-builder "${rows.fn}" failed: ${reason}`, { cause });
+    throw new LegalDocsError(`Row-builder "${rows.fn}" failed: ${reason}`, { cause });
   }
   return asKeyValueRows(produced, rows.fn);
 }
 
 function asKeyValueRows(value: unknown, fn: string): KeyValueRow[] {
   if (!Array.isArray(value)) {
-    throw new Error(`Row-builder "${fn}" must return an array of { label, value }`);
+    throw new LegalDocsError(`Row-builder "${fn}" must return an array of { label, value }`);
   }
   return value.map((row, i) => {
     if (row === null || typeof row !== "object") {
-      throw new Error(`Row-builder "${fn}" returned a non-object row at index ${i}`);
+      throw new LegalDocsError(`Row-builder "${fn}" returned a non-object row at index ${i}`);
     }
     const r = row as Record<string, unknown>;
     return { label: cell(r.label, fn, i, "label"), value: cell(r.value, fn, i, "value") };
@@ -281,7 +330,7 @@ function asKeyValueRows(value: unknown, fn: string): KeyValueRow[] {
 function cell(value: unknown, fn: string, index: number, key: "label" | "value"): string {
   if (typeof value === "string") return value;
   if (typeof value === "number") return String(value);
-  throw new Error(`Row-builder "${fn}" row ${index}: "${key}" must be a string or number`);
+  throw new LegalDocsError(`Row-builder "${fn}" row ${index}: "${key}" must be a string or number`);
 }
 
 async function articleNode(article: ArticleItem, frame: Frame, level: number): Promise<DocumentNode> {
@@ -310,7 +359,7 @@ async function clauseNode(
   frame: Frame,
 ): Promise<DocumentNode> {
   if (!frame.context.clauses) {
-    throw new Error(`No clause resolver available to render "${item.clause}"`);
+    throw new LegalDocsError(`No clause resolver available to render "${item.clause}"`);
   }
   // The ref may be a `$`-expression (e.g. a Derivation choosing the version) or a literal.
   const ref = item.clause.startsWith("$")

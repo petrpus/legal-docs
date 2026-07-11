@@ -1,7 +1,8 @@
+import { LegalDocsError } from "./core/errors";
 import type { ReactElement } from "react";
 import type { Paragraph, Table } from "docx";
 import type { ZodType } from "zod";
-import type { Theme } from "./theme";
+import type { DeepPartial, Theme } from "./theme";
 
 /** Context a Custom block implementation receives (deliberately minimal; extensible later). */
 export interface CustomBlockContext {
@@ -22,9 +23,14 @@ export type DocxCustomBlock = (props: unknown, ctx: CustomBlockContext) => (Para
  * required; `html`/`docx` are optional (a missing one triggers the Degradation contract). An optional
  * `schema` validates `props` at render dispatch. A Custom block is a leaf — it renders its own layout.
  */
+/**
+ * A Custom block's per-format implementations (ADR-0005). **All three are optional** — register only
+ * the formats you render; a format with no implementation degrades per the {@link DegradationMode}
+ * (so an HTML-only app needn't author a react-pdf `pdf` impl). Register at least one.
+ */
 export interface CustomBlock {
   schema?: ZodType;
-  pdf: PdfCustomBlock;
+  pdf?: PdfCustomBlock;
   html?: HtmlCustomBlock;
   docx?: DocxCustomBlock;
 }
@@ -50,6 +56,15 @@ export interface DegradationEvent {
 /** A consumer sink for degradation events. When supplied, it replaces the default `console.warn`. */
 export type OnDegrade = (event: DegradationEvent) => void;
 
+/** Options shared by all three tree renderers (`renderTreeToPdf`/`Html`/`Docx`). */
+export interface RenderTreeOptions {
+  /** A partial theme, deep-merged over `defaultTheme` (override one token without re-spreading the rest). */
+  theme?: DeepPartial<Theme>;
+  customBlocks?: CustomBlockRegistry;
+  degradation?: DegradationMode;
+  onDegrade?: OnDegrade;
+}
+
 /**
  * Apply the Degradation contract for a missing-format Custom block: in `throw` mode fail hard; in
  * `placeholder` mode notify (the consumer's {@link OnDegrade} sink, or `console.warn` by default) and
@@ -62,7 +77,7 @@ export function reportDegradation(
   onDegrade?: OnDegrade,
 ): string {
   if (mode === "throw") {
-    throw new Error(
+    throw new LegalDocsError(
       `Custom block "${component}" cannot render in "${format}": no ${format} implementation (degradation=throw)`,
     );
   }
@@ -73,5 +88,5 @@ export function reportDegradation(
     return marker;
   }
   const unsupported: never = mode;
-  throw new Error(`Unknown degradation mode: ${String(unsupported)}`);
+  throw new LegalDocsError(`Unknown degradation mode: ${String(unsupported)}`);
 }

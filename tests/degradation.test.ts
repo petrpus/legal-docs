@@ -8,8 +8,8 @@ import { createElement } from "react";
 import { Text } from "@react-pdf/renderer";
 import { renderTreeToHtml } from "../src/render-html/render-html";
 import { renderTreeToDocx } from "../src/render-docx/render-docx";
-import { defaultTheme } from "../src/render-pdf/theme";
-import type { CustomBlock, CustomBlockRegistry, DegradationEvent } from "../src/render-pdf/custom-block";
+import { defaultTheme } from "../src/theme";
+import type { CustomBlock, CustomBlockRegistry, DegradationEvent } from "../src/custom-block";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const catalogDir = path.join(here, "fixtures", "custom");
@@ -78,13 +78,12 @@ describe("Degradation contract", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const events: DegradationEvent[] = [];
 
-    const html = renderTreeToHtml(
-      [{ kind: "custom", component: "banner", props: undefined }],
-      defaultTheme,
-      { banner: { pdf: () => createElement(Text, null, "x") } }, // no html → degrades
-      "placeholder",
-      (event) => events.push(event),
-    );
+    const html = renderTreeToHtml([{ kind: "custom", component: "banner", props: undefined }], {
+      theme: defaultTheme,
+      customBlocks: { banner: { pdf: () => createElement(Text, null, "x") } }, // no html → degrades
+      degradation: "placeholder",
+      onDegrade: (event) => events.push(event),
+    });
 
     expect(events).toEqual([
       { component: "banner", format: "html", marker: "[unsupported block: banner in html]" },
@@ -98,13 +97,12 @@ describe("Degradation contract", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const events: DegradationEvent[] = [];
 
-    await renderTreeToDocx(
-      [{ kind: "custom", component: "banner", props: undefined }],
-      defaultTheme,
-      { banner: { pdf: () => createElement(Text, null, "x") } }, // no docx → degrades
-      "placeholder",
-      (event) => events.push(event),
-    );
+    await renderTreeToDocx([{ kind: "custom", component: "banner", props: undefined }], {
+      theme: defaultTheme,
+      customBlocks: { banner: { pdf: () => createElement(Text, null, "x") } }, // no docx → degrades
+      degradation: "placeholder",
+      onDegrade: (event) => events.push(event),
+    });
 
     expect(events).toEqual([
       { component: "banner", format: "docx", marker: "[unsupported block: banner in docx]" },

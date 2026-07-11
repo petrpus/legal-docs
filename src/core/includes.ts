@@ -1,3 +1,4 @@
+import { LegalDocsError } from "./errors";
 import type { BodyItem, Include } from "./template";
 import { mapBodyAsync } from "./body-traversal";
 
@@ -5,7 +6,7 @@ import { mapBodyAsync } from "./body-traversal";
 export type IncludeLoader = (id: string) => Promise<Include>;
 
 /** A bad `include`: an unknown partial id or an include cycle. Carries the body path of the include. */
-export class IncludeError extends Error {
+export class IncludeError extends LegalDocsError {
   constructor(
     message: string,
     /** Location of the offending `include`, e.g. `body[2] › greeting-block`. */

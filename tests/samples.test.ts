@@ -58,6 +58,11 @@ const samples: Record<string, SampleConfig> = {
   },
   localized: {},
   styled: {},
+  "nda-headed": {
+    // Showcase: page header/footer + page numbering (ADR-0011) with locale-aware helpers (ADR-0010).
+    data: { party: { name: "Acme Bank a.s." }, amount: 50000, currency: "EUR", date: "2026-07-06" },
+    schemas: { "nda@1": z.object({ party, amount: z.number(), currency: z.string(), date: z.string() }) },
+  },
   "signature-grid": {
     data: {
       signatories: [

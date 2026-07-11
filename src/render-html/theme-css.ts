@@ -1,4 +1,4 @@
-import type { Theme } from "../render-pdf/theme";
+import type { Theme } from "../theme";
 
 /**
  * Generate one scoped stylesheet from the shared Theme. Every rule is scoped under `.legal-doc` so the
@@ -8,7 +8,8 @@ export function themeCss(t: Theme): string {
   const [h1, h2, h3] = t.article.headingFontSize;
   // `list.markerGap` is intentionally unused: HTML uses native <ol>/<ul> markers, not a manual gap.
   return [
-    `.legal-doc{color:${t.color.text};font-family:serif;font-size:${t.fontSize.paragraph}px;}`,
+    // The theme font name is the PDF-registered family; browsers fall back through generic serifs.
+    `.legal-doc{color:${t.color.text};font-family:"${t.font.family}",Georgia,"Times New Roman",serif;font-size:${t.fontSize.paragraph}px;}`,
     `.legal-doc .title{font-size:${t.fontSize.title}px;font-weight:bold;margin:0 0 ${t.spacing.title}px;text-align:${t.align.title};}`,
     // Paragraph defaults incl. block indent (left margin) and first-line indent; a per-block override
     // emits an inline style that wins over this rule (ADR-0008).

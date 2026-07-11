@@ -9,7 +9,9 @@ npm install
 npm run verify   # typecheck + lint + tests + build — must be green
 ```
 
-Requires Node ≥ 20.
+Requires Node ≥ 20 to consume the published library. Running `npm run verify` needs **Node ≥ 22.5**:
+the `adapters/sqlite/` conformance test uses the built-in `node:sqlite` module, which isn't present on
+Node 20 (the library itself stays Node ≥ 20 — that adapter is outside the published package).
 
 ## Workflow
 
@@ -45,5 +47,22 @@ glossary — no implementation detail).
 ## Architecture orientation
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the renderer-agnostic tree and the two seams
-(`DocumentNode[]` between engine and renderers; `CatalogStore` between content storage and everything
+(`DocumentTree` between engine and renderers; `CatalogStore` between content storage and everything
 above). The full design and roadmap live in [`docs/PLAN.md`](docs/PLAN.md).
+
+## HTML documentation site
+
+`npm run docs:build` renders a subset of the repo's markdown docs (README, `docs/{ARCHITECTURE,
+AUTHORING,CONTEXT,THEMING}.md`, `docs/recipes/*.md`, `CHANGELOG.md`, the demo/action READMEs) into a
+static, self-contained HTML site under `docs/*.html` (source for GitHub Pages, `docs/` folder). It's
+scoped to a project introduction and developer reference — the ADRs, `docs/PLAN.md` and
+`CONTRIBUTING.md` stay repo-only (linked to on GitHub from any page that references them) rather than on
+the public site. The generator is `scripts/build-docs-site.mjs` — **re-run it after editing any source
+markdown**; it also rebuilds `docs/assets/browser-demo.js` (the browser-safe bundle from `src/browser.ts`
+that powers `docs/live-demo.html`'s in-browser demo). The `.html`/`.js` files are committed (not
+gitignored) so the site works without a build step once deployed.
+
+Adding a new markdown doc to the repo does **not** automatically add it to the site — `assertManifestComplete()`
+in the generator fails loudly if it finds an unregistered `.md` file outside the deliberately-excluded
+set, so a new doc is either registered in `PAGES` (it becomes a site page) or added to `EXCLUDED`
+(it stays repo-only).

@@ -26,6 +26,36 @@ describe("evaluate", () => {
     expect(evaluate("$n + 1", ctx({ n: 4 }))).toBe(5);
   });
 
+  it("evaluates the full arithmetic operator set", () => {
+    expect(evaluate("$a - $b", ctx({ a: 7, b: 2 }))).toBe(5);
+    expect(evaluate("$a * $b", ctx({ a: 6, b: 7 }))).toBe(42);
+    expect(evaluate("$a / $b", ctx({ a: 9, b: 3 }))).toBe(3);
+    expect(evaluate("$a % $b", ctx({ a: 10, b: 3 }))).toBe(1);
+  });
+
+  it("rejects division and modulo by zero instead of leaking Infinity/NaN", () => {
+    // 1 / 0 → Infinity, 0 / 0 → NaN; both would otherwise render literally in the document.
+    expect(() => evaluate("$a / 0", ctx({ a: 1 }))).toThrow(/Division by zero/);
+    expect(() => evaluate("0 / 0", ctx())).toThrow(/Division by zero/);
+    expect(() => evaluate("$a % 0", ctx({ a: 5 }))).toThrow(/Modulo by zero/);
+  });
+
+  it("rejects a non-finite operand (a literal or coerced Infinity) as not a finite number", () => {
+    expect(() => evaluate("$x + 1", ctx({ x: Infinity }))).toThrow(/Not a finite number/);
+    expect(() => evaluate("$x * 2", ctx({ x: "Infinity" }))).toThrow(/Not a finite number/);
+  });
+
+  it("rejects a non-finite operand in a comparison too (not just arithmetic)", () => {
+    // Pins intent: the isFinite guard in toNumber deliberately covers the comparison path, so a future
+    // reader doesn't relax it back to isNaN and let Infinity through `<`/`>`.
+    expect(() => evaluate("$x < 100", ctx({ x: Infinity }))).toThrow(/Not a finite number/);
+  });
+
+  it("rejects an arithmetic result that overflows to a non-finite value", () => {
+    // Two finite operands whose product overflows to Infinity must not leak into output.
+    expect(() => evaluate("$x * $x", ctx({ x: 1e308 }))).toThrow(/non-finite result/);
+  });
+
   it("calls whitelisted helpers", () => {
     const helpers = { upper: (...args: unknown[]) => String(args[0]).toUpperCase() };
     expect(evaluate("upper($s)", ctx({ s: "hi" }, helpers))).toBe("HI");

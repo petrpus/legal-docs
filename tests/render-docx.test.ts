@@ -5,9 +5,9 @@ import { Paragraph, TextRun } from "docx";
 import JSZip from "jszip";
 import { renderTreeToDocx } from "../src/render-docx/render-docx";
 import { parseRichText } from "../src/core/rich-text";
-import { defaultTheme } from "../src/render-pdf/theme";
-import type { DocumentTree } from "../src/core/document-tree";
-import type { CustomBlockRegistry } from "../src/render-pdf/custom-block";
+import { defaultTheme } from "../src/theme";
+import type { DocumentBody } from "../src/core/document-tree";
+import type { CustomBlockRegistry } from "../src/custom-block";
 
 /** The raw word/document.xml of a .docx Buffer (text lives in <w:t> nodes). */
 async function docXml(buffer: Buffer): Promise<string> {
@@ -17,7 +17,7 @@ async function docXml(buffer: Buffer): Promise<string> {
   return file.async("string");
 }
 
-const tree: DocumentTree = [
+const tree: DocumentBody = [
   { kind: "title", text: "PLEDGE AGREEMENT" },
   { kind: "paragraph", text: "A plain paragraph." },
   { kind: "richText", value: parseRichText("This is **bold** text.") },
@@ -106,8 +106,7 @@ describe("renderTreeToDocx", () => {
     const degraded = await docXml(
       await renderTreeToDocx(
         [{ kind: "numberedList", items: [[{ kind: "custom", component: "pdfOnly", props: undefined }]] }],
-        defaultTheme,
-        customBlocks,
+        { theme: defaultTheme, customBlocks },
       ),
     );
     expect(degraded).toContain("[unsupported block: pdfOnly in docx]");
@@ -116,8 +115,7 @@ describe("renderTreeToDocx", () => {
     const rendered = await docXml(
       await renderTreeToDocx(
         [{ kind: "bulletList", items: [[{ kind: "custom", component: "box", props: undefined }]] }],
-        defaultTheme,
-        customBlocks,
+        { theme: defaultTheme, customBlocks },
       ),
     );
     expect(rendered).toContain("CUSTOM DOCX CONTENT");
@@ -125,7 +123,7 @@ describe("renderTreeToDocx", () => {
 
   it("renders a registered custom block's docx output", async () => {
     const xml = await docXml(
-      await renderTreeToDocx([{ kind: "custom", component: "box", props: undefined }], defaultTheme, customBlocks),
+      await renderTreeToDocx([{ kind: "custom", component: "box", props: undefined }], { theme: defaultTheme, customBlocks }),
     );
 
     expect(xml).toContain("CUSTOM DOCX CONTENT");
@@ -141,7 +139,7 @@ describe("renderTreeToDocx", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const xml = await docXml(
-      await renderTreeToDocx([{ kind: "custom", component: "pdfOnly", props: undefined }], defaultTheme, customBlocks),
+      await renderTreeToDocx([{ kind: "custom", component: "pdfOnly", props: undefined }], { theme: defaultTheme, customBlocks }),
     );
 
     expect(xml).toContain("[unsupported block: pdfOnly in docx]");
@@ -151,7 +149,7 @@ describe("renderTreeToDocx", () => {
 
   it("fails hard for a missing docx impl in throw mode", async () => {
     await expect(
-      renderTreeToDocx([{ kind: "custom", component: "pdfOnly", props: undefined }], defaultTheme, customBlocks, "throw"),
+      renderTreeToDocx([{ kind: "custom", component: "pdfOnly", props: undefined }], { theme: defaultTheme, customBlocks, degradation: "throw" }),
     ).rejects.toThrow(/Custom block "pdfOnly" cannot render in "docx"/);
   });
 });

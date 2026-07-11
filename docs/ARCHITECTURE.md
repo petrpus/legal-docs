@@ -24,12 +24,16 @@ Resolved payload
    │    ├─ Binding                          $paths / {{expr}} / vars substituted
    │    └─ Reference resolution             Block & Clause refs (@vN | @latest) looked up
    ▼
-DocumentNode[]   ◄──────────────── the renderer-agnostic seam
+DocumentTree = { body: DocumentNode[]; header?; footer? }  ◄── the renderer-agnostic seam
    │  Renderer (visitor)                 ← PDF / HTML / DOCX, one per format
    ▼
 result (discriminated by format)         ← pdf/docx: { buffer, stream }; html: { html };
                                             all carry { snapshot, snapshotId } for re-render
 ```
+
+`header`/`footer` are optional, resolved **Page furniture** (running page header/footer text plus
+`$page.number`/`$page.total`, paged output only — ADR-0011); a tree with neither is just the body. The
+tree renderers also accept a bare `DocumentNode[]` for a caller not using furniture.
 
 The three phases are deliberately separate so each is independently testable:
 
@@ -44,12 +48,17 @@ The three phases are deliberately separate so each is independently testable:
 The architecture turns on two clean boundaries ("seams") where one side can be swapped without
 touching the other:
 
-1. **`DocumentNode[]` — between the engine and the renderers.** Core produces a neutral document tree;
-   each **Renderer** is an exhaustive *visitor* over it. Author the structure once, render it to PDF,
-   HTML, and DOCX. This is why layout must be abstracted away from react-pdf (today it is fused in).
+1. **`DocumentTree` — between the engine and the renderers.** Core produces a neutral document tree
+   (a `DocumentNode[]` body, plus optional page furniture); each **Renderer** is an exhaustive *visitor*
+   over it. Author the structure once, render it to PDF, HTML, and DOCX. This is why layout must be
+   abstracted away from react-pdf (today it is fused in).
 2. **`CatalogStore` — between content storage and everything above it.** The **Catalog** loads
-   authored content through this interface. Today the only implementation is **FileCatalogStore**
-   (files + Git); a future DB-backed editing API is another adapter, not a rewrite.
+   authored content through this interface. **FileCatalogStore** (files + Git) is the read-only default;
+   **`EditableCatalogStore`** extends it with a runtime editing API (drafting, a `draft → in_review →
+   published` workflow, an audit log — ADR-0009), implemented by `MemoryEditableCatalogStore` and a
+   `node:sqlite` adapter (`adapters/sqlite/`, outside the package). Both share one `EditingWorkflow`, so
+   the core stays DB-free. `catalog.editing` surfaces it (a `validate()`-gated publish); `Catalog.fromStore`
+   is the seam.
 
 ## Module layout
 
@@ -64,6 +73,7 @@ split into a workspace once the seams are proven. The eventual package shape:
 | `render-html` | HTML visitor (preview / diff / WYSIWYG) | core |
 | `render-docx` | DOCX visitor (`docx` npm) | core |
 | facade `@petrpus/legal-docs` | Unified public API (`renderDocument`, `Catalog`) | all |
+| `cli` | `legal-docs` bin (`render`/`validate`/`schema`) — a thin wrapper over the facade + `Catalog`, no new capability | facade |
 
 ## Domain model
 
@@ -88,7 +98,10 @@ format (chiefly a Custom block missing that format), the **Degradation contract*
 `placeholder` (visible, logged marker), optionally `throw`; never silent omission.
 
 Styling comes from a consumer-overridable **theme** (tokens for fonts, sizes, colours, geometry);
-renderers read styles from the theme, never from hard-coded values.
+renderers read styles from the theme, never from hard-coded values. A partial theme (any subset of
+tokens) is deep-merged over `defaultTheme` by `mergeTheme` — a consumer overrides one token without
+re-spreading the rest. PDF and DOCX also render a Template's **Page furniture** (running header/footer,
+page numbering) as part of tree assembly; the HTML fragment renderer has no page concept and ignores it.
 
 ## Catalog, versioning & snapshots
 
@@ -114,7 +127,9 @@ element's `vars` typecheck against the payload.
 ## Public API
 
 ```ts
-import { Catalog, renderDocument, renderFromSnapshot, renderClauseDiff } from "@petrpus/legal-docs";
+import {
+  Catalog, renderDocument, renderFromSnapshot, renderClauseDiff, exportPayloadSchema,
+} from "@petrpus/legal-docs";
 
 const catalog = await Catalog.fromDir("./legal-docs");        // FileCatalogStore, no DB
 
@@ -127,7 +142,12 @@ const docx = await renderDocument({ catalog, template: "pledge-agreement", varia
 await renderFromSnapshot(pdf.snapshot, { format: "pdf" });    // deterministic re-render
 catalog.validate({ customBlocks });                           // integrity lint
 renderClauseDiff(await catalog.clauses.diff("aml.intro", { from: 2, to: 3 })); // HTML diff view
+exportPayloadSchema(payloadSchema);                            // payload contract as JSON Schema
 ```
+
+Also available: a `legal-docs` **CLI** (`render`/`validate`/`schema`) over this same facade for
+shell/CI use, and a composite **GitHub Action** wrapping `validate` as a PR check — see the root
+[`README.md`](../README.md).
 
 ## See also
 

@@ -1,5 +1,6 @@
+import { LegalDocsError } from "../core/errors";
 import type { ClauseDiff, ClauseDiffChange } from "../core/clause-diff";
-import { defaultTheme, type Theme } from "../render-pdf/theme";
+import { defaultTheme, type Theme } from "../theme";
 import { escapeHtml } from "./escape";
 
 /**
@@ -26,7 +27,7 @@ function changeHtml(change: ClauseDiffChange): string {
       return `<div class="diff-replaced"><del>${escapeHtml(change.before)}</del><ins>${escapeHtml(change.after)}</ins></div>`;
     default: {
       const unhandled: never = change;
-      throw new Error(`Unsupported diff change: ${JSON.stringify(unhandled)}`);
+      throw new LegalDocsError(`Unsupported diff change: ${JSON.stringify(unhandled)}`);
     }
   }
 }

@@ -1,3 +1,4 @@
+import { LegalDocsError } from "./errors";
 import jsep from "jsep";
 import type { HelperRegistry } from "./helpers";
 
@@ -14,7 +15,7 @@ export interface EvalContext {
   helpers: HelperRegistry;
 }
 
-export class ExpressionError extends Error {
+export class ExpressionError extends LegalDocsError {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options);
     this.name = "ExpressionError";
@@ -255,15 +256,21 @@ function applyBinary(
     case "+":
       return typeof left === "string" || typeof right === "string"
         ? `${stringify(left)}${stringify(right)}`
-        : toNumber(left) + toNumber(right);
+        : finite(toNumber(left) + toNumber(right), "+");
     case "-":
-      return toNumber(left) - toNumber(right);
+      return finite(toNumber(left) - toNumber(right), "-");
     case "*":
-      return toNumber(left) * toNumber(right);
-    case "/":
-      return toNumber(left) / toNumber(right);
-    case "%":
-      return toNumber(left) % toNumber(right);
+      return finite(toNumber(left) * toNumber(right), "*");
+    case "/": {
+      const divisor = toNumber(right);
+      if (divisor === 0) throw new ExpressionError("Division by zero");
+      return finite(toNumber(left) / divisor, "/");
+    }
+    case "%": {
+      const divisor = toNumber(right);
+      if (divisor === 0) throw new ExpressionError("Modulo by zero");
+      return finite(toNumber(left) % divisor, "%");
+    }
     default:
       throw new ExpressionError(`Unsupported operator: ${operator}`);
   }
@@ -295,7 +302,18 @@ function identifierName(node: jsep.Expression): string {
 
 function toNumber(value: unknown): number {
   const n = typeof value === "number" ? value : Number(value);
-  if (Number.isNaN(n)) throw new ExpressionError(`Not a number: ${String(value)}`);
+  // Reject NaN and ±Infinity up front, so a non-finite operand can never seed an arithmetic result
+  // (a literal "Infinity" in data, or an already-non-finite number) that would leak into output.
+  if (!Number.isFinite(n)) throw new ExpressionError(`Not a finite number: ${String(value)}`);
+  return n;
+}
+
+/**
+ * Guard an arithmetic result: a `NaN`/`±Infinity` (e.g. finite-operand overflow) is a hard error, so
+ * it can never reach `stringify` and render literally as the text "NaN"/"Infinity" in a document.
+ */
+function finite(n: number, operator: string): number {
+  if (!Number.isFinite(n)) throw new ExpressionError(`Arithmetic "${operator}" produced a non-finite result`);
   return n;
 }
 

@@ -5,13 +5,13 @@ import { z } from "zod";
 import { renderTreeToHtml } from "../src/render-html/render-html";
 import { escapeHtml } from "../src/render-html/escape";
 import { parseRichText } from "../src/core/rich-text";
-import { defaultTheme } from "../src/render-pdf/theme";
-import type { DocumentTree } from "../src/core/document-tree";
-import type { CustomBlockRegistry } from "../src/render-pdf/custom-block";
+import { defaultTheme } from "../src/theme";
+import type { DocumentBody } from "../src/core/document-tree";
+import type { CustomBlockRegistry } from "../src/custom-block";
 
 const strictSchema = z.object({ label: z.string() });
 
-const tree: DocumentTree = [
+const tree: DocumentBody = [
   { kind: "title", text: "AGREEMENT & TERMS" },
   { kind: "paragraph", text: "Plain <world> text" },
   { kind: "richText", value: parseRichText("This is **bold** and *italic*.") },
@@ -70,7 +70,7 @@ describe("renderTreeToHtml", () => {
   });
 
   it("inserts a registered Custom block's html raw", () => {
-    const html = renderTreeToHtml([{ kind: "custom", component: "box", props: undefined }], defaultTheme, customBlocks);
+    const html = renderTreeToHtml([{ kind: "custom", component: "box", props: undefined }], { theme: defaultTheme, customBlocks });
 
     expect(html).toContain('<aside class="box">CUSTOM HTML</aside>');
   });
@@ -84,7 +84,7 @@ describe("renderTreeToHtml", () => {
   it("degrades a block missing its html impl to a visible, logged placeholder", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const html = renderTreeToHtml([{ kind: "custom", component: "pdfOnly", props: undefined }], defaultTheme, customBlocks);
+    const html = renderTreeToHtml([{ kind: "custom", component: "pdfOnly", props: undefined }], { theme: defaultTheme, customBlocks });
 
     expect(html).toContain('class="legal-doc__unsupported"');
     expect(html).toContain("[unsupported block: pdfOnly in html]");
@@ -94,20 +94,20 @@ describe("renderTreeToHtml", () => {
 
   it("fails hard for a missing html impl in throw mode", () => {
     expect(() =>
-      renderTreeToHtml([{ kind: "custom", component: "pdfOnly", props: undefined }], defaultTheme, customBlocks, "throw"),
+      renderTreeToHtml([{ kind: "custom", component: "pdfOnly", props: undefined }], { theme: defaultTheme, customBlocks, degradation: "throw" }),
     ).toThrow(/Custom block "pdfOnly" cannot render in "html"/);
   });
 
   it("validates Custom block props and rethrows a custom-block-framed error", () => {
     expect(() =>
-      renderTreeToHtml([{ kind: "custom", component: "strict", props: { label: 123 } }], defaultTheme, customBlocks),
+      renderTreeToHtml([{ kind: "custom", component: "strict", props: { label: 123 } }], { theme: defaultTheme, customBlocks }),
     ).toThrow(/Custom block "strict" received invalid props/);
   });
 
   it("derives the stylesheet from the Theme (an overridden token changes the CSS)", () => {
     const themed = { ...defaultTheme, fontSize: { ...defaultTheme.fontSize, title: 99 } };
 
-    expect(renderTreeToHtml([{ kind: "title", text: "X" }], themed)).toContain("font-size:99px");
+    expect(renderTreeToHtml([{ kind: "title", text: "X" }], { theme: themed })).toContain("font-size:99px");
   });
 
   it("renders bullet and alpha lists with the right tag and class", () => {

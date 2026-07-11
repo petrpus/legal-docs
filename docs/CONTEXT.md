@@ -16,6 +16,23 @@ and the renderers. Already evaluated and ready for a renderer (a *visitor*) to e
 Has no `id` and no schema; it is pure output data, not a catalog entry.
 _Avoid_: Block (that is the catalog type, not the tree instance), node, element.
 
+**DocumentTree**:
+The whole renderer- and Snapshot-facing seam: the ordered **DocumentNode** body plus optional
+resolved **Page furniture** (`{ body, header?, footer? }`). A bare `DocumentNode[]` is still accepted
+by the tree renderers (normalized to `{ body }`) for a caller not using furniture. See ADR-0011.
+_Avoid_: using "DocumentNode[]" as a synonym for the whole tree once furniture is in play — the tree
+is the object, `body` is the node list.
+
+**Page furniture**:
+A resolved page header/footer for paged output (PDF/DOCX only — the HTML fragment renderer has no
+pages and ignores it). Authored on a Template as `{ left?, center?, right? }` interpolated slots;
+`{{ $page.number }}` / `{{ $page.total }}` are reserved tokens resolved **per page** by the renderer,
+via sentinel markers frozen into the **Snapshot** alongside the rest of the furniture (so re-render is
+deterministic). Presentation (size, colour, margin) is a Theme concern, not an authoring one. See
+ADR-0011.
+_Avoid_: "header"/"footer" unqualified when the running-page kind is meant (a Template's `title`
+DocumentNode is unrelated).
+
 ### Catalog elements
 
 The catalog has exactly **two** kinds of authored, reusable elements: **Block** (structure) and
@@ -87,7 +104,7 @@ The union is closed; anything that walks a body goes through **Body traversal**.
 
 **Body traversal**:
 The single module that owns the closed Body-item union — it classifies each item as leaf / nested /
-control and exposes generic walk/map over a Template body. Tree assembly, Include expansion, Slot
+control / directive and exposes generic walk/map over a Template body. Tree assembly, Include expansion, Slot
 filling and the Catalog integrity lint are callbacks over it; they contribute only their own
 behaviour, never the enumeration. TS exhaustiveness for Body items is enforced here, once.
 
@@ -138,14 +155,26 @@ _Avoid_: "registry" as a synonym for the authored content (see the qualified reg
 
 **CatalogStore**:
 The persistence seam abstracting *how* the **Catalog** loads, reference-resolves, and lists versions
-of all authored content (Templates, Blocks, Clauses). The default and only current implementation is
-**FileCatalogStore** (filesystem / bundle). A future DB-backed editing API is another adapter of the
-same interface — not a rewrite. The store only loads/resolves/lists; **diff, integrity-lint and
+of all authored content (Templates, Bases, Variants, Clauses, Includes). The read-only default is
+**FileCatalogStore** (filesystem / bundle); **EditableCatalogStore** (see below) extends it with a
+runtime editing API, implemented in-memory and over `node:sqlite` (`adapters/sqlite/`) — the seam the
+design always anticipated. The store only loads/resolves/lists/writes; **diff, integrity-lint and
 `validate()` live in the Catalog layer above it**.
 
 **FileCatalogStore**:
-The file/bundle implementation of **CatalogStore** — the only store today. Versioning and diff come
-from files + Git.
+The file/bundle implementation of **CatalogStore** — the read-only, Git-gated store. Versioning and
+diff come from files + Git.
+
+**EditableCatalogStore**:
+The **write** seam (ADR-0009): a **CatalogStore** that *also* supports drafting, a status workflow, and
+an edit audit — the adapter a runtime editing API (DB-backed) implements. It **extends** CatalogStore,
+never mutates it. Invariant: the read methods surface **only Published** content, so drafts are
+invisible to `@latest` and to every existing reader.
+
+**Draft / In-review / Published**:
+The three **statuses** of an editable revision. `Draft` → `In-review` (submit) → `Published` (publish);
+`Published` is terminal and **immutable**. Editing wording = a new **Draft** version; a translation is
+an additive locale row. _Avoid_: "unpublished" as a synonym — say `Draft` or `In-review`.
 
 **Helper registry** / **Custom-block registry** / **Theme registry** / **Font registry**:
 Code-side registrations, **not** part of the **Catalog**. The Helper registry whitelists pure
@@ -154,6 +183,12 @@ renderer-native implementations for `kind: custom`; Theme/Font registries hold c
 styling assets. "Registry" is never used bare — always qualified.
 
 ### Snapshot & audit
+
+**Content audit** vs **Edit audit**:
+Two orthogonal trails. The **content audit** (the **Snapshot**'s `ClausePin`s) freezes *which element
+versions went into a rendered document* — "what was in this document". The **edit audit**
+(`AuditEntry`, written by an **EditableCatalogStore**) records *who changed the catalog, when, and
+through which status transition* — "who changed the content". Never conflate the two.
 
 **Snapshot**:
 The immutable, serializable record a generation produces for audit and deterministic re-render. Its
@@ -166,9 +201,9 @@ needs a byte-exact archive stores the output artifact itself.
 **Snapshot mode**:
 Config (engine-level default, overridable per `renderDocument` call) choosing what a **Snapshot**
 freezes. Default **`full`**.
-- **`full`** (default): inputs (raw + Resolved payload, `template@v`/`variant`, all `clause@v` /
-  `block@v` pins) **and** the assembled **DocumentNode** tree. Self-contained; re-render renders the
-  frozen tree (immune to later catalog *and* engine changes); inputs give the audit trail.
+- **`full`** (default): inputs (raw + Resolved payload, `template@v`/`variant`, all `clause@v` **ClausePin**s)
+  **and** the assembled **DocumentNode** tree. Self-contained; re-render renders the frozen tree (immune
+  to later catalog *and* engine changes); inputs give the audit trail. Carries a `schemaVersion`.
 - **`tree`**: the frozen **DocumentNode** tree only (+ minimal metadata). Self-contained re-render,
   lighter audit.
 - **`pins`**: inputs + version pins only, **no tree**. Smallest, but re-render re-runs the engine
@@ -235,6 +270,8 @@ The catalog looking up a **Block** or **Clause reference** to a concrete element
 - Each **Renderer** visits the **Core node set** exhaustively; a **Custom block** missing a format
   triggers the **Degradation contract** (default `placeholder`).
 - **Clause** bodies and text-node `text` are **InlineRich** / **RichTextV1**.
+- A **DocumentTree** is the **DocumentNode** body plus optional **Page furniture**; only PDF/DOCX
+  render furniture, and the **Snapshot** freezes it for deterministic re-render.
 
 ## Example dialogue
 

@@ -29,6 +29,9 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "legal-docs": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -36,7 +39,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "assets"
   ],
   "sideEffects": false,
   "scripts": {
@@ -45,6 +49,7 @@
     "test": "vitest run",
     "build": "tsup",
     "samples": "npm run build && node scripts/render-samples.mjs",
+    "docs:build": "npm run build && node scripts/build-docs-site.mjs",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build"
   },
   "dependencies": {
@@ -61,6 +66,7 @@
     "@types/react": "^19.2.17",
     "eslint": "^10.6.0",
     "jszip": "^3.10.1",
+    "marked": "^18.0.5",
     "pdf-parse": "^2.4.5",
     "prettier": "^3.9.0",
     "tsup": "^8.5.1",

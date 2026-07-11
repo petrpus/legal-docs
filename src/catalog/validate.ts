@@ -1,4 +1,5 @@
 import type { ZodType } from "zod";
+import { LegalDocsError } from "../core/errors";
 import type { BodyItem, Include, KeyValueRows, Template } from "../core/template";
 import type { Clause } from "../core/clause";
 import type { VarSpec } from "../core/vars-schema";
@@ -214,7 +215,7 @@ async function lintItem(item: BodyItem, path: string, ctx: LintContext): Promise
     }
     default: {
       const unhandled: never = classified;
-      throw new Error(`Unhandled body item: ${JSON.stringify(unhandled)}`);
+      throw new LegalDocsError(`Unhandled body item: ${JSON.stringify(unhandled)}`);
     }
   }
 }

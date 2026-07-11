@@ -1,17 +1,19 @@
+import { LegalDocsError, NotFoundError } from "../core/errors";
 import { Readable } from "node:stream";
 import type { Catalog } from "../catalog/catalog";
 import type { Template } from "../core/template";
-import { assembleTree } from "../core/engine";
+import { assembleDocument } from "../core/engine";
 import { expandIncludes } from "../core/includes";
 import { validatePayload, type PayloadSchemaRegistry } from "../core/payload";
 import { resolvePayload, type DerivationRegistry } from "../core/resolve";
 import type { HelperRegistry } from "../core/helpers";
 import { buildSnapshot, type ClausePin, type Snapshot, type SnapshotMode } from "../core/snapshot";
-import { renderTreeToBuffer } from "../render-pdf/render-pdf";
+import { renderTreeToPdf } from "../render-pdf/render-pdf";
+import type { RenderTreeOptions } from "../custom-block";
 import { renderTreeToHtml } from "../render-html/render-html";
 import { renderTreeToDocx } from "../render-docx/render-docx";
-import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../render-pdf/custom-block";
-import type { Theme } from "../render-pdf/theme";
+import type { CustomBlockRegistry, DegradationMode, OnDegrade } from "../custom-block";
+import type { DeepPartial, Theme } from "../theme";
 
 export interface RenderDocumentInput {
   catalog: Catalog;
@@ -34,7 +36,8 @@ export interface RenderDocumentInput {
   /** A sink for degradation events; when supplied it replaces the default `console.warn`. */
   onDegrade?: OnDegrade;
   format: "pdf" | "html" | "docx";
-  theme?: Theme;
+  /** A partial theme, deep-merged over `defaultTheme`. */
+  theme?: DeepPartial<Theme>;
   /** What the returned Snapshot freezes (ADR-0003). Defaults to `full`. */
   snapshotMode?: SnapshotMode;
 }
@@ -87,7 +90,7 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
   const scope = { ...payload, derived };
   // Record every Clause version resolved during assembly, so the Snapshot can pin them for audit.
   const pins: ClausePin[] = [];
-  const tree = await assembleTree(concrete, {
+  const tree = await assembleDocument(concrete, {
     scope,
     helpers: input.helpers,
     clauses: async (ref, clauseLocale) => {
@@ -112,20 +115,21 @@ export async function renderDocument(input: RenderDocumentInput): Promise<Render
     input.snapshotMode,
   );
   // The Snapshot is format-agnostic (it freezes the tree); only the rendered output differs.
+  const treeOptions: RenderTreeOptions = { theme: input.theme, customBlocks: input.customBlocks, degradation: input.degradation, onDegrade: input.onDegrade };
   if (input.format === "html") {
-    const html = renderTreeToHtml(tree, input.theme, input.customBlocks, input.degradation, input.onDegrade);
+    const html = renderTreeToHtml(tree, treeOptions);
     return { format: "html", html, snapshot, snapshotId: snapshot.id };
   }
   if (input.format === "pdf") {
-    const buffer = await renderTreeToBuffer(tree, input.theme, input.customBlocks, input.degradation, input.onDegrade);
+    const buffer = await renderTreeToPdf(tree, treeOptions);
     return { format: "pdf", buffer, stream: Readable.from(buffer), snapshot, snapshotId: snapshot.id };
   }
   if (input.format === "docx") {
-    const buffer = await renderTreeToDocx(tree, input.theme, input.customBlocks, input.degradation, input.onDegrade);
+    const buffer = await renderTreeToDocx(tree, treeOptions);
     return { format: "docx", buffer, stream: Readable.from(buffer), snapshot, snapshotId: snapshot.id };
   }
   const unsupported: never = input.format;
-  throw new Error(`Unsupported format: ${String(unsupported)}`);
+  throw new LegalDocsError(`Unsupported format: ${String(unsupported)}`);
 }
 
 function resolveScope(template: Template, input: RenderDocumentInput): Record<string, unknown> {
@@ -135,7 +139,7 @@ function resolveScope(template: Template, input: RenderDocumentInput): Record<st
   }
   const schema = input.schemas?.[template.payloadSchema];
   if (!schema) {
-    throw new Error(`No payload schema registered for "${template.payloadSchema}"`);
+    throw new NotFoundError("schema", { id: template.payloadSchema }, `No payload schema registered for "${template.payloadSchema}"`);
   }
   const validated = validatePayload(schema, input.data);
   return isRecord(validated) ? validated : {};

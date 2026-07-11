@@ -8,7 +8,7 @@ import { z } from "zod";
 import { Catalog } from "../src/catalog/catalog";
 import { renderDocument } from "../src/facade/render-document";
 import { renderFromSnapshot } from "../src/facade/render-from-snapshot";
-import type { CustomBlock, CustomBlockRegistry } from "../src/render-pdf/custom-block";
+import type { CustomBlock, CustomBlockRegistry } from "../src/custom-block";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const catalogDir = path.join(here, "fixtures", "custom");
