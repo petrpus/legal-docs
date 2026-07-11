@@ -186,6 +186,14 @@ The Template and its two Clauses are seeded in-memory for this page — see the
     background: color-mix(in srgb, #b00020 12%, transparent); color: #b00020;
     border: 1px solid color-mix(in srgb, #b00020 35%, transparent);
     font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace; }
+  /* Structured error panel: error name + message, and (for an ExpressionError) its structured field rows */
+  .pi-error__name { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+  .pi-error__msg { margin-top: 0.15rem; line-height: 1.5; }
+  .pi-error__rows { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.7rem; margin-top: 0.5rem;
+    padding-top: 0.45rem; border-top: 1px solid color-mix(in srgb, #b00020 30%, transparent); }
+  .pi-error__row { display: contents; }
+  .pi-error__key { font-weight: 600; opacity: 0.85; }
+  .pi-error__val { word-break: break-word; white-space: pre-wrap; }
   /* Resolved payload key/value rows */
   .pi-kv { display: grid; grid-template-columns: minmax(6rem, auto) 1fr; gap: 0.4rem 0.75rem;
     padding: 0.28rem 0; border-bottom: 1px dashed var(--line); align-items: baseline; }
@@ -270,7 +278,7 @@ The Template and its two Clauses are seeded in-memory for this page — see the
 </style>
 
 <script type="module">
-  import { MemoryCatalogStore, inspectDocument } from "./assets/browser-demo.js";
+  import { MemoryCatalogStore, inspectDocument, ExpressionError } from "./assets/browser-demo.js";
 
   // Seeded entirely in-memory for this page — see docs/AUTHORING.md for how a real file-based catalog
   // (Templates/Clauses on disk) composes the same way through Catalog.fromDir. The template declares
@@ -440,8 +448,44 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
   function jsonText(v) { return typeof v === "string" ? v : JSON.stringify(v, null, 2); }
 
-  function showError(message) { errorBox.textContent = message; errorBox.hidden = false; }
-  function clearError() { errorBox.hidden = true; errorBox.textContent = ""; }
+  function clearError() { errorBox.hidden = true; clear(errorBox); }
+
+  // Plain inline message — for things that are NOT a library error object (e.g. invalid JSON the
+  // editor could not even parse). Keeps the pre-panel single-line behaviour for that case.
+  function showError(message) {
+    clear(errorBox);
+    errorBox.appendChild(el("div", "pi-error__msg", message));
+    errorBox.hidden = false;
+  }
+
+  function errorRow(label, value) {
+    const row = el("div", "pi-error__row");
+    row.appendChild(el("span", "pi-error__key", label));
+    row.appendChild(el("code", "pi-error__val", value));
+    return row;
+  }
+
+  // Structured panel for a caught pipeline error object: the error `name` and `message` for every error,
+  // plus — when it is an `ExpressionError` (instanceof works because this page imports the class from the
+  // SAME bundle as inspectDocument) — dedicated rows for its STRUCTURED fields: `location.path`,
+  // `location.iteration` (only when present) and `expression`. These are read from the error object,
+  // never parsed out of the message string. Zod payload validation / NotFoundError errors have their own
+  // `name` + `message` and fall through to just those two.
+  function showErrorPanel(err) {
+    clear(errorBox);
+    errorBox.appendChild(el("div", "pi-error__name", err instanceof Error && err.name ? err.name : "Error"));
+    errorBox.appendChild(el("div", "pi-error__msg", err instanceof Error ? err.message : String(err)));
+    if (err instanceof ExpressionError) {
+      const rows = el("div", "pi-error__rows");
+      if (err.location && err.location.path) rows.appendChild(errorRow("path", err.location.path));
+      if (err.location && err.location.iteration != null) {
+        rows.appendChild(errorRow("iteration", String(err.location.iteration)));
+      }
+      if (err.expression) rows.appendChild(errorRow("expression", err.expression));
+      if (rows.firstChild) errorBox.appendChild(rows);
+    }
+    errorBox.hidden = false;
+  }
 
   // Sandboxed preview wrapper — shared by the main inspector and the versioning previews below.
   function frameSrcdoc(html) {
@@ -564,8 +608,9 @@ The Template and its two Clauses are seeded in-memory for this page — see the
       renderRefs(result.references);
       output.srcdoc = frameSrcdoc(result.html);
     } catch (err) {
-      // Pipeline error (e.g. missing field a Derivation needs): show it, keep last good panels.
-      showError(err instanceof Error ? err.message : String(err));
+      // Pipeline error (payload validation, a throwing expression, an unresolvable Clause): show the
+      // structured panel, keep the last good panels intact (the recompute() contract).
+      showErrorPanel(err);
     }
   }
 
