@@ -5,6 +5,7 @@ import {
   resolveTemplate,
   resolveClause,
   renderHtmlInBrowser,
+  inspectDocument,
 } from "../src/browser";
 import type { MemoryCatalogSeed } from "../src/browser";
 
@@ -31,6 +32,12 @@ const seed: MemoryCatalogSeed = {
       payloadSchema: "invoice@1",
       derivations: ["total"],
       body: [{ paragraph: "Total due: {{ $derived.total }}" }],
+    },
+    {
+      template: "contract",
+      version: 1,
+      locale: "en",
+      body: [{ clause: "counterparts@latest", vars: { count: 3 } }],
     },
   ],
   includes: [{ id: "footer-note", body: [{ paragraph: "Thanks for reading." }] }],
@@ -126,5 +133,39 @@ describe("browser entry: renderHtmlInBrowser", () => {
     const store = new MemoryCatalogStore(seed);
     const html = await renderHtmlInBrowser({ store, template: "welcome", theme: { fontSize: { title: 30 } } });
     expect(html).toContain("font-size:30px");
+  });
+});
+
+describe("browser entry: inspectDocument", () => {
+  it("exposes the Resolved payload carrying the $derived.* namespace", async () => {
+    const store = new MemoryCatalogStore(seed);
+    const invoiceSchema = z.object({ amount: z.number() });
+    const result = await inspectDocument({
+      store,
+      template: "invoice",
+      data: { amount: 42 },
+      schemas: { "invoice@1": invoiceSchema },
+      derivations: { total: (payload) => `$${(payload as { amount: number }).amount}` },
+    });
+    expect(result.payload).toEqual({ amount: 42 });
+    expect(result.resolved).toMatchObject({ amount: 42, derived: { total: "$42" } });
+  });
+
+  it("records each Clause reference with the concrete resolved version and locale", async () => {
+    const store = new MemoryCatalogStore(seed);
+    const result = await inspectDocument({ store, template: "contract" });
+    expect(result.references).toEqual([
+      { ref: "counterparts@latest", clause: "counterparts", version: 2, locale: "en", resolvedLocale: "en" },
+    ]);
+    // The resolved v2 Clause text made it into both the tree and the HTML.
+    expect(result.html).toContain("counterparts");
+  });
+
+  it("returns html byte-equal to renderHtmlInBrowser for the same input", async () => {
+    const store = new MemoryCatalogStore(seed);
+    const input = { store, template: "agreement", variant: "simple", data: { client: { name: "Acme s.r.o." } } };
+    const inspected = await inspectDocument(input);
+    const rendered = await renderHtmlInBrowser(input);
+    expect(inspected.html).toBe(rendered);
   });
 });
