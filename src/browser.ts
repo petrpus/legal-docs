@@ -24,6 +24,10 @@ import { validatePayload, type PayloadSchemaRegistry } from "./core/payload";
 // Re-exported so the demo page can build a `ZodType` for its PayloadSchemaRegistry from the SAME
 // bundle. No new dependency: zod is already bundled via `validatePayload`; re-exporting the `z` value
 // adds negligible weight and lets the demo seed a payload schema (issue #129, scenario 1).
+// Deliberate API-surface decision, not creep: this bundle exists for static pages that CANNOT resolve
+// a bare `import { z } from "zod"` (ADR-0012 self-containment), so without this export the bundle's
+// own `schemas` feature would be unusable in exactly the environment the bundle targets. The npm
+// package surface (src/index.ts) is unaffected — consumers there import zod themselves.
 import { z } from "zod";
 import { resolvePayload, type DerivationRegistry } from "./core/resolve";
 import type { Template } from "./core/template";

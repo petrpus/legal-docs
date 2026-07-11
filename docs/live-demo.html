@@ -826,7 +826,15 @@ The Template and its two Clauses are seeded in-memory for this page — see the
 
   // --- Break-it triggers: mutate ONLY the input, then recompute. Nothing here hardcodes error output. ---
   const breakClauseToggle = document.getElementById("pi-break-clause");
-  function loadPayload(obj) { editor.value = JSON.stringify(obj, null, 2); clearTimeout(debounceTimer); recompute(); }
+  // A break-it button demonstrates ONE failure at a time: loading its payload also clears the
+  // scenario-③ store toggle, otherwise the missing-Clause error would mask the intended one.
+  function loadPayload(obj) {
+    scenario3Active = false;
+    breakClauseToggle.checked = false;
+    editor.value = JSON.stringify(obj, null, 2);
+    clearTimeout(debounceTimer);
+    recompute();
+  }
 
   // ① Schema: a string `fee` fails the loose payload schema → PayloadValidationError (name + message).
   document.getElementById("pi-break-schema").addEventListener("click", () => {
