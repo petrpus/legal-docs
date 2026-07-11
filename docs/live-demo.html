@@ -254,6 +254,43 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   </div>
 </div>
 
+<h2 class="cv-heading">Variants &amp; Slots — one Base, filled two ways
+  <a class="pi-panel__ref" href="CONTEXT.html#templates--composition" title="Glossary: Templates &amp; composition">glossary ↗</a></h2>
+<div class="cv vs">
+  <p class="cv-intro"><strong>Reach for a Variant last.</strong> Data-driven differences (party count,
+    optional sections) ride on a <strong>single Template</strong> via <code>for: $parties</code> +
+    <a href="CONTEXT.html#resolution--derivation">Derivations</a>, and wording differences on
+    <a href="CONTEXT.html#catalog-elements">Clause</a> versions. A named
+    <a href="CONTEXT.html#templates--composition">Variant</a> is reserved for genuine divergence in
+    <em>authored structure</em>: a <strong>Base template</strong> declares named <strong>Slots</strong>
+    plus shared structure, and each Variant fills them differently. Below, one Base (a party roster and
+    two Slots — <code>terms</code>, <code>guaranty</code>) composes two ways through the same
+    <code>resolveTemplate</code> path as the inspector above — no slot filling is re-implemented here.</p>
+  <fieldset class="cv-switch">
+    <legend>Variant</legend>
+    <label><input type="radio" name="vs-variant" value="bilateral" checked> bilateral</label>
+    <label><input type="radio" name="vs-variant" value="with-guarantor"> with-guarantor</label>
+  </fieldset>
+  <div class="cv-previews">
+    <section class="pi-panel">
+      <header class="pi-panel__head">
+        <div><h3 class="pi-panel__title">Base &amp; Slots <a class="pi-panel__ref" href="CONTEXT.html#templates--composition" title="Glossary: Slot">glossary ↗</a></h3>
+        <p class="pi-panel__desc">The shared <strong>Base</strong> body with each <a href="CONTEXT.html#templates--composition">Slot</a> position marked — filled by this Variant (with what) or left empty (renders nothing).</p></div>
+      </header>
+      <div class="pi-body" id="vs-panel"></div>
+    </section>
+
+    <section class="pi-panel">
+      <header class="pi-panel__head">
+        <div><h3 class="pi-panel__title">Composed preview</h3>
+        <p class="pi-panel__desc">The selected Variant composed through <code>resolveTemplate</code> and rendered to HTML in a sandboxed frame.</p></div>
+      </header>
+      <iframe id="vs-preview" class="pi-frame" title="Composed variant preview" sandbox=""></iframe>
+    </section>
+  </div>
+  <div class="pi-error" id="vs-error" hidden></div>
+</div>
+
 <style>
   .pi { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin: 1.5rem 0 2rem;
     font-family: -apple-system, "Segoe UI", ui-sans-serif, system-ui, sans-serif; }
@@ -354,6 +391,21 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   .cv-previews { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin: 1rem 0; }
   .cv .pi-frame { min-height: 12rem; }
   .cv-refs__label { color: var(--ink-faint); font-weight: 600; }
+  /* Variants & Slots: Base/Slots panel (filled vs empty Slot positions per Variant) */
+  .vs-base { display: flex; align-items: baseline; gap: 0.5rem; padding: 0.32rem 0; border-bottom: 1px dashed var(--line); }
+  .vs-base__tag { flex: 0 0 auto; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--ink-faint); border: 1px solid var(--line); border-radius: 3px; padding: 0.02rem 0.28rem; }
+  .vs-base__desc { font-size: 0.78rem; color: var(--ink-soft); word-break: break-word; }
+  .vs-slot { margin: 0.45rem 0; padding: 0.5rem 0.65rem; border-radius: 6px; border: 1px solid var(--line); }
+  .vs-slot--filled { background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+  .vs-slot--empty { background: var(--code-bg); border-style: dashed; }
+  .vs-slot__head { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.3rem; }
+  .vs-slot__status { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--ink-faint); }
+  .vs-slot--filled .vs-slot__status { color: var(--accent); }
+  .vs-slot__body { font-size: 0.78rem; line-height: 1.45; color: var(--ink-soft); word-break: break-word; }
+  .vs-slot--empty .vs-slot__body { font-style: italic; }
   @media (max-width: 860px) {
     .pi { grid-template-columns: 1fr; }
     .pi-panel--wide { grid-column: auto; }
@@ -761,6 +813,128 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   }
   cvRadios.forEach((r) => r.addEventListener("change", () => renderVersioning(selectedPublished())));
   renderVersioning(selectedPublished());
+
+  // ── Variants & Slots section (issue #128) ─────────────────────────────────
+  // One Template family: a Base declaring shared structure (a `for: $parties` roster + two named Slots
+  // `terms`/`guaranty`) and two Variants that fill the Slots differently. `bilateral` fills only `terms`,
+  // leaving `guaranty` empty (the empty-slot state); `with-guarantor` fills both. Composition runs through
+  // the SAME shared `resolveTemplate` path as the inspector above — `inspectDocument({ store, template,
+  // variant })` forwards the variant; no slot filling is re-implemented in page JS.
+  const VS_BASE = {
+    base: "nda",
+    version: 1,
+    locale: "en",
+    body: [
+      { title: "NON-DISCLOSURE AGREEMENT" },
+      // Shared Base structure: a party roster driven off the payload, identical for every Variant.
+      { for: { each: "$parties", as: "party" }, body: [{ paragraph: "{{ $party.role }}: {{ $party.name }}" }] },
+      { title: "TERMS" },
+      { slot: "terms" },
+      { slot: "guaranty" },
+    ],
+  };
+  const VS_VARIANTS = [
+    {
+      // Fills `terms`, leaves `guaranty` unfilled → the empty-slot state.
+      variant: "bilateral",
+      extends: "nda",
+      parties: ["discloser", "recipient"],
+      overrides: {
+        terms: [{ paragraph: "Both parties mutually protect the other's Confidential Information." }],
+      },
+    },
+    {
+      // Fills `terms` differently AND fills `guaranty` with an extra structural section.
+      variant: "with-guarantor",
+      extends: "nda",
+      parties: ["discloser", "recipient", "guarantor"],
+      overrides: {
+        terms: [{ paragraph: "The Recipient protects the Discloser's Confidential Information." }],
+        guaranty: [
+          { title: "GUARANTY" },
+          { paragraph: "The Guarantor unconditionally guarantees the Recipient's obligations." },
+        ],
+      },
+    },
+  ];
+  // The same payload for both Variants, so the shared `for:` roster is identical between them.
+  const VS_PAYLOAD = {
+    parties: [
+      { role: "Discloser", name: "Acme s.r.o." },
+      { role: "Recipient", name: "Beta a.s." },
+    ],
+  };
+  const vsStore = new MemoryCatalogStore({ families: [{ base: VS_BASE, variants: VS_VARIANTS }] });
+
+  const vsPanel = document.getElementById("vs-panel");
+  const vsPreview = document.getElementById("vs-preview");
+  const vsError = document.getElementById("vs-error");
+
+  // --- Base/Slots panel: presentation from seed data (Base body + Variant overrides) — NOT composition.
+  // We render VS_BASE.body row by row. Shared-structure nodes (title, roster) are shown muted; each
+  // `{ slot }` position is shown either filled (with a compact preview of the chosen Variant's override)
+  // or explicitly empty. An unfilled Slot renders nothing in the composed document — compose.ts removes
+  // it entirely — which is exactly what the empty row states. resolveTemplate is never called here.
+  function describeNode(node) {
+    if (typeof node.title === "string") return `title — “${node.title}”`;
+    if (typeof node.paragraph === "string") return `paragraph — “${node.paragraph}”`;
+    if (node.for) return `for each ${node.for.each} as ${node.for.as} — party roster`;
+    if (typeof node.slot === "string") return `slot ${node.slot}`;
+    return jsonText(node);
+  }
+  function overridePreview(nodes) {
+    return (nodes || []).map(describeNode).join("  ·  ");
+  }
+  function renderVsPanel(variant) {
+    clear(vsPanel);
+    const found = VS_VARIANTS.find((v) => v.variant === variant);
+    const overrides = (found && found.overrides) || {};
+    for (const node of VS_BASE.body) {
+      if (typeof node.slot === "string") {
+        const name = node.slot;
+        const filled = Object.prototype.hasOwnProperty.call(overrides, name);
+        const row = el("div", filled ? "vs-slot vs-slot--filled" : "vs-slot vs-slot--empty");
+        const head = el("div", "vs-slot__head");
+        head.appendChild(el("span", "pi-kind", `slot ${name}`));
+        head.appendChild(el("span", "vs-slot__status",
+          filled ? "filled by this Variant" : "left empty — renders nothing"));
+        row.appendChild(head);
+        row.appendChild(el("div", "vs-slot__body", filled
+          ? overridePreview(overrides[name])
+          : "No override — the composed document omits this position entirely."));
+        vsPanel.appendChild(row);
+      } else {
+        const row = el("div", "vs-base");
+        row.appendChild(el("span", "vs-base__tag", "shared"));
+        row.appendChild(el("span", "vs-base__desc", describeNode(node)));
+        vsPanel.appendChild(row);
+      }
+    }
+  }
+
+  // Compose the selected Variant through the shared pipeline and paint the preview frame. Same
+  // error-into-strip contract as the inspector: never fail silently, keep the last good frame on error.
+  async function renderVariants(variant) {
+    // The Base/Slots panel is pure presentation from the seed, so it always repaints first.
+    renderVsPanel(variant);
+    try {
+      const result = await inspectDocument({ store: vsStore, template: "nda", variant, data: VS_PAYLOAD });
+      vsError.hidden = true;
+      vsError.textContent = "";
+      vsPreview.srcdoc = frameSrcdoc(result.html);
+    } catch (err) {
+      vsError.textContent = err instanceof Error ? err.message : String(err);
+      vsError.hidden = false;
+    }
+  }
+
+  const vsRadios = document.querySelectorAll('input[name="vs-variant"]');
+  function selectedVariant() {
+    const checked = document.querySelector('input[name="vs-variant"]:checked');
+    return checked ? checked.value : "bilateral";
+  }
+  vsRadios.forEach((r) => r.addEventListener("change", () => renderVariants(selectedVariant())));
+  renderVariants(selectedVariant());
 </script>
 
       <footer class="page-footer">MIT © Petr Puš — generated from the repository's markdown documentation.</footer>
