@@ -21,6 +21,10 @@ import { ExpressionError, type ExpressionLocation } from "./core/expression";
 import type { HelperRegistry } from "./core/helpers";
 import { expandIncludes } from "./core/includes";
 import { validatePayload, type PayloadSchemaRegistry } from "./core/payload";
+// Re-exported so the demo page can build a `ZodType` for its PayloadSchemaRegistry from the SAME
+// bundle. No new dependency: zod is already bundled via `validatePayload`; re-exporting the `z` value
+// adds negligible weight and lets the demo seed a payload schema (issue #129, scenario 1).
+import { z } from "zod";
 import { resolvePayload, type DerivationRegistry } from "./core/resolve";
 import type { Template } from "./core/template";
 import { renderTreeToHtml } from "./render-html/render-html";
@@ -38,6 +42,8 @@ export {
   // The class VALUE (not only the type) so the demo page can `instanceof ExpressionError` across the
   // bundle boundary — instanceof is only safe when both sides import it from this same bundle.
   ExpressionError,
+  // The zod value, so the demo page can build a payload schema for its registry (see import note).
+  z,
 };
 export type { CatalogStore, MemoryCatalogSeed, PayloadSchemaRegistry, DerivationRegistry, HelperRegistry, DeepPartial, Theme };
 export type { DocumentTree };
