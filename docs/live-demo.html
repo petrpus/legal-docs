@@ -207,6 +207,45 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   </section>
 </div>
 
+<h2 class="cv-heading">Clause versioning — pinned <code>@vN</code> vs <code>@latest</code>
+  <a class="pi-panel__ref" href="CONTEXT.html#catalog-elements" title="Glossary: Clause reference">glossary ↗</a></h2>
+<div class="cv">
+  <p class="cv-intro">A <strong>pinned</strong> reference (<code>governing-law@v1</code>) freezes on version 1's
+    wording forever; a floating <code>@latest</code> reference resolves to the newest <em>published</em>
+    version at generation time. Flip the published version below: the <code>@latest</code> preview follows the
+    change, the pinned one does not. In a real generation the concrete resolved version is frozen into the audit
+    <strong>Snapshot</strong> so re-rendering stays reproducible — that step is Node-only and out of this browser
+    demo's scope (<a href="ARCHITECTURE.html">ADR-0012</a>), the same "minus the audit Snapshot" caveat noted at
+    the top. See the <a href="CONTEXT.html#catalog-elements">Clause reference</a> glossary entry for the pinned
+    vs <code>@latest</code> distinction.</p>
+  <fieldset class="cv-switch">
+    <legend>Published version</legend>
+    <label><input type="radio" name="cv-published" value="1"> v1 only</label>
+    <label><input type="radio" name="cv-published" value="2" checked> v1 + v2</label>
+  </fieldset>
+  <div class="cv-previews">
+    <section class="pi-panel">
+      <header class="pi-panel__head">
+        <div><h3 class="pi-panel__title">Pinned <code>governing-law@v1</code></h3>
+        <p class="pi-panel__desc">A <strong>pinned</strong> <a href="CONTEXT.html#catalog-elements">Clause reference</a> — frozen on version 1's wording no matter what is published later.</p></div>
+      </header>
+      <iframe id="cv-pinned" class="pi-frame" title="Pinned clause preview" sandbox=""></iframe>
+    </section>
+
+    <section class="pi-panel">
+      <header class="pi-panel__head">
+        <div><h3 class="pi-panel__title"><code>governing-law@latest</code></h3>
+        <p class="pi-panel__desc">A floating <code>@latest</code> reference — resolves to the newest <strong>published</strong> version at generation time.</p></div>
+      </header>
+      <iframe id="cv-latest" class="pi-frame" title="Latest clause preview" sandbox=""></iframe>
+    </section>
+  </div>
+  <div class="pi-refs">
+    <div class="pi-refs__head"><a href="CONTEXT.html#catalog-elements" title="Glossary: Clause reference">Reference resolution</a> — concrete version each preview resolved</div>
+    <div id="cv-refs"></div>
+  </div>
+</div>
+
 <style>
   .pi { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin: 1.5rem 0 2rem;
     font-family: -apple-system, "Segoe UI", ui-sans-serif, system-ui, sans-serif; }
@@ -242,6 +281,7 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   .pi-btn--ghost { background: transparent; color: var(--ink-soft); border-color: var(--line); font-weight: 500;
     font-size: 0.72rem; padding: 0.28rem 0.55rem; align-self: flex-start; }
   .pi-btn--ghost:hover { background: var(--accent-soft); color: var(--ink); }
+  .pi-ref--error { color: #b00020; }
   .pi-error { margin-top: 0.6rem; padding: 0.55rem 0.8rem; border-radius: 5px; font-size: 0.78rem; line-height: 1.5;
     background: color-mix(in srgb, #b00020 12%, transparent); color: #b00020;
     border: 1px solid color-mix(in srgb, #b00020 35%, transparent);
@@ -281,10 +321,26 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   .pi-ref b { color: var(--accent); font-weight: 700; }
   .pi-frame { flex: 1 1 auto; min-height: 20rem; width: 100%; box-sizing: border-box; border: 1px solid var(--line);
     border-radius: 6px; background: #fff; box-shadow: 0 1px 3px var(--shadow); }
+  /* Clause versioning section */
+  .cv-heading { font-family: -apple-system, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+    margin: 2.5rem 0 0.25rem; display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+  .cv { font-family: -apple-system, "Segoe UI", ui-sans-serif, system-ui, sans-serif; margin-bottom: 2rem; }
+  .cv-intro { font-size: 0.86rem; line-height: 1.55; color: var(--ink-soft); margin: 0.75rem 0 1rem; }
+  .cv-intro code { font-size: 0.85em; }
+  .cv-switch { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin: 0 0 0.5rem;
+    border: 1px solid var(--line); border-radius: 6px; padding: 0.5rem 0.85rem; background: var(--bg-raised); }
+  .cv-switch legend { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint);
+    font-weight: 600; padding: 0 0.35rem; }
+  .cv-switch label { font-size: 0.82rem; color: var(--ink); display: inline-flex; align-items: center; gap: 0.3rem;
+    cursor: pointer; }
+  .cv-previews { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin: 1rem 0; }
+  .cv .pi-frame { min-height: 12rem; }
+  .cv-refs__label { color: var(--ink-faint); font-weight: 600; }
   @media (max-width: 860px) {
     .pi { grid-template-columns: 1fr; }
     .pi-panel--wide { grid-column: auto; }
     .pi-yaml, .pi-editor, .pi-body, .pi-tree { min-height: 10rem; }
+    .cv-previews { grid-template-columns: 1fr; }
   }
 </style>
 
@@ -435,6 +491,13 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   function showError(message) { errorBox.textContent = message; errorBox.hidden = false; }
   function clearError() { errorBox.hidden = true; errorBox.textContent = ""; }
 
+  // Sandboxed preview wrapper — shared by the main inspector and the versioning previews below.
+  function frameSrcdoc(html) {
+    return '<!doctype html><html><head><meta charset="utf-8">' +
+      '<style>body{margin:0;padding:2rem;background:#fff;color-scheme:light;}</style>' +
+      "</head><body>" + html + "</body></html>";
+  }
+
   // --- Resolved payload panel: each top-level key as a row; the $derived namespace is highlighted ---
   function renderResolved(resolved) {
     clear(resolvedEl);
@@ -525,10 +588,7 @@ The Template and its two Clauses are seeded in-memory for this page — see the
       renderResolved(result.resolved);
       renderTree(result.tree);
       renderRefs(result.references);
-      output.srcdoc =
-        '<!doctype html><html><head><meta charset="utf-8">' +
-        '<style>body{margin:0;padding:2rem;background:#fff;color-scheme:light;}</style>' +
-        "</head><body>" + result.html + "</body></html>";
+      output.srcdoc = frameSrcdoc(result.html);
     } catch (err) {
       // Pipeline error (e.g. missing field a Derivation needs): show it, keep last good panels.
       showError(err instanceof Error ? err.message : String(err));
@@ -553,6 +613,87 @@ The Template and its two Clauses are seeded in-memory for this page — see the
   resetBtn.addEventListener("click", () => { editor.value = JSON.stringify(SAMPLE_PAYLOAD, null, 2); recompute(); });
 
   recompute();
+
+  // ── Clause versioning section (issue #126) ────────────────────────────────
+  // One Clause published in two visibly-different versions, and two tiny Templates side by side:
+  // one pins `governing-law@v1`, the other floats on `@latest`. A published-version state (v1 / v2)
+  // is modelled by re-seeding a fresh MemoryCatalogStore — the same mechanism the library uses when
+  // it resolves references against whatever is published at generation time. In a real generation the
+  // resolved version is frozen into the audit Snapshot (Node-only, ADR-0012); here we just resolve live.
+  const GOVERNING_LAW = {
+    v1: "This Agreement is governed by the laws of the Czech Republic.",
+    v2: "This Agreement is governed by, and construed in accordance with, the laws of the Czech Republic; the courts of Prague have exclusive jurisdiction over any dispute.",
+  };
+  // Clauses published up to and including `published` (1 → v1 only, 2 → v1 + v2).
+  function cvClauses(published) {
+    const clauses = [{ clause: "governing-law", version: 1, locale: "en", vars: {}, text: GOVERNING_LAW.v1 }];
+    if (published >= 2) clauses.push({ clause: "governing-law", version: 2, locale: "en", vars: {}, text: GOVERNING_LAW.v2 });
+    return clauses;
+  }
+  const CV_PINNED = {
+    template: "terms-pinned", version: 1, locale: "en",
+    body: [{ title: "GOVERNING LAW" }, { clause: "governing-law@v1" }],
+  };
+  const CV_LATEST = {
+    template: "terms-latest", version: 1, locale: "en",
+    body: [{ title: "GOVERNING LAW" }, { clause: "governing-law@latest" }],
+  };
+
+  const cvPinnedFrame = document.getElementById("cv-pinned");
+  const cvLatestFrame = document.getElementById("cv-latest");
+  const cvRefsEl = document.getElementById("cv-refs");
+
+  // Shared references strip: one labelled line per preview, showing the concrete resolved version.
+  // Mirrors the inspector's renderRefs, including the locale-fallback notation and the empty state.
+  function renderCvRefs(entries) {
+    clear(cvRefsEl);
+    let any = false;
+    for (const { label, references } of entries) {
+      for (const r of references) {
+        any = true;
+        const line = el("div", "pi-ref");
+        line.appendChild(el("span", "cv-refs__label", `${label}: `));
+        line.appendChild(document.createTextNode(`${r.ref} → `));
+        line.appendChild(el("b", null, `${r.clause}@v${r.version}`));
+        const localeNote = r.resolvedLocale && r.resolvedLocale !== r.locale
+          ? ` (${r.locale} → ${r.resolvedLocale} fallback)`
+          : ` (${r.locale})`;
+        line.appendChild(document.createTextNode(localeNote));
+        cvRefsEl.appendChild(line);
+      }
+    }
+    if (!any) cvRefsEl.appendChild(el("div", "pi-ref", "— no references resolved —"));
+  }
+
+  // Seed a fresh store for the given published-version state, resolve both Templates, paint both frames
+  // and the shared references strip. The pinned preview never changes; the @latest preview follows the
+  // newest published version.
+  async function renderVersioning(published) {
+    try {
+      const store = new MemoryCatalogStore({ templates: [CV_PINNED, CV_LATEST], clauses: cvClauses(published) });
+      const pinned = await inspectDocument({ store, template: "terms-pinned", data: {} });
+      const latest = await inspectDocument({ store, template: "terms-latest", data: {} });
+      cvPinnedFrame.srcdoc = frameSrcdoc(pinned.html);
+      cvLatestFrame.srcdoc = frameSrcdoc(latest.html);
+      renderCvRefs([
+        { label: "Pinned @v1", references: pinned.references },
+        { label: "Latest @latest", references: latest.references },
+      ]);
+    } catch (err) {
+      // Same contract as the inspector: never fail silently — surface the error in the strip.
+      clear(cvRefsEl);
+      cvRefsEl.appendChild(el("div", "pi-ref pi-ref--error", err instanceof Error ? err.message : String(err)));
+    }
+  }
+
+  // Published-version switch: re-seed and re-render both previews when the selection changes.
+  const cvRadios = document.querySelectorAll('input[name="cv-published"]');
+  function selectedPublished() {
+    const checked = document.querySelector('input[name="cv-published"]:checked');
+    return Number(checked ? checked.value : 2);
+  }
+  cvRadios.forEach((r) => r.addEventListener("change", () => renderVersioning(selectedPublished())));
+  renderVersioning(selectedPublished());
 </script>
 
       <footer class="page-footer">MIT © Petr Puš — generated from the repository's markdown documentation.</footer>
