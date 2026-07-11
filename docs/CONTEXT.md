@@ -94,6 +94,20 @@ assembly, so at runtime you always hold a Template, never a "Variant".
 **Slot**:
 A named override point declared in a **Base template** that a **Variant** fills or overrides.
 
+**Body item**:
+One authored entry in a Template (or Include / Base template) body. Every Body item falls into
+exactly one of four classes: a **leaf** (inline text, a **Clause reference**, a **Block** reference,
+`custom`), a **nested** item that carries its own body (`article`, the lists), a **control** item
+(`if` / `for`), or a **directive** (`include` / `slot`) — an authoring indirection spliced away
+before tree assembly (by Include expansion / Slot filling), so it never becomes a **DocumentNode**.
+The union is closed; anything that walks a body goes through **Body traversal**.
+
+**Body traversal**:
+The single module that owns the closed Body-item union — it classifies each item as leaf / nested /
+control / directive and exposes generic walk/map over a Template body. Tree assembly, Include expansion, Slot
+filling and the Catalog integrity lint are callbacks over it; they contribute only their own
+behaviour, never the enumeration. TS exhaustiveness for Body items is enforced here, once.
+
 **Include** (a.k.a. **Partial**):
 A shared template fragment (e.g. a party-block set, a signature grid) referenced by several
 Templates/Variants to keep repeated structure DRY.
@@ -245,7 +259,9 @@ The catalog looking up a **Block** or **Clause reference** to a concrete element
   then **Binds** values and **Reference-resolves** Blocks/Clauses into **DocumentNode**s.
 - A **Template family** groups **Variant**s over a shared **Base template**; a **Variant** resolves
   to a **Template** before tree assembly.
-- A **Template** references **Block**s, **Clause**s, **Include**s and inline text in its body.
+- A **Template** references **Block**s, **Clause**s, **Include**s and inline text in its body; each
+  entry is a **Body item** (leaf / nested / control), and every walk over a body goes through
+  **Body traversal**.
 - The **Catalog** loads Templates/Blocks/Clauses through a **CatalogStore** (today
   **FileCatalogStore**); diff/lint/validate sit in the Catalog above the store.
 - **Helper / Custom-block / Theme / Font registries** are code-side and live outside the Catalog.
