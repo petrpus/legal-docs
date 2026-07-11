@@ -142,7 +142,8 @@ hr { border: none; border-top: 1px solid var(--line); margin: 2.2rem 0; }
     <div class="sidebar-footer"><a href="https://github.com/petrpus/legal-docs" target="_blank" rel="noopener">GitHub ↗</a></div>
   </nav>
   <main>
-    <article><h1 id="theming">Theming</h1>
+    <article>
+      <h1 id="theming">Theming</h1>
 <p>Every renderer reads styling from a configurable <strong>Theme</strong> — never from hard-coded values. Pass a
 custom theme per render; the same Theme drives PDF, HTML and DOCX, so you configure styling once and
 each renderer interprets the tokens in its own units.</p>
@@ -329,8 +330,9 @@ consistent at the level of sizes and colours.</li>
 <li>A <strong>Custom block</strong> receives the resolved <code>theme</code> in its render context (<code>(props, { theme }) =&gt; …</code>),
 so special-layout blocks stay on-theme too.</li>
 </ul>
-</article>
-    <footer class="page-footer">MIT © Petr Puš — generated from the repository's markdown documentation.</footer>
+
+      <footer class="page-footer">MIT © Petr Puš — generated from the repository's markdown documentation.</footer>
+    </article>
   </main>
 </div>
 <script>

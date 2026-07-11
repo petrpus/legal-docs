@@ -343,8 +343,10 @@ function wrap(page, body) {
     <div class="sidebar-footer"><a href="${GITHUB}" target="_blank" rel="noopener">GitHub ↗</a></div>
   </nav>
   <main>
-    <article>${body}</article>
-    <footer class="page-footer">MIT © Petr Puš — generated from the repository's markdown documentation.</footer>
+    <article>
+      ${body}
+      <footer class="page-footer">MIT © Petr Puš — generated from the repository's markdown documentation.</footer>
+    </article>
   </main>
 </div>
 <script>${SCRIPT}</script>
