@@ -17,6 +17,7 @@ import { resolveClause, resolveTemplate } from "./catalog/resolve";
 import type { DocumentTree } from "./core/document-tree";
 import { assembleDocument } from "./core/engine";
 import { NotFoundError } from "./core/errors";
+import { ExpressionError, type ExpressionLocation } from "./core/expression";
 import type { HelperRegistry } from "./core/helpers";
 import { expandIncludes } from "./core/includes";
 import { validatePayload, type PayloadSchemaRegistry } from "./core/payload";
@@ -34,9 +35,13 @@ export {
   defaultTheme,
   validatePayload,
   resolvePayload,
+  // The class VALUE (not only the type) so the demo page can `instanceof ExpressionError` across the
+  // bundle boundary — instanceof is only safe when both sides import it from this same bundle.
+  ExpressionError,
 };
 export type { CatalogStore, MemoryCatalogSeed, PayloadSchemaRegistry, DerivationRegistry, HelperRegistry, DeepPartial, Theme };
 export type { DocumentTree };
+export type { ExpressionLocation };
 
 export interface RenderHtmlInBrowserInput {
   store: CatalogStore;

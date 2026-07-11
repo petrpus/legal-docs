@@ -6,6 +6,7 @@ import {
   resolveClause,
   renderHtmlInBrowser,
   inspectDocument,
+  ExpressionError,
 } from "../src/browser";
 import type { MemoryCatalogSeed } from "../src/browser";
 
@@ -216,6 +217,56 @@ describe("browser entry: demo Derivations (Derivations panel contract)", () => {
     };
     const result = await inspectDocument({ store, template: "services-agreement", data: threeParties, derivations });
     expect(result.resolved.derived).toMatchObject({ counterpartsCount: 3 });
+  });
+});
+
+/**
+ * The demo's error panel (issue #129) reads the STRUCTURED fields of an `ExpressionError` rather than
+ * parsing the message string. This pins the exact contract behind that panel's scenario (2) — a
+ * helper/expression that throws *inside* a top-level `for: $parties` loop — so the panel can rely on:
+ * `err instanceof ExpressionError` (safe because the demo imports the class from this same bundle),
+ * `err.location.path` carrying the ` › for` marker the engine attaches (see `engine.ts` `assembleFor`),
+ * a numeric `err.location.iteration` (the loop counter), and a non-empty `err.expression` (the offending
+ * source). The crafted payload has a bare-string `$parties` element, so `{{ $party.name }}` throws
+ * "Cannot index a string" — no Template change, just the input, exactly like the demo's break-it button.
+ */
+describe("browser entry: ExpressionError structured fields (error-panel scenario 2)", () => {
+  const loopSeed: MemoryCatalogSeed = {
+    templates: [
+      {
+        template: "roster",
+        version: 1,
+        locale: "en",
+        body: [
+          {
+            for: { each: "$parties", as: "party" },
+            body: [{ paragraph: "{{ $party.name }}" }],
+          },
+        ],
+      },
+    ],
+  };
+
+  it("rejects with an ExpressionError carrying location.path (` › for`), a numeric iteration, and the expression", async () => {
+    const store = new MemoryCatalogStore(loopSeed);
+    // The second `$parties` element is a bare string, so `$party.name` throws on iteration 1.
+    const data = { parties: [{ name: "Acme s.r.o." }, "not-an-object"] };
+
+    const error = await inspectDocument({ store, template: "roster", data }).then(
+      () => {
+        throw new Error("expected inspectDocument to reject");
+      },
+      (e: unknown) => e,
+    );
+
+    expect(error).toBeInstanceOf(ExpressionError);
+    const err = error as ExpressionError;
+    expect(err.name).toBe("ExpressionError");
+    expect(err.location?.path).toContain(" › for");
+    expect(typeof err.location?.iteration).toBe("number");
+    expect(err.location?.iteration).toBe(1);
+    expect(err.expression).toBeTruthy();
+    expect(err.expression).toContain("$party.name");
   });
 });
 
