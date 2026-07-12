@@ -272,7 +272,7 @@ export function documentElement(
     Document,
     null,
     // fontFamily on the Page cascades to all Text (react-pdf resolves bold/italic within the family).
-    <Page {...effectivePage(theme)} style={{ padding: theme.page.padding, color: theme.color.text, fontFamily: theme.font.family }}>
+    <Page {...effectivePage(theme, tree.page)} style={{ padding: theme.page.padding, color: theme.color.text, fontFamily: theme.font.family }}>
       {tree.header ? furnitureElement(tree.header, "header", theme) : null}
       {tree.body.map((node, i) => nodeToElement(node, i, theme, cx))}
       {tree.footer ? furnitureElement(tree.footer, "footer", theme) : null}

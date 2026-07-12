@@ -166,6 +166,7 @@ function snapshotId(gen: SnapshotInput): string {
         tree: gen.tree.body,
         ...(gen.tree.header !== undefined ? { header: gen.tree.header } : {}),
         ...(gen.tree.footer !== undefined ? { footer: gen.tree.footer } : {}),
+        ...(gen.tree.page !== undefined ? { page: gen.tree.page } : {}),
         payload: gen.payload ?? null,
       }),
     )

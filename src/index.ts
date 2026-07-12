@@ -102,7 +102,7 @@ export type { Helper, HelperRegistry } from "./core/helpers";
 
 export { defaultTheme, mergeTheme, DEFAULT_FONT_FAMILY } from "./theme";
 export type { Theme, DeepPartial } from "./theme";
-export { PAGE_SIZES, effectivePage } from "./core/page";
+export { PAGE_SIZES, effectivePage, isPageSizeName } from "./core/page";
 export type { PageSizeName, PageOrientation, PageSetup } from "./core/page";
 // Re-export react-pdf's Font so consumers can register their own PDF fonts (e.g. a branded family), plus
 // the bundled diacritics-safe default registration. See docs/THEMING.md.

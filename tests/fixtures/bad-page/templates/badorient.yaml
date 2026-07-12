@@ -1,0 +1,7 @@
+template: badorient
+version: 1
+locale: en
+page:
+  orientation: diagonal
+body:
+  - paragraph: "x"

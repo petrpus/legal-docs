@@ -32,7 +32,7 @@ import { asDocumentTree } from "../core/document-tree";
 import type { RichParagraph, RichRun } from "../core/rich-text";
 import { MAX_LEVEL } from "../core/engine";
 import { mergeTheme, type Theme } from "../theme";
-import { effectivePage, PAGE_SIZES } from "../core/page";
+import { effectivePage, PAGE_SIZES, type PageSetup } from "../core/page";
 import { dispatchCustomBlock } from "../custom-block";
 import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../custom-block";
 import { eighths, halfPoints, twips } from "./theme-docx";
@@ -63,7 +63,7 @@ export async function renderTreeToDocx(input: DocumentTree | DocumentBody, optio
     styles: { default: { document: { run: { font: theme.font.family } } } },
     sections: [
       {
-        properties: { page: pageProperties(theme) },
+        properties: { page: pageProperties(theme, tree.page) },
         ...(tree.header ? { headers: { default: new Header({ children: [furnitureParagraph(tree.header, "header", theme)] }) } } : {}),
         ...(tree.footer ? { footers: { default: new Footer({ children: [furnitureParagraph(tree.footer, "footer", theme)] }) } } : {}),
         children,
@@ -79,8 +79,8 @@ export async function renderTreeToDocx(input: DocumentTree | DocumentBody, optio
  * the docx library swaps w:w/w:h itself when the orientation is landscape. The single `padding` token
  * maps to all four page margins, mirroring the PDF renderer's uniform Page padding.
  */
-function pageProperties(theme: Theme) {
-  const page = effectivePage(theme);
+function pageProperties(theme: Theme, override?: PageSetup) {
+  const page = effectivePage(theme, override);
   const { width, height } = PAGE_SIZES[page.size];
   const margin = twips(theme.page.padding);
   return {

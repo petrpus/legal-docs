@@ -5,6 +5,7 @@
  */
 
 import type { Align } from "./document-tree";
+import type { PageSetup } from "./page";
 
 export interface ArticleItem {
   no: string;
@@ -92,6 +93,11 @@ export interface Template {
   header?: PageFurnitureSpec;
   /** Optional page footer for paged output (PDF/DOCX); ignored by the HTML fragment renderer. */
   footer?: PageFurnitureSpec;
+  /**
+   * Optional page geometry this document requires (e.g. a landscape annex) — a content requirement
+   * that overrides `theme.page` per-field. Paged output only; static values, no interpolation.
+   */
+  page?: PageSetup;
   /** The Variant this Template was composed from (absent for a standalone Template). */
   variant?: string;
   /** Party roles declared by the Variant (absent for a standalone Template). */

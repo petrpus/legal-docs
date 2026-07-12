@@ -6,6 +6,7 @@
  */
 
 import type { RichTextV1 } from "./rich-text";
+import type { PageSetup } from "./page";
 
 /** Inline text model. Minimal for now; structured rich text uses RichTextV1 (`richText` node). */
 export type InlineRich = string;
@@ -84,6 +85,8 @@ export interface DocumentTree {
   body: DocumentBody;
   header?: PageFurniture;
   footer?: PageFurniture;
+  /** The template's page-geometry requirement, frozen for re-render; overrides `theme.page` per-field. */
+  page?: PageSetup;
 }
 
 /**

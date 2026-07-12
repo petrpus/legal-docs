@@ -16,6 +16,12 @@ export const PAGE_SIZES = {
 
 export type PageSizeName = keyof typeof PAGE_SIZES;
 
+/** Whether a string names a supported page format (authoring validation, config UIs). */
+export function isPageSizeName(value: string): value is PageSizeName {
+  // Own keys only — `in` would also accept prototype keys like "constructor" from hostile YAML.
+  return Object.hasOwn(PAGE_SIZES, value);
+}
+
 export type PageOrientation = "portrait" | "landscape";
 
 /** A page-geometry declaration; each field is optional so a declarer states only its actual constraint. */

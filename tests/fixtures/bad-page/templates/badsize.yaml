@@ -1,0 +1,7 @@
+template: badsize
+version: 1
+locale: en
+page:
+  size: A9
+body:
+  - paragraph: "x"
