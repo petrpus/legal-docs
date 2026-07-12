@@ -1,4 +1,5 @@
 import type { Align } from "./core/document-tree";
+import type { PageOrientation, PageSizeName } from "./core/page";
 
 /**
  * The default font family. The PDF renderer registers a bundled diacritics-safe serif (Liberation
@@ -12,7 +13,8 @@ export const DEFAULT_FONT_FAMILY = "LegalDocs Serif";
  * renderers never read hard-coded styling. See docs/THEMING.md for how each renderer maps the tokens.
  */
 export interface Theme {
-  page: { size: "A4" | "LETTER"; padding: number };
+  /** Default page geometry (paged output only); a template's `page:` declaration overrides per-field. */
+  page: { size: PageSizeName; orientation: PageOrientation; padding: number };
   /** Font family. PDF needs it registered (bundled by default, or `Font.register` your own); HTML/DOCX use the viewer's fonts. */
   font: { family: string };
   fontSize: { title: number; paragraph: number };
@@ -49,7 +51,7 @@ export interface Theme {
 }
 
 export const defaultTheme: Theme = {
-  page: { size: "A4", padding: 48 },
+  page: { size: "A4", orientation: "portrait", padding: 48 },
   font: { family: DEFAULT_FONT_FAMILY },
   fontSize: { title: 18, paragraph: 11 },
   color: { text: "#111111" },

@@ -6,6 +6,7 @@ import { asDocumentTree, PAGE_NUMBER_SENTINEL, PAGE_TOTAL_SENTINEL } from "../co
 import type { RichRun } from "../core/rich-text";
 import { MAX_LEVEL } from "../core/engine";
 import { defaultTheme, mergeTheme, type Theme } from "../theme";
+import { effectivePage } from "../core/page";
 import { registerBundledFonts } from "./fonts";
 import { dispatchCustomBlock } from "../custom-block";
 import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../custom-block";
@@ -271,7 +272,7 @@ export function documentElement(
     Document,
     null,
     // fontFamily on the Page cascades to all Text (react-pdf resolves bold/italic within the family).
-    <Page size={theme.page.size} style={{ padding: theme.page.padding, color: theme.color.text, fontFamily: theme.font.family }}>
+    <Page {...effectivePage(theme)} style={{ padding: theme.page.padding, color: theme.color.text, fontFamily: theme.font.family }}>
       {tree.header ? furnitureElement(tree.header, "header", theme) : null}
       {tree.body.map((node, i) => nodeToElement(node, i, theme, cx))}
       {tree.footer ? furnitureElement(tree.footer, "footer", theme) : null}
