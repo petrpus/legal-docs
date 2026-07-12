@@ -84,6 +84,8 @@ export async function assembleDocument(
     body,
     ...(header !== undefined ? { header } : {}),
     ...(footer !== undefined ? { footer } : {}),
+    // Page geometry is static (validated enums, no interpolation) — carried through verbatim.
+    ...(template.page !== undefined ? { page: template.page } : {}),
   };
 }
 

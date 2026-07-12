@@ -6,6 +6,7 @@ import type { CatalogStore } from "./catalog-store";
 import type { BaseTemplate, BodyItem, Include, PageFurnitureSpec, Template, Variant } from "../core/template";
 import type { Clause } from "../core/clause";
 import { LegalDocsError, NotFoundError } from "../core/errors";
+import { isPageSizeName, PAGE_SIZES, type PageSetup } from "../core/page";
 import type { VarsSchema } from "../core/vars-schema";
 
 /**
@@ -222,6 +223,7 @@ function toTemplate(value: unknown, id: string): Template {
       ? v.derivations.filter((d): d is string => typeof d === "string")
       : undefined,
     ...furnitureFields(v, `Template "${id}"`),
+    ...pageField(v, `Template "${id}"`),
     // Per-item shape is validated lazily by the engine; payload (zod) validation is applied to the
     // data, not the template, in the facade.
     body: v.body as BodyItem[],
@@ -240,6 +242,29 @@ function furnitureFields(v: Record<string, unknown>, label: string): { header?: 
     ...(header !== undefined ? { header } : {}),
     ...(footer !== undefined ? { footer } : {}),
   };
+}
+
+/**
+ * Parse an optional `page:` geometry spec (size / orientation, both optional enums). Values are
+ * static — unlike furniture there is no interpolation — so validation is a plain enum check.
+ * An empty `page: {}` converges with "absent", like a slot-less furniture spec.
+ */
+function pageField(v: Record<string, unknown>, label: string): { page?: PageSetup } {
+  if (v.page === undefined) return {};
+  const value = v.page;
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new LegalDocsError(`${label} page must be an object with size/orientation`);
+  }
+  const p = value as Record<string, unknown>;
+  const { size, orientation } = p;
+  if (size !== undefined && !(typeof size === "string" && isPageSizeName(size))) {
+    throw new LegalDocsError(`${label} page "size" must be one of ${Object.keys(PAGE_SIZES).join(", ")}`);
+  }
+  if (orientation !== undefined && orientation !== "portrait" && orientation !== "landscape") {
+    throw new LegalDocsError(`${label} page "orientation" must be "portrait" or "landscape"`);
+  }
+  if (size === undefined && orientation === undefined) return {};
+  return { page: { ...(size !== undefined ? { size } : {}), ...(orientation !== undefined ? { orientation } : {}) } };
 }
 
 /** Returns `undefined` for a slot-less spec, so a present-but-empty `header: {}` converges with "absent". */

@@ -1,0 +1,6 @@
+template: badshape
+version: 1
+locale: en
+page: landscape
+body:
+  - paragraph: "x"

@@ -1,0 +1,8 @@
+template: annex
+version: 1
+locale: en
+page:
+  size: LEGAL
+  orientation: landscape
+body:
+  - paragraph: "Wide annex content."
