@@ -165,15 +165,17 @@ Resolved payload
    │    ├─ Binding                          $paths / {{expr}} / vars substituted
    │    └─ Reference resolution             Block &amp; Clause refs (@vN | @latest) looked up
    ▼
-DocumentTree = { body: DocumentNode[]; header?; footer? }  ◄── the renderer-agnostic seam
+DocumentTree = { body: DocumentNode[]; header?; footer?; page? }  ◄── the renderer-agnostic seam
    │  Renderer (visitor)                 ← PDF / HTML / DOCX, one per format
    ▼
 result (discriminated by format)         ← pdf/docx: { buffer, stream }; html: { html };
                                             all carry { snapshot, snapshotId } for re-render
 </code></pre>
 <p><code>header</code>/<code>footer</code> are optional, resolved <strong>Page furniture</strong> (running page header/footer text plus
-<code>$page.number</code>/<code>$page.total</code>, paged output only — ADR-0011); a tree with neither is just the body. The
-tree renderers also accept a bare <code>DocumentNode[]</code> for a caller not using furniture.</p>
+<code>$page.number</code>/<code>$page.total</code>, paged output only — ADR-0011), and <code>page</code> is the template&#39;s optional
+<strong>Page setup</strong> (a size/orientation requirement overriding <code>theme.page</code> per-field — ADR-0013); a tree
+with none of them is just the body. The tree renderers also accept a bare <code>DocumentNode[]</code> for a
+caller not using furniture.</p>
 <p>The three phases are deliberately separate so each is independently testable:</p>
 <ul>
 <li><strong>Validation</strong> — payload conforms to the template&#39;s versioned schema.</li>
@@ -187,7 +189,7 @@ performing <strong>Binding</strong> (value substitution) and <strong>Reference r
 touching the other:</p>
 <ol>
 <li><strong><code>DocumentTree</code> — between the engine and the renderers.</strong> Core produces a neutral document tree
-(a <code>DocumentNode[]</code> body, plus optional page furniture); each <strong>Renderer</strong> is an exhaustive <em>visitor</em>
+(a <code>DocumentNode[]</code> body, plus optional page furniture and page setup); each <strong>Renderer</strong> is an exhaustive <em>visitor</em>
 over it. Author the structure once, render it to PDF, HTML, and DOCX. This is why layout must be
 abstracted away from react-pdf (today it is fused in).</li>
 <li><strong><code>CatalogStore</code> — between content storage and everything above it.</strong> The <strong>Catalog</strong> loads

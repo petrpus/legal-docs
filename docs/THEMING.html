@@ -178,8 +178,8 @@ const resolved: Theme = mergeTheme(partial); // every other token still equals d
 </thead>
 <tbody><tr>
 <td><code>page</code></td>
-<td><code>size</code> (<code>&quot;A4&quot;</code> | <code>&quot;LETTER&quot;</code>), <code>padding</code></td>
-<td>Page geometry (PDF).</td>
+<td><code>size</code> (<code>&quot;A3&quot;</code> | <code>&quot;A4&quot;</code> | <code>&quot;A5&quot;</code> | <code>&quot;LETTER&quot;</code> | <code>&quot;LEGAL&quot;</code> | <code>&quot;TABLOID&quot;</code>), <code>orientation</code> (<code>&quot;portrait&quot;</code> | <code>&quot;landscape&quot;</code>), <code>padding</code></td>
+<td>Default page geometry (paged output only — see <strong>Page geometry</strong> below).</td>
 </tr>
 <tr>
 <td><code>font</code></td>
@@ -247,7 +247,22 @@ const resolved: Theme = mergeTheme(partial); // every other token still equals d
 <td>Signature lines and labels.</td>
 </tr>
 </tbody></table>
-</div><h2 id="fonts--diacritics">Fonts &amp; diacritics</h2>
+</div><h2 id="page-geometry-paged-output">Page geometry (paged output)</h2>
+<p><code>theme.page</code> sets the <strong>default</strong> geometry: one of six named formats (<code>A3</code>–<code>A5</code>, <code>LETTER</code>, <code>LEGAL</code>,
+<code>TABLOID</code>), an <code>orientation</code>, and a uniform <code>padding</code>. A Template that requires a specific geometry
+(a landscape annex, a Legal filing) declares it in its own <code>page:</code> section, which <strong>overrides the
+theme per-field</strong> — required geometry is content, not styling (see AUTHORING.md and ADR-0013).</p>
+<ul>
+<li><strong>PDF</strong> resolves the format name and orientation natively; <code>padding</code> is the Page padding.</li>
+<li><strong>DOCX</strong> emits explicit section properties: <code>w:pgSz</code> from the shared <code>PAGE_SIZES</code> dimension table
+(identical to react-pdf&#39;s, so the two formats always agree) and <code>w:pgMar</code> with <code>padding</code> on all
+four edges. Before ADR-0013 the DOCX section carried no page properties at all and Word applied
+its own defaults (Letter-ish size, 1-inch margins) — output is now explicit and theme-driven.</li>
+<li><strong>HTML</strong> ignores <code>theme.page.*</code> entirely (a page-less fragment, ADR-0006/0011).</li>
+</ul>
+<p>The dimension table and the precedence rule are public: <code>PAGE_SIZES</code>, <code>effectivePage</code>,
+<code>isPageSizeName</code>, and the <code>PageSizeName</code> / <code>PageOrientation</code> / <code>PageSetup</code> types.</p>
+<h2 id="fonts--diacritics">Fonts &amp; diacritics</h2>
 <p><code>theme.font.family</code> names the font. The three renderers resolve fonts very differently:</p>
 <ul>
 <li><strong>PDF</strong> embeds its own font. react-pdf&#39;s built-in Helvetica is WinAnsi-only and <strong>mangles
