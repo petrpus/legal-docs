@@ -251,6 +251,23 @@ reserved slot-scope name (it shadows a payload field literally named <code>page<
 <li><strong>Paged output only:</strong> PDF renders furniture; the HTML fragment renderer ignores it (it has no pages),
 exactly as it ignores <code>theme.page.*</code>. See ADR-0011.</li>
 </ul>
+<h3 id="page-geometry-paged-output">Page geometry (paged output)</h3>
+<p>A Template that <em>requires</em> a specific page geometry — a landscape annex with a wide table, a US Legal
+filing — declares it in an optional <code>page:</code> section:</p>
+<pre><code class="language-yaml">page:
+  size: LEGAL          # A3 | A4 | A5 | LETTER | LEGAL | TABLOID
+  orientation: landscape  # portrait | landscape
+</code></pre>
+<ul>
+<li>Both fields are optional — declare only the constraint you actually have; the rest falls back to
+the consumer&#39;s <code>theme.page</code> defaults. The template <strong>wins per-field</strong> over the theme, because a
+required geometry is content, not styling (ADR-0013).</li>
+<li>Values are static enums, validated when the catalog loads — no <code>{{ }}</code> interpolation here.</li>
+<li><strong>Paged output only:</strong> PDF and DOCX honour it; the HTML fragment renderer ignores it.</li>
+<li>The declaration is frozen into the <strong>Snapshot</strong> (like furniture), so a re-render reproduces the
+geometry deterministically.</li>
+<li>Not carried through Variant/family composition (the same current limitation as <code>header</code>/<code>footer</code>).</li>
+</ul>
 <h3 id="expression-syntax">Expression syntax</h3>
 <ul>
 <li><strong>Values:</strong> <code>$path.to.value</code> (from the payload), <code>$derived.name</code> (from the Resolve phase),

@@ -157,8 +157,9 @@ Has no <code>id</code> and no schema; it is pure output data, not a catalog entr
 <em>Avoid</em>: Block (that is the catalog type, not the tree instance), node, element.</p>
 <p><strong>DocumentTree</strong>:
 The whole renderer- and Snapshot-facing seam: the ordered <strong>DocumentNode</strong> body plus optional
-resolved <strong>Page furniture</strong> (<code>{ body, header?, footer? }</code>). A bare <code>DocumentNode[]</code> is still accepted
-by the tree renderers (normalized to <code>{ body }</code>) for a caller not using furniture. See ADR-0011.
+resolved <strong>Page furniture</strong> and the template&#39;s <strong>Page setup</strong> (<code>{ body, header?, footer?, page? }</code>).
+A bare <code>DocumentNode[]</code> is still accepted by the tree renderers (normalized to <code>{ body }</code>) for a
+caller not using furniture. See ADR-0011, ADR-0013.
 <em>Avoid</em>: using &quot;DocumentNode[]&quot; as a synonym for the whole tree once furniture is in play — the tree
 is the object, <code>body</code> is the node list.</p>
 <p><strong>Page furniture</strong>:
@@ -170,6 +171,14 @@ deterministic). Presentation (size, colour, margin) is a Theme concern, not an a
 ADR-0011.
 <em>Avoid</em>: &quot;header&quot;/&quot;footer&quot; unqualified when the running-page kind is meant (a Template&#39;s <code>title</code>
 DocumentNode is unrelated).</p>
+<p><strong>Page setup</strong>:
+A Template&#39;s declared page-geometry requirement (<code>page: { size?, orientation? }</code> — static enums, no
+interpolation), carried verbatim onto the <strong>DocumentTree</strong> and frozen in the <strong>Snapshot</strong>. It
+overrides <code>theme.page</code> <strong>per-field</strong> in the paged renderers (PDF/DOCX; the HTML fragment ignores it):
+required geometry is content, not styling. The <strong>effective page</strong> — what a paged renderer actually
+uses — is always computed by the single <code>effectivePage(theme, override)</code> helper. See ADR-0013.
+<em>Avoid</em>: &quot;page size&quot; for the whole concept (orientation is part of it); putting geometry defaults
+anywhere but <code>theme.page</code>.</p>
 <h3 id="catalog-elements">Catalog elements</h3>
 <p>The catalog has exactly <strong>two</strong> kinds of authored, reusable elements: <strong>Block</strong> (structure) and
 <strong>Clause</strong> (text). Document-specific text that is neither reused nor independently versioned is <strong>not</strong>
@@ -375,8 +384,8 @@ persists it and can hand it back for deterministic re-render.</li>
 <li>Each <strong>Renderer</strong> visits the <strong>Core node set</strong> exhaustively; a <strong>Custom block</strong> missing a format
 triggers the <strong>Degradation contract</strong> (default <code>placeholder</code>).</li>
 <li><strong>Clause</strong> bodies and text-node <code>text</code> are <strong>InlineRich</strong> / <strong>RichTextV1</strong>.</li>
-<li>A <strong>DocumentTree</strong> is the <strong>DocumentNode</strong> body plus optional <strong>Page furniture</strong>; only PDF/DOCX
-render furniture, and the <strong>Snapshot</strong> freezes it for deterministic re-render.</li>
+<li>A <strong>DocumentTree</strong> is the <strong>DocumentNode</strong> body plus optional <strong>Page furniture</strong> and <strong>Page
+setup</strong>; only PDF/DOCX render them, and the <strong>Snapshot</strong> freezes both for deterministic re-render.</li>
 </ul>
 <h2 id="example-dialogue">Example dialogue</h2>
 <blockquote>
