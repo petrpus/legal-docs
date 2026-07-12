@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
+import JSZip from "jszip";
 import { renderTreeToPdf } from "../src/render-pdf/render-pdf";
+import { renderTreeToDocx } from "../src/render-docx/render-docx";
 import { PAGE_SIZES, effectivePage } from "../src/core/page";
 import { defaultTheme, mergeTheme } from "../src/theme";
 import type { DocumentBody } from "../src/core/document-tree";
@@ -62,6 +64,44 @@ describe("page geometry — PDF", () => {
       expect(w, `${size} width`).toBeCloseTo(dims.width, 1);
       expect(h, `${size} height`).toBeCloseTo(dims.height, 1);
     }
+  });
+});
+
+describe("page geometry — DOCX", () => {
+  async function sectionXml(buffer: Buffer): Promise<string> {
+    const zip = await JSZip.loadAsync(buffer);
+    return zip.file("word/document.xml")!.async("string");
+  }
+
+  it("emits explicit A4 portrait page size and padding-derived margins by default", async () => {
+    const xml = await sectionXml(await renderTreeToDocx(body));
+    // twips: A4 595.28×841.89 pt ×20, rounded; margins from theme.page.padding (48 pt → 960).
+    expect(xml).toMatch(/<w:pgSz [^/>]*w:w="11906"/);
+    expect(xml).toMatch(/<w:pgSz [^/>]*w:h="16838"/);
+    expect(xml).toMatch(/<w:pgSz [^/>]*w:orient="portrait"/);
+    expect(xml).toMatch(/<w:pgMar [^/>]*w:top="960"/);
+    expect(xml).toMatch(/<w:pgMar [^/>]*w:right="960"/);
+    expect(xml).toMatch(/<w:pgMar [^/>]*w:bottom="960"/);
+    expect(xml).toMatch(/<w:pgMar [^/>]*w:left="960"/);
+  });
+
+  it("emits swapped dimensions and w:orient for a themed LEGAL landscape page", async () => {
+    const buffer = await renderTreeToDocx(body, { theme: { page: { size: "LEGAL", orientation: "landscape" } } });
+    const xml = await sectionXml(buffer);
+    // LEGAL portrait is 612×1008 pt (12240×20160 twips); landscape swaps w:w/w:h in the XML.
+    expect(xml).toMatch(/<w:pgSz [^/>]*w:w="20160"/);
+    expect(xml).toMatch(/<w:pgSz [^/>]*w:h="12240"/);
+    expect(xml).toMatch(/<w:pgSz [^/>]*w:orient="landscape"/);
+  });
+
+  it("derives margins from an overridden theme padding", async () => {
+    // 36 pt → 720 twips; deliberately NOT 72 pt, whose 1440 twips equals the docx library's own
+    // default margin and would let this test pass without our mapping.
+    const xml = await sectionXml(await renderTreeToDocx(body, { theme: { page: { padding: 36 } } }));
+    expect(xml).toMatch(/<w:pgMar [^/>]*w:top="720"/);
+    expect(xml).toMatch(/<w:pgMar [^/>]*w:right="720"/);
+    expect(xml).toMatch(/<w:pgMar [^/>]*w:bottom="720"/);
+    expect(xml).toMatch(/<w:pgMar [^/>]*w:left="720"/);
   });
 });
 
