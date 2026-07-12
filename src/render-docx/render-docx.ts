@@ -7,6 +7,7 @@ import {
   Header,
   Packer,
   PageNumber,
+  PageOrientation,
   Paragraph,
   Table,
   TableCell,
@@ -31,6 +32,7 @@ import { asDocumentTree } from "../core/document-tree";
 import type { RichParagraph, RichRun } from "../core/rich-text";
 import { MAX_LEVEL } from "../core/engine";
 import { mergeTheme, type Theme } from "../theme";
+import { effectivePage, PAGE_SIZES } from "../core/page";
 import { dispatchCustomBlock } from "../custom-block";
 import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../custom-block";
 import { eighths, halfPoints, twips } from "./theme-docx";
@@ -61,6 +63,7 @@ export async function renderTreeToDocx(input: DocumentTree | DocumentBody, optio
     styles: { default: { document: { run: { font: theme.font.family } } } },
     sections: [
       {
+        properties: { page: pageProperties(theme) },
         ...(tree.header ? { headers: { default: new Header({ children: [furnitureParagraph(tree.header, "header", theme)] }) } } : {}),
         ...(tree.footer ? { footers: { default: new Footer({ children: [furnitureParagraph(tree.footer, "footer", theme)] }) } } : {}),
         children,
@@ -68,6 +71,26 @@ export async function renderTreeToDocx(input: DocumentTree | DocumentBody, optio
     ],
   });
   return Packer.toBuffer(doc);
+}
+
+/**
+ * Explicit section page geometry — without it Word applies its own defaults (Letter-ish size, 1-inch
+ * margins) and ignores the theme entirely. Dimensions are always the portrait values from PAGE_SIZES;
+ * the docx library swaps w:w/w:h itself when the orientation is landscape. The single `padding` token
+ * maps to all four page margins, mirroring the PDF renderer's uniform Page padding.
+ */
+function pageProperties(theme: Theme) {
+  const page = effectivePage(theme);
+  const { width, height } = PAGE_SIZES[page.size];
+  const margin = twips(theme.page.padding);
+  return {
+    size: {
+      width: twips(width),
+      height: twips(height),
+      orientation: page.orientation === "landscape" ? PageOrientation.LANDSCAPE : PageOrientation.PORTRAIT,
+    },
+    margin: { top: margin, right: margin, bottom: margin, left: margin },
+  };
 }
 
 function nodeToDocx(node: DocumentNode, ctx: DocxCtx): (Paragraph | Table)[] {
