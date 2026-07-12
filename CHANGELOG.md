@@ -8,10 +8,13 @@ All notable changes to `@petrpus/legal-docs` are recorded here. The format follo
 
 Nothing yet.
 
-## [0.1.0-beta.2] — 2026-07-12
+## [0.2.0-beta.1] — 2026-07-12
 
 Page geometry across the paged renderers (ADR-0013): named formats, orientation, and template-level
 page requirements. PRD [#135](https://github.com/petrpus/legal-docs/issues/135), PRs #140–#144.
+
+> Briefly published as `0.1.0-beta.2` and renumbered the same day (a new feature bumps the minor);
+> the deprecated `0.1.0-beta.2` artifact is content-identical.
 
 ### Added
 - **Six named page formats** — `theme.page.size` widens from `A4 | LETTER` to
@@ -257,6 +260,6 @@ phase by phase from the approved design plan ([`docs/PLAN.md`](docs/PLAN.md)) an
   all three renderers); `Font` (react-pdf) and `registerBundledFonts` re-exported so consumers can
   register their own. See docs/THEMING.md.
 
-[Unreleased]: https://github.com/petrpus/legal-docs/compare/v0.1.0-beta.2...HEAD
-[0.1.0-beta.2]: https://github.com/petrpus/legal-docs/compare/v0.1.0-beta.1...v0.1.0-beta.2
+[Unreleased]: https://github.com/petrpus/legal-docs/compare/v0.2.0-beta.1...HEAD
+[0.2.0-beta.1]: https://github.com/petrpus/legal-docs/compare/v0.1.0-beta.1...v0.2.0-beta.1
 [0.1.0-beta.1]: https://github.com/petrpus/legal-docs/releases/tag/v0.1.0-beta.1
