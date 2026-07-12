@@ -18,8 +18,9 @@ export const DEFAULT_SNAPSHOT_MODE: SnapshotMode = "full";
  * shape is versioned: {@link renderFromSnapshot} rejects a snapshot whose `schemaVersion` it doesn't
  * understand instead of failing obscurely deep inside a renderer. Bump this on any breaking shape change.
  *
- * v2: `tree` changed from a bare `DocumentNode[]` to a `DocumentTree` object (`{ body, header?, footer? }`)
- * so page furniture is frozen for re-render (ADR-0011). v1 snapshots (array `tree`) are rejected.
+ * v2: `tree` changed from a bare `DocumentNode[]` to a `DocumentTree` object (`{ body, header?,
+ * footer?, page? }`) so page furniture — and later the page setup (ADR-0013), an additive optional
+ * field, no bump — is frozen for re-render (ADR-0011). v1 snapshots (array `tree`) are rejected.
  */
 export const SNAPSHOT_SCHEMA_VERSION = 2;
 

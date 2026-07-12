@@ -25,7 +25,8 @@ const MIME: Record<string, string> = {
 // detection instead.
 const ENUMS: readonly string[][] = [
   ["left", "center", "right", "justify"], // align.title / align.paragraph
-  ["A4", "LETTER"], // page.size
+  ["A3", "A4", "A5", "LETTER", "LEGAL", "TABLOID"], // page.size
+  ["portrait", "landscape"], // page.orientation
 ];
 
 type Tab = "render" | "diff" | "editor";

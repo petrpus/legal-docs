@@ -18,8 +18,9 @@ _Avoid_: Block (that is the catalog type, not the tree instance), node, element.
 
 **DocumentTree**:
 The whole renderer- and Snapshot-facing seam: the ordered **DocumentNode** body plus optional
-resolved **Page furniture** (`{ body, header?, footer? }`). A bare `DocumentNode[]` is still accepted
-by the tree renderers (normalized to `{ body }`) for a caller not using furniture. See ADR-0011.
+resolved **Page furniture** and the template's **Page setup** (`{ body, header?, footer?, page? }`).
+A bare `DocumentNode[]` is still accepted by the tree renderers (normalized to `{ body }`) for a
+caller not using furniture. See ADR-0011, ADR-0013.
 _Avoid_: using "DocumentNode[]" as a synonym for the whole tree once furniture is in play — the tree
 is the object, `body` is the node list.
 
@@ -32,6 +33,15 @@ deterministic). Presentation (size, colour, margin) is a Theme concern, not an a
 ADR-0011.
 _Avoid_: "header"/"footer" unqualified when the running-page kind is meant (a Template's `title`
 DocumentNode is unrelated).
+
+**Page setup**:
+A Template's declared page-geometry requirement (`page: { size?, orientation? }` — static enums, no
+interpolation), carried verbatim onto the **DocumentTree** and frozen in the **Snapshot**. It
+overrides `theme.page` **per-field** in the paged renderers (PDF/DOCX; the HTML fragment ignores it):
+required geometry is content, not styling. The **effective page** — what a paged renderer actually
+uses — is always computed by the single `effectivePage(theme, override)` helper. See ADR-0013.
+_Avoid_: "page size" for the whole concept (orientation is part of it); putting geometry defaults
+anywhere but `theme.page`.
 
 ### Catalog elements
 
@@ -270,8 +280,8 @@ The catalog looking up a **Block** or **Clause reference** to a concrete element
 - Each **Renderer** visits the **Core node set** exhaustively; a **Custom block** missing a format
   triggers the **Degradation contract** (default `placeholder`).
 - **Clause** bodies and text-node `text` are **InlineRich** / **RichTextV1**.
-- A **DocumentTree** is the **DocumentNode** body plus optional **Page furniture**; only PDF/DOCX
-  render furniture, and the **Snapshot** freezes it for deterministic re-render.
+- A **DocumentTree** is the **DocumentNode** body plus optional **Page furniture** and **Page
+  setup**; only PDF/DOCX render them, and the **Snapshot** freezes both for deterministic re-render.
 
 ## Example dialogue
 
