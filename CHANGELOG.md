@@ -8,6 +8,34 @@ All notable changes to `@petrpus/legal-docs` are recorded here. The format follo
 
 Nothing yet.
 
+## [0.1.0-beta.2] — 2026-07-12
+
+Page geometry across the paged renderers (ADR-0013): named formats, orientation, and template-level
+page requirements. PRD [#135](https://github.com/petrpus/legal-docs/issues/135), PRs #140–#144.
+
+### Added
+- **Six named page formats** — `theme.page.size` widens from `A4 | LETTER` to
+  `A3 | A4 | A5 | LETTER | LEGAL | TABLOID`, and `theme.page` gains
+  `orientation: "portrait" | "landscape"` (defaults unchanged: A4 portrait, 48 pt padding).
+- **One core dimension table** — new public `PAGE_SIZES` (points, portrait reference; values match
+  react-pdf's internal table), `effectivePage(theme, override)` precedence helper, `isPageSizeName`
+  guard, and the `PageSizeName` / `PageOrientation` / `PageSetup` types.
+- **Template-level `page:`** — a YAML template may declare
+  `page: { size?, orientation? }` (static enums, validated at catalog load) as a content requirement
+  that **overrides the theme per-field** in both paged renderers. Carried onto the `DocumentTree`,
+  frozen in the Snapshot (additive — the digest mixes `page` in only when present, so existing
+  documents keep their snapshot ids; schema stays v2), and reproduced by `renderFromSnapshot`.
+- **Demo** — the theme editor offers all six formats and both orientations as selects.
+
+### Changed
+- **DOCX now emits explicit section page geometry** — `w:pgSz` (size + orientation) and `w:pgMar`
+  mapped from `theme.page.padding` on all four edges. Previously the section carried no page
+  properties and Word applied its own defaults (Letter-ish size, 1-inch margins) regardless of the
+  theme; default-theme DOCX margins therefore shift from 1440 to 960 twips. PDF/DOCX geometry can no
+  longer drift (shared `PAGE_SIZES`).
+- HTML remains a page-less fragment and ignores page geometry (ADR-0006/0011), now documented
+  alongside the new **Page setup** term in CONTEXT.md, AUTHORING.md, and THEMING.md.
+
 ## [0.1.0-beta.1] — 2026-07-11
 
 First published pre-release: `npm install @petrpus/legal-docs@beta`. Everything below was built
@@ -229,4 +257,6 @@ phase by phase from the approved design plan ([`docs/PLAN.md`](docs/PLAN.md)) an
   all three renderers); `Font` (react-pdf) and `registerBundledFonts` re-exported so consumers can
   register their own. See docs/THEMING.md.
 
-[Unreleased]: https://github.com/petrpus/legal-docs
+[Unreleased]: https://github.com/petrpus/legal-docs/compare/v0.1.0-beta.2...HEAD
+[0.1.0-beta.2]: https://github.com/petrpus/legal-docs/compare/v0.1.0-beta.1...v0.1.0-beta.2
+[0.1.0-beta.1]: https://github.com/petrpus/legal-docs/releases/tag/v0.1.0-beta.1

@@ -147,9 +147,37 @@ hr { border: none; border-top: 1px solid var(--line); margin: 2.2rem 0; }
 <p>All notable changes to <code>@petrpus/legal-docs</code> are recorded here. The format follows
 <a href="https://keepachangelog.com/" target="_blank" rel="noopener">Keep a Changelog</a>, and the project aims to follow
 <a href="https://semver.org/" target="_blank" rel="noopener">Semantic Versioning</a> once published.</p>
-<h2 id="unreleased"><a href="https://github.com/petrpus/legal-docs" target="_blank" rel="noopener">Unreleased</a></h2>
+<h2 id="unreleased"><a href="https://github.com/petrpus/legal-docs/compare/v0.1.0-beta.2...HEAD" target="_blank" rel="noopener">Unreleased</a></h2>
 <p>Nothing yet.</p>
-<h2 id="010-beta1--2026-07-11">[0.1.0-beta.1] — 2026-07-11</h2>
+<h2 id="010-beta2--2026-07-12"><a href="https://github.com/petrpus/legal-docs/compare/v0.1.0-beta.1...v0.1.0-beta.2" target="_blank" rel="noopener">0.1.0-beta.2</a> — 2026-07-12</h2>
+<p>Page geometry across the paged renderers (ADR-0013): named formats, orientation, and template-level
+page requirements. PRD <a href="https://github.com/petrpus/legal-docs/issues/135" target="_blank" rel="noopener">#135</a>, PRs #140–#144.</p>
+<h3 id="added">Added</h3>
+<ul>
+<li><strong>Six named page formats</strong> — <code>theme.page.size</code> widens from <code>A4 | LETTER</code> to
+<code>A3 | A4 | A5 | LETTER | LEGAL | TABLOID</code>, and <code>theme.page</code> gains
+<code>orientation: &quot;portrait&quot; | &quot;landscape&quot;</code> (defaults unchanged: A4 portrait, 48 pt padding).</li>
+<li><strong>One core dimension table</strong> — new public <code>PAGE_SIZES</code> (points, portrait reference; values match
+react-pdf&#39;s internal table), <code>effectivePage(theme, override)</code> precedence helper, <code>isPageSizeName</code>
+guard, and the <code>PageSizeName</code> / <code>PageOrientation</code> / <code>PageSetup</code> types.</li>
+<li><strong>Template-level <code>page:</code></strong> — a YAML template may declare
+<code>page: { size?, orientation? }</code> (static enums, validated at catalog load) as a content requirement
+that <strong>overrides the theme per-field</strong> in both paged renderers. Carried onto the <code>DocumentTree</code>,
+frozen in the Snapshot (additive — the digest mixes <code>page</code> in only when present, so existing
+documents keep their snapshot ids; schema stays v2), and reproduced by <code>renderFromSnapshot</code>.</li>
+<li><strong>Demo</strong> — the theme editor offers all six formats and both orientations as selects.</li>
+</ul>
+<h3 id="changed">Changed</h3>
+<ul>
+<li><strong>DOCX now emits explicit section page geometry</strong> — <code>w:pgSz</code> (size + orientation) and <code>w:pgMar</code>
+mapped from <code>theme.page.padding</code> on all four edges. Previously the section carried no page
+properties and Word applied its own defaults (Letter-ish size, 1-inch margins) regardless of the
+theme; default-theme DOCX margins therefore shift from 1440 to 960 twips. PDF/DOCX geometry can no
+longer drift (shared <code>PAGE_SIZES</code>).</li>
+<li>HTML remains a page-less fragment and ignores page geometry (ADR-0006/0011), now documented
+alongside the new <strong>Page setup</strong> term in CONTEXT.md, AUTHORING.md, and THEMING.md.</li>
+</ul>
+<h2 id="010-beta1--2026-07-11"><a href="https://github.com/petrpus/legal-docs/releases/tag/v0.1.0-beta.1" target="_blank" rel="noopener">0.1.0-beta.1</a> — 2026-07-11</h2>
 <p>First published pre-release: <code>npm install @petrpus/legal-docs@beta</code>. Everything below was built
 phase by phase from the approved design plan (<a href="https://github.com/petrpus/legal-docs/blob/main/docs/PLAN.md" target="_blank" rel="noopener"><code>docs/PLAN.md</code></a>) and ships in this beta.</p>
 <h3 id="documentation-site-redesign--live-in-browser-demo-adr-0012">Documentation site redesign &amp; live in-browser demo (ADR-0012)</h3>
