@@ -24,7 +24,7 @@ Resolved payload
    │    ├─ Binding                          $paths / {{expr}} / vars substituted
    │    └─ Reference resolution             Block & Clause refs (@vN | @latest) looked up
    ▼
-DocumentTree = { body: DocumentNode[]; header?; footer? }  ◄── the renderer-agnostic seam
+DocumentTree = { body: DocumentNode[]; header?; footer?; page? }  ◄── the renderer-agnostic seam
    │  Renderer (visitor)                 ← PDF / HTML / DOCX, one per format
    ▼
 result (discriminated by format)         ← pdf/docx: { buffer, stream }; html: { html };
@@ -32,8 +32,10 @@ result (discriminated by format)         ← pdf/docx: { buffer, stream }; html:
 ```
 
 `header`/`footer` are optional, resolved **Page furniture** (running page header/footer text plus
-`$page.number`/`$page.total`, paged output only — ADR-0011); a tree with neither is just the body. The
-tree renderers also accept a bare `DocumentNode[]` for a caller not using furniture.
+`$page.number`/`$page.total`, paged output only — ADR-0011), and `page` is the template's optional
+**Page setup** (a size/orientation requirement overriding `theme.page` per-field — ADR-0013); a tree
+with none of them is just the body. The tree renderers also accept a bare `DocumentNode[]` for a
+caller not using furniture.
 
 The three phases are deliberately separate so each is independently testable:
 
@@ -49,7 +51,7 @@ The architecture turns on two clean boundaries ("seams") where one side can be s
 touching the other:
 
 1. **`DocumentTree` — between the engine and the renderers.** Core produces a neutral document tree
-   (a `DocumentNode[]` body, plus optional page furniture); each **Renderer** is an exhaustive *visitor*
+   (a `DocumentNode[]` body, plus optional page furniture and page setup); each **Renderer** is an exhaustive *visitor*
    over it. Author the structure once, render it to PDF, HTML, and DOCX. This is why layout must be
    abstracted away from react-pdf (today it is fused in).
 2. **`CatalogStore` — between content storage and everything above it.** The **Catalog** loads

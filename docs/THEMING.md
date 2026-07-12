@@ -36,7 +36,7 @@ The `Theme` type (all sizes are **design points**; see units below):
 
 | Group | Tokens | Drives |
 |---|---|---|
-| `page` | `size` (`"A4"` \| `"LETTER"`), `padding` | Page geometry (PDF). |
+| `page` | `size` (`"A3"` \| `"A4"` \| `"A5"` \| `"LETTER"` \| `"LEGAL"` \| `"TABLOID"`), `orientation` (`"portrait"` \| `"landscape"`), `padding` | Default page geometry (paged output only — see **Page geometry** below). |
 | `font` | `family` | Font family (see **Fonts & diacritics** below). |
 | `fontSize` | `title`, `paragraph` | Title and body text size. |
 | `color` | `text` | Base text colour (hex). |
@@ -50,6 +50,23 @@ The `Theme` type (all sizes are **design points**; see units below):
 | `partyHeader` | `roleFontSize`, `gap` | Party role label size and block gap. |
 | `table` | `borderColor`, `cellPadding`, `labelWidth`, `fontSize` | Key-value table styling. |
 | `signatures` | `lineWidth`, `lineColor`, `lineSpace`, `columnGap`, `gap`, `fontSize`, `roleColor` | Signature lines and labels. |
+
+## Page geometry (paged output)
+
+`theme.page` sets the **default** geometry: one of six named formats (`A3`–`A5`, `LETTER`, `LEGAL`,
+`TABLOID`), an `orientation`, and a uniform `padding`. A Template that requires a specific geometry
+(a landscape annex, a Legal filing) declares it in its own `page:` section, which **overrides the
+theme per-field** — required geometry is content, not styling (see AUTHORING.md and ADR-0013).
+
+- **PDF** resolves the format name and orientation natively; `padding` is the Page padding.
+- **DOCX** emits explicit section properties: `w:pgSz` from the shared `PAGE_SIZES` dimension table
+  (identical to react-pdf's, so the two formats always agree) and `w:pgMar` with `padding` on all
+  four edges. Before ADR-0013 the DOCX section carried no page properties at all and Word applied
+  its own defaults (Letter-ish size, 1-inch margins) — output is now explicit and theme-driven.
+- **HTML** ignores `theme.page.*` entirely (a page-less fragment, ADR-0006/0011).
+
+The dimension table and the precedence rule are public: `PAGE_SIZES`, `effectivePage`,
+`isPageSizeName`, and the `PageSizeName` / `PageOrientation` / `PageSetup` types.
 
 ## Fonts & diacritics
 

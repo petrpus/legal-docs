@@ -124,6 +124,26 @@ footer:
 - **Paged output only:** PDF renders furniture; the HTML fragment renderer ignores it (it has no pages),
   exactly as it ignores `theme.page.*`. See ADR-0011.
 
+### Page geometry (paged output)
+
+A Template that *requires* a specific page geometry — a landscape annex with a wide table, a US Legal
+filing — declares it in an optional `page:` section:
+
+```yaml
+page:
+  size: LEGAL          # A3 | A4 | A5 | LETTER | LEGAL | TABLOID
+  orientation: landscape  # portrait | landscape
+```
+
+- Both fields are optional — declare only the constraint you actually have; the rest falls back to
+  the consumer's `theme.page` defaults. The template **wins per-field** over the theme, because a
+  required geometry is content, not styling (ADR-0013).
+- Values are static enums, validated when the catalog loads — no `{{ }}` interpolation here.
+- **Paged output only:** PDF and DOCX honour it; the HTML fragment renderer ignores it.
+- The declaration is frozen into the **Snapshot** (like furniture), so a re-render reproduces the
+  geometry deterministically.
+- Not carried through Variant/family composition (the same current limitation as `header`/`footer`).
+
 ### Expression syntax
 
 - **Values:** `$path.to.value` (from the payload), `$derived.name` (from the Resolve phase),
