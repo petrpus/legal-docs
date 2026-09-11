@@ -190,7 +190,20 @@ export class EditSetValidationError extends LegalDocsError {
 
 /** Validate a value as an {@link EditSet}, throwing a path-precise {@link EditSetValidationError}. */
 export function assertValidEditSet(value: unknown): asserts value is EditSet {
-  const result = editSetSchema.safeParse(value);
+  assertValid(editSetSchema, value);
+}
+
+/**
+ * Validate a single value as an {@link EditOp}. A malformed op is a programming error on the way IN —
+ * an editor session refuses it before it reaches `applyEdits`, which keeps a rejected edit ("this op
+ * does not apply to this tree", an `EditError`) distinguishable from a value that is not an op at all.
+ */
+export function assertValidEditOp(value: unknown): asserts value is EditOp {
+  assertValid(editOpSchema, value);
+}
+
+function assertValid(schema: z.ZodType, value: unknown): void {
+  const result = schema.safeParse(value);
   if (result.success) return;
   const issues: TreeIssue[] = result.error.issues.map((issue) => ({ path: [...issue.path], message: issue.message }));
   throw new EditSetValidationError(describeIssues(result.error.issues), issues);

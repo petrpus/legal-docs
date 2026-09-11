@@ -11,6 +11,7 @@ export { applyEdit, applyEdits } from "./apply";
 export { diffTree } from "./diff-tree";
 export type { TreeChange } from "./diff-tree";
 export {
+  assertValidEditOp,
   assertValidEditSet,
   commentSchema,
   editableNodeSchema,

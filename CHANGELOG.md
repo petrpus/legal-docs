@@ -84,6 +84,22 @@ Post-generation editing layer, in progress. PRD
 - **`renderNodeToHtml(node, cx, path)` / `createHtmlRenderContext(options)`** — the HTML Renderer's
   per-node step and its resolved context, exported so the redline and review Renderers render an
   untouched node exactly as a plain render does.
+- **`createEditSession(init)`** ([#154](https://github.com/petrpus/legal-docs/issues/154), ADR-0014) —
+  the framework-agnostic editing state an editor UI drives: `apply(op)` (a typed `{ ok }` result — an
+  op that does not fit the tree is an answer, not an exception — truncating the redo tail),
+  `undo`/`redo`/`canUndo`/`canRedo`, `getNode(path)`, `preview()` (HTML with `data-path`),
+  `toEditSet()` and `subscribe(listener)` for `useSyncExternalStore`. History is an op log plus a
+  cursor with every prefix memoized, so `session.tree` is a new reference exactly when the document
+  changed. A session starts from a base Snapshot or a bare tree, resumes from a stored Edit set, and
+  refuses a `pins`-mode base or an Edit set naming another Snapshot.
+- **`@petrpus/legal-docs/edit`** — a new browser-safe subpath export carrying the session, the Edit set
+  model, tree paths, `applyEdits`, the tree diff / redline model and the HTML Renderer. Built as its
+  own bundle so it shares no chunk with the Node-only half of the package; guard tests assert the
+  built bundle imports no `node:` built-in, and that nothing under `src/**` imports ProseMirror or
+  TipTap (a WYSIWYG binds to the session from outside).
+- **`richTextToMarkdown(value)`** — the inverse of `parseRichText` for the bold/italic subset, so a
+  form editor can offer a `richText` node as a plain textarea. Also `assertValidEditOp(value)`, the
+  single-op counterpart of `assertValidEditSet`.
 - **An ADR index** ([`docs/adr/README.md`](./docs/adr/README.md)) listing every decision record.
 
 ### Changed

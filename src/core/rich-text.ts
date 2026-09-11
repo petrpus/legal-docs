@@ -55,6 +55,24 @@ function parseInline(text: string): RichRun[] {
   return runs.length > 0 ? runs : [{ text: "" }];
 }
 
+/**
+ * Serialize RichTextV1 back into the markdown subset {@link parseRichText} reads — its inverse for
+ * everything that subset can express, so a form editor can offer a `richText` node as a plain textarea
+ * and turn what a human types back into a `setRichText` op.
+ *
+ * The inverse is exact only for values the parser can produce: a run carrying BOTH marks is written
+ * `***text***` (bold outside italic), which the non-nesting parser reads back as a single bold run.
+ */
+export function richTextToMarkdown(value: RichTextV1): string {
+  return value.blocks.map((block) => block.runs.map(runToMarkdown).join("")).join("\n\n");
+}
+
+function runToMarkdown(run: RichRun): string {
+  const marks = run.marks ?? [];
+  const italic = marks.includes("italic") ? `*${run.text}*` : run.text;
+  return marks.includes("bold") ? `**${italic}**` : italic;
+}
+
 function emptyParagraph(): RichParagraph {
   return { type: "paragraph", runs: [{ text: "" }] };
 }

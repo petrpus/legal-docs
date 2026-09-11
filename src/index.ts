@@ -109,6 +109,7 @@ export type { TreeIssue } from "./core/document-tree-schema";
 export {
   applyEdit,
   applyEdits,
+  assertValidEditOp,
   assertValidEditSet,
   buildRedline,
   commentSchema,
@@ -153,10 +154,15 @@ export type {
   TreePathSegment,
 } from "./core/edit";
 
+// The editing SESSION — also published on its own as `@petrpus/legal-docs/edit`, the browser-safe
+// subpath an editor UI imports without pulling the Node-only half of this entry in.
+export { createEditSession, EditSessionError } from "./edit";
+export type { EditApplyResult, EditSession, EditSessionBase, EditSessionInit } from "./edit";
+
 export type { Clause } from "./core/clause";
 export { parseClauseRef } from "./core/clause-ref";
 export type { ClauseRef } from "./core/clause-ref";
-export { MARK_VALUES, parseRichText } from "./core/rich-text";
+export { MARK_VALUES, parseRichText, richTextToMarkdown } from "./core/rich-text";
 export type { RichTextV1, RichParagraph, RichRun, Mark } from "./core/rich-text";
 export { validateVars, VarsValidationError } from "./core/vars-schema";
 export type { VarsSchema, VarSpec, VarType } from "./core/vars-schema";

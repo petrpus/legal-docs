@@ -114,6 +114,23 @@ admits (remove, move). The per-node render step is exported alongside, so the re
 Renderers render an untouched block exactly as a plain render does rather than re-implementing the
 visitor and drifting from it.
 
+**Editing state is an op log plus a cursor, published as its own subpath.** `createEditSession` keeps
+the ops a human authored and an index into them — not a stack of tree states — so undo is "move the
+cursor back", the Edit set it exports is exactly "the ops up to the cursor", and resuming a persisted
+Edit set is the same code path as replaying one. Every prefix of the log is memoized, which makes
+undo/redo allocation-free and gives `session.tree` the property a UI needs: a new reference exactly when
+the document changed. History stays **linear** — applying an op after an undo abandons the redo tail
+rather than branching — because an Edit set is an ordered list of ops, and a branch has no
+representation in it.
+
+The session ships as `@petrpus/legal-docs/edit`, a **separate bundled entry**, not a second entry of the
+library build: entries in one build share code-split chunks, and the chunk the root entry pulls in
+carries `node:crypto` (Snapshot identity), which would silently make the "browser-safe" subpath
+unloadable in a browser. The subpath is also **editor-agnostic**: no ProseMirror, no TipTap, no React
+under `src/**`. A WYSIWYG shell binds to the session from outside (the demo does), so a consumer picks
+their own editor and the library never carries one. Both rules are enforced by guard tests — a static
+scan of the module graph, and a grep of the built bundle's import specifiers.
+
 ## Consequences
 
 - The base Snapshot and its output are untouched by editing; base and edited records are both kept, and
@@ -121,6 +138,10 @@ visitor and drifting from it.
 - `buildEditedSnapshot` hashes, so it needs `node:crypto` and lives in `src/core/edited-snapshot.ts` —
   outside the browser-safe `src/core/edit/` barrel it builds on. A browser can apply ops and preview;
   identity and the PDF/DOCX exporters stay on the server (ADR-0012).
+- The session takes its base Snapshot **structurally** (`{ id, tree? }`), not as an imported `Snapshot`
+  type, so the browser-safe subpath does not reach into the module that hashes. A session started from a
+  bare tree can edit and preview but cannot export an Edit set until it is given a `baseSnapshotId` —
+  an Edit set that names no base is not auditable.
 - Numbering, cross-references and the catalog are not re-run after an edit. A document whose articles
   were reordered by hand keeps its generated numbers; if that becomes a real need, it is an explicit
   renumbering op, not a hidden recomputation.
