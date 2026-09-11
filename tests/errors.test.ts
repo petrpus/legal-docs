@@ -5,6 +5,7 @@ import { LegalDocsError, NotFoundError } from "../src/core/errors";
 import { PublishValidationError } from "../src/catalog/editing-facade";
 import { SnapshotError } from "../src/core/snapshot";
 import { CompositionError } from "../src/core/compose";
+import { TreeValidationError } from "../src/core/document-tree-schema";
 import type { Clause } from "../src/core/clause";
 
 const clause = (version: number): Clause => ({ clause: "c", version, locale: "en", vars: {}, text: "t" });
@@ -15,6 +16,7 @@ describe("error taxonomy", () => {
     expect(new PublishValidationError([])).toBeInstanceOf(LegalDocsError);
     expect(new SnapshotError("x")).toBeInstanceOf(LegalDocsError);
     expect(new CompositionError("x")).toBeInstanceOf(LegalDocsError);
+    expect(new TreeValidationError("x", [])).toBeInstanceOf(LegalDocsError);
   });
 
   it("a not-found element throws a NotFoundError with a structured kind + ref", async () => {

@@ -1,6 +1,7 @@
 import { LegalDocsError } from "./errors";
 import { createHash } from "node:crypto";
 import type { DocumentTree } from "./document-tree";
+import { describeIssues, documentTreeSchema } from "./document-tree-schema";
 
 /**
  * What a {@link Snapshot} freezes (ADR-0003). The engine default is `full`; a caller may override it.
@@ -150,6 +151,12 @@ export function assertValidSnapshot(value: unknown): asserts value is Snapshot {
     const tree = s.tree as { body?: unknown } | undefined;
     if (typeof tree !== "object" || tree === null || !Array.isArray(tree.body)) {
       throw new SnapshotError(`Malformed snapshot: ${s.mode}-mode snapshot has no tree body array`);
+    }
+    // Beyond the shape check, every node must satisfy the DocumentTree schema, so a malformed node
+    // inside a persisted snapshot is named by its path here rather than crashing a renderer.
+    const parsed = documentTreeSchema.safeParse(tree);
+    if (!parsed.success) {
+      throw new SnapshotError(`Malformed snapshot: invalid tree — ${describeIssues(parsed.error.issues)}`);
     }
   }
 }

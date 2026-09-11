@@ -65,9 +65,16 @@ export type {
 export { expandIncludes, IncludeError } from "./core/includes";
 export type { IncludeLoader } from "./core/includes";
 export { composeTemplate, CompositionError } from "./core/compose";
-export { asDocumentTree, PAGE_NUMBER_SENTINEL, PAGE_TOTAL_SENTINEL } from "./core/document-tree";
+export {
+  asDocumentTree,
+  DOCUMENT_NODE_KINDS,
+  isDocumentNodeKind,
+  PAGE_NUMBER_SENTINEL,
+  PAGE_TOTAL_SENTINEL,
+} from "./core/document-tree";
 export type {
   DocumentNode,
+  DocumentNodeKind,
   DocumentTree,
   DocumentBody,
   PageFurniture,
@@ -76,11 +83,21 @@ export type {
   KeyValueRow,
   SignaturePlace,
 } from "./core/document-tree";
+export {
+  assertValidTree,
+  documentNodeKinds,
+  documentNodeSchema,
+  documentTreeSchema,
+  richTextV1Schema,
+  TreeValidationError,
+  DOCUMENT_NODE_LIST_SCHEMA_ID,
+} from "./core/document-tree-schema";
+export type { TreeIssue } from "./core/document-tree-schema";
 
 export type { Clause } from "./core/clause";
 export { parseClauseRef } from "./core/clause-ref";
 export type { ClauseRef } from "./core/clause-ref";
-export { parseRichText } from "./core/rich-text";
+export { MARK_VALUES, parseRichText } from "./core/rich-text";
 export type { RichTextV1, RichParagraph, RichRun, Mark } from "./core/rich-text";
 export { validateVars, VarsValidationError } from "./core/vars-schema";
 export type { VarsSchema, VarSpec, VarType } from "./core/vars-schema";
@@ -95,7 +112,7 @@ export { resolvePayload } from "./core/resolve";
 export type { Derivation, DerivationRegistry, ResolvedPayload } from "./core/resolve";
 export { money, loan, party } from "./core/schema-fragments";
 export type { Money, Loan, Party } from "./core/schema-fragments";
-export { exportPayloadSchema, exportPayloadSchemas } from "./core/json-schema";
+export { exportDocumentTreeSchema, exportPayloadSchema, exportPayloadSchemas } from "./core/json-schema";
 export type { JsonSchema, JsonSchemaTarget, JsonSchemaOptions } from "./core/json-schema";
 export { defaultHelpers, makeDefaultHelpers } from "./core/helpers";
 export type { Helper, HelperRegistry } from "./core/helpers";

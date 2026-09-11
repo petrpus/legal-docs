@@ -3,7 +3,10 @@
  * Authors write a markdown-subset (paragraphs separated by a blank line, `**bold**`, `*italic*`),
  * which `parseRichText` turns into this structure. Marks grow as documents need them.
  */
-export type Mark = "bold" | "italic";
+/** The inline marks a {@link RichRun} may carry. The array is the single source of truth for both the
+ * `Mark` type and the runtime guard in `document-tree-schema.ts`. */
+export const MARK_VALUES = ["bold", "italic"] as const;
+export type Mark = (typeof MARK_VALUES)[number];
 
 export interface RichRun {
   text: string;

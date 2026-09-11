@@ -6,7 +6,27 @@ All notable changes to `@petrpus/legal-docs` are recorded here. The format follo
 
 ## [Unreleased]
 
-Nothing yet.
+Post-generation editing layer, in progress. PRD
+[#147](https://github.com/petrpus/legal-docs/issues/147).
+
+### Added
+- **Runtime validation of the `DocumentTree`** ([#148](https://github.com/petrpus/legal-docs/issues/148)) —
+  a zod mirror of the node union (`documentTreeSchema`, `documentNodeSchema`, `richTextV1Schema`) and
+  `assertValidTree(value)`, which throws a path-precise `TreeValidationError` carrying every issue
+  (`{ path, message }`). Schemas are plain, never strict: a tree written by a newer build still
+  validates, and a `custom` node's `props` stays opaque (ADR-0005).
+- **The node-kind list as data** — public `DOCUMENT_NODE_KINDS`, `DocumentNodeKind`,
+  `isDocumentNodeKind` and `MARK_VALUES`, kept in lockstep with the TypeScript union at compile time
+  and with the schema at runtime.
+- **`exportDocumentTreeSchema(options?)`** — JSON Schema (draft-7 by default, `draft-2020-12` on
+  request) for the document tree itself, alongside the existing payload export; the article/list
+  recursion is hoisted into a `documentNodeList` definition.
+
+### Changed
+- **`assertValidSnapshot` now validates the tree of a `full`/`tree`-mode snapshot against the schema**,
+  so a persisted snapshot with a malformed node is rejected by path (`body.1.kind: …`) instead of
+  failing deep inside a renderer. Snapshot ids, `SNAPSHOT_SCHEMA_VERSION` (2) and the existing
+  "no tree body array" / `schemaVersion` errors are unchanged.
 
 ## [0.2.0-beta.2] — 2026-09-19
 
