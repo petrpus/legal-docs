@@ -146,17 +146,23 @@ hr { border: none; border-top: 1px solid var(--line); margin: 2.2rem 0; }
       <h1 id="legal-docs-demo">legal-docs demo</h1>
 <p>A minimal <strong>Vite + React</strong> app to try <code>@petrpus/legal-docs</code> hands-on: pick a template (and variant),
 switch locale and format, restyle live via the <strong>whole Theme</strong> token surface, edit a typed payload
-(and watch validation fail), and view a <strong>Clause diff</strong> rendered to HTML.</p>
+(and watch validation fail), view a <strong>Clause diff</strong> rendered to HTML, and <strong>edit a generated document
+before exporting it</strong>.</p>
 <h2 id="how-it-works">How it works</h2>
 <p>PDF, DOCX and the file Catalog are <strong>Node-side</strong>, so rendering runs on the server — in dev, the Vite
 dev server; deployed, the standalone <code>server.mjs</code> (see <strong>Deploy</strong> below). Both mount the same
 framework-agnostic <code>/api/*</code> handler (<code>server/api.mjs</code>), so there is exactly one implementation of the
-render/diff/schema/editor logic. The browser only sends <code>{ template, variant, locale, theme, data, format }</code> and displays the returned <strong>HTML</strong> (or downloads the <strong>PDF/DOCX</strong> binary) — the React client
-never imports the library. The handler also holds the code-side pieces some templates need (payload
+render/diff/schema/editor logic. For everything but the Edit tab the browser only sends
+<code>{ template, variant, locale, theme, data, format }</code> and displays the returned <strong>HTML</strong> (or downloads
+the <strong>PDF/DOCX</strong> binary). The handler also holds the code-side pieces some templates need (payload
 <strong>schemas</strong>, <strong>derivations</strong>, and the signature-grid <strong>Custom block</strong>), keyed by template.</p>
 <pre><code>React UI ──POST /api/render {template, variant, locale, theme, data, format}──▶ server (Node) ─▶ renderDocument
         ◀──────────────────── { html }  or  { base64 } (pdf/docx) ──────────────────────────────┘
 </code></pre>
+<p>The <strong>Edit before export</strong> tab is the one place the client imports the library, through the
+browser-safe <a href="https://github.com/petrpus/legal-docs/blob/main/docs/adr/0014-post-generation-editing-layer.md" target="_blank" rel="noopener"><code>@petrpus/legal-docs/edit</code></a> subpath
+(resolved from <code>../../dist/edit.js</code> by a Vite alias — the same consume-from-<code>dist</code> rule as the server
+half). See <strong>Edit before export</strong> below.</p>
 <h2 id="run">Run</h2>
 <p>From the repo root, build the library once (the demo imports its <code>dist</code>):</p>
 <pre><code class="language-sh">npm install        # repo root
@@ -190,13 +196,55 @@ error is shown.</li>
 <code>signatures</code> node can&#39;t express, rendered across html/pdf/docx (source: <a href="https://github.com/petrpus/legal-docs/blob/main/examples/signature-grid.tsx" target="_blank" rel="noopener"><code>../signature-grid.tsx</code></a>).</li>
 <li><strong>Formats</strong> — <code>html</code> previews inline; <code>pdf</code> / <code>docx</code> download.</li>
 <li><strong>Clause diff</strong> — diff two versions of the <code>counterparts</code> Clause, rendered via <code>renderClauseDiff</code>.</li>
-<li><strong>Editor (Phase 7 / ADR-0009)</strong> — a runtime <strong>Clause editor</strong> over the library&#39;s editing API
+<li><strong>Edit before export (ADR-0014)</strong> — edit a <em>generated</em> document (not the catalog) and export the
+result as an auditable edited Snapshot. See <a href="#edit-before-export"><strong>Edit before export</strong></a> below.</li>
+<li><strong>Clause editor (Phase 7 / ADR-0009)</strong> — a runtime <strong>Clause editor</strong> over the library&#39;s editing API
 (<code>catalog.editing</code>): create a draft new version, <strong>submit → publish</strong> through the <code>draft → in_review → published</code> workflow, see the <strong>old→new review diff</strong> (<code>previewDiff</code>) and the <strong>edit audit log</strong>.
 Publishing runs the <code>validate()</code> <strong>gate</strong> (a draft that would break a consuming template is blocked
 with findings). Backed by the in-memory <code>MemoryEditableCatalogStore</code> (state resets when the dev
 server restarts); the persistent alternative is the <code>node:sqlite</code> adapter in
 <a href="https://github.com/petrpus/legal-docs/tree/main/adapters/sqlite" target="_blank" rel="noopener"><code>../../adapters/sqlite/</code></a>, which passes the same conformance suite.</li>
 </ul>
+<h2 id="edit-before-export">Edit before export</h2>
+<p>The <strong>Edit before export</strong> tab (PRD #147 / <a href="https://github.com/petrpus/legal-docs/blob/main/docs/adr/0014-post-generation-editing-layer.md" target="_blank" rel="noopener">ADR-0014</a>)
+is the post-generation editing flow: generate a document, change it as a human would, and export — with
+every change frozen as an auditable <strong>Edit set</strong> and an <strong>edited Snapshot</strong>.</p>
+<pre><code>POST /api/edit/start    {template, variant, data}     ─▶ renderDocument (snapshotMode: &quot;full&quot;)
+                        ◀── { baseId, tree, html }        base Snapshot stored in memory
+
+   browser: createEditSession({ base: { id: baseId, tree } })  ← the only client-side library import
+            apply ops · undo/redo · comments · preview / redline / review
+
+POST /api/edit/export   {baseId, edits, format}       ─▶ renderEdited → edited Snapshot stored
+                        ◀── { baseId, editedId, html | base64 }
+
+POST /api/edit/rerender {id, format}                  ─▶ renderFromSnapshot (base *or* edited)
+                        ◀── { id, html | base64 }
+</code></pre>
+<p>What to try:</p>
+<ol>
+<li>Pick a template and press <strong>Edit before export</strong>. The server freezes a <code>full</code> Snapshot (the tree
+<em>and</em> the inputs it came from) and returns the tree.</li>
+<li><strong>Click a block</strong> in the preview — every block addresses itself with <code>data-path</code>, which is the
+selection unit — and edit its fields in the form: text, per-block alignment/indent, a <code>richText</code>
+node as a <strong>markdown subset</strong> (<code>**bold**</code>, <code>*italic*</code>), party fields, key-value cells, signature
+places, list items, plus move / insert / remove. What is <em>not</em> offered is deliberate: article
+numbering, <code>page</code> setup and Custom-block props are not editable (a Custom block can only be removed
+or moved), and articles are not inserted or moved.</li>
+<li><strong>Undo / redo</strong> any of it, and anchor <strong>comments</strong> to the selected block — they rebase through later
+ops, orphan when their block is removed, and come back on undo.</li>
+<li>Switch the right panel between <strong>Preview</strong>, <strong>Redline</strong> (inline <code>&lt;ins&gt;</code>/<code>&lt;del&gt;</code>) and <strong>Review</strong>
+(the same document with the comments in the margin). Neither view is an export path — a comment can
+never leak into a PDF/DOCX/HTML export.</li>
+<li><strong>Export</strong> HTML / PDF / DOCX. The browser posts the <em>Edit set</em>, never a document: the server
+validates it against the stored base, builds the edited Snapshot and renders that.</li>
+<li><strong>Re-render edited Snapshot</strong> and the result is byte-identical to the HTML export; <strong>Re-render base</strong>
+still produces the original document. (The Edit tab deliberately uses the default Theme on both
+sides, so &quot;byte-identical&quot; means what it says.)</li>
+</ol>
+<p>A rejected edit is shown, not thrown: an op that no longer applies names the <strong>op index</strong> and the tree
+path (<code>op 1 (setText) at /body/99/text: …</code>), and a malformed op comes back as zod issues under
+<code>ops/&lt;index&gt;</code>. <code>tests/demo-api.test.ts</code> covers the round trip and both failures.</p>
 <h2 id="a-note-on-safety">A note on safety</h2>
 <p>The preview uses <code>dangerouslySetInnerHTML</code> on the library&#39;s HTML output. That is safe <strong>here</strong> because
 the renderer escapes all core-emitted text (incl. the payload you type), and the one Custom block in
@@ -205,7 +253,7 @@ HTML output is inserted <strong>raw</strong> and trusted — if you register one
 feed user-authored templates, you reintroduce an XSS surface. Sanitize accordingly.</p>
 <h2 id="deploy">Deploy</h2>
 <p>The demo can run anywhere as a small Node server — fully interactive (render, theme editor, clause
-editor, diff), not a static export (PDF/DOCX rendering is Node-only).</p>
+editor, diff, edit before export), not a static export (PDF/DOCX rendering is Node-only).</p>
 <p><strong>Build once</strong> (from the repo root):</p>
 <pre><code class="language-sh">npm install &amp;&amp; npm run build                              # the library
 cd examples/demo &amp;&amp; npm install &amp;&amp; npm run build           # the client (vite build)
@@ -221,15 +269,16 @@ docker run -p 8080:8080 legal-docs-demo
 <p>Push that image to any container host — Fly.io (<code>fly launch</code> pointed at the Dockerfile), Render (a
 Docker web service), a VPS (<code>docker run</code> behind a reverse proxy), etc.</p>
 <blockquote>
-<p><strong>One instance only.</strong> The Editor tab&#39;s drafts live in the in-memory <code>MemoryEditableCatalogStore</code> —
-they don&#39;t survive a restart and aren&#39;t shared across replicas. Don&#39;t scale this deploy to multiple
-instances/autoscaling; for persistent, multi-instance editing, swap in the <code>node:sqlite</code> adapter
-(<code>adapters/sqlite/</code>), which passes the same conformance suite.</p>
+<p><strong>One instance only.</strong> The Clause editor&#39;s drafts live in the in-memory <code>MemoryEditableCatalogStore</code>,
+and the Edit tab&#39;s Snapshots in a plain <code>Map</code> — neither survives a restart or is shared across
+replicas. Don&#39;t scale this deploy to multiple instances/autoscaling; for persistent, multi-instance
+editing, swap in the <code>node:sqlite</code> adapter (<code>adapters/sqlite/</code>), which passes the same conformance
+suite. A real app would persist Snapshots in its own document store the same way.</p>
 </blockquote>
 <h2 id="notes">Notes</h2>
 <ul>
 <li>The <strong>Render</strong> and <strong>Clause diff</strong> tabs read the file-based sample catalog (<code>Catalog.fromDir</code>).</li>
-<li>The <strong>Editor</strong> tab uses a separate in-memory editable catalog (<code>MemoryEditableCatalogStore</code> via
+<li>The <strong>Clause editor</strong> tab uses a separate in-memory editable catalog (<code>MemoryEditableCatalogStore</code> via
 <code>Catalog.fromStore</code>), so its edits are isolated from the sample catalog and reset when the dev server
 restarts. The persistent alternative is the <code>node:sqlite</code> adapter in
 <a href="https://github.com/petrpus/legal-docs/tree/main/adapters/sqlite" target="_blank" rel="noopener"><code>../../adapters/sqlite/</code></a>.</li>

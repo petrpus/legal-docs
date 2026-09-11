@@ -8,7 +8,11 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node", "vite/client"]
+    "types": ["node", "vite/client"],
+    // Matches the Vite alias: the editing subpath is read from the built library's declarations.
+    "paths": {
+      "@petrpus/legal-docs/edit": ["../../dist/edit.d.ts"]
+    }
   },
   "include": ["src", "vite.config.ts"]
 }

@@ -173,6 +173,17 @@ resolves to the wrong place; the redline therefore renders a deleted block with 
 throughout its subtree and marks it with a distinct attribute. `mode` is reserved on the options for a
 future side-by-side layout, and today rejects anything but `"inline"` rather than silently ignoring it.
 
+**The wire carries the Edit set, never a document.** The reference flow — implemented end to end in
+`examples/demo` as `/api/edit/start | export | rerender` — splits along exactly the line ADR-0012 draws.
+`start` generates and *stores* a `full`-mode base Snapshot and hands the browser its frozen tree; the
+browser owns the whole editing pass (the session, the ops, the preview/redline/review views) and posts
+back only the Edit set it exported; `export` validates that Edit set against the stored base, builds the
+edited Snapshot and renders *it*. A client therefore cannot submit a document — only a set of ops
+against a named base — so there is no code path by which an exported file exists without the audit
+record that reproduces it, and `rerender` over either stored id is what proves it. The two Snapshots are
+stored side by side, never one over the other: the base keeps rendering the original document after the
+edited one exists.
+
 ## Consequences
 
 - The base Snapshot and its output are untouched by editing; base and edited records are both kept, and

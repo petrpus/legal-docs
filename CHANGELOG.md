@@ -120,6 +120,16 @@ Post-generation editing layer, in progress. PRD
   a trailing section. Also reachable as `session.redline()` / `session.redlineHtml()`, on the
   `./edit` subpath and on the browser entry. `mode` reserves a future side-by-side layout.
 - **An ADR index** ([`docs/adr/README.md`](./docs/adr/README.md)) listing every decision record.
+- **"Edit before export" in the demo** ([#157](https://github.com/petrpus/legal-docs/issues/157),
+  ADR-0014) — the first end-to-end product flow over the editing layer, and the reference shape for the
+  three routes a consuming app needs: `POST /api/edit/start` freezes and stores a `full` base Snapshot
+  and hands the browser its tree, `POST /api/edit/export` validates the posted **Edit set**, builds and
+  stores the edited Snapshot and renders *it* (HTML/PDF/DOCX), and `POST /api/edit/rerender` re-renders
+  either stored Snapshot. The wire carries ops, never a document, so no exported file exists without
+  the audit record that reproduces it — the demo's re-render button shows the edited Snapshot
+  reproducing the export byte for byte, and the base still rendering the original. The client is the
+  first consumer of the `@petrpus/legal-docs/edit` subpath: a form editor over `data-path` block
+  selection with undo/redo, comments and the Preview / Redline / Review views.
 
 ### Changed
 - **`Snapshot` gained an optional `derivedFrom`** ([#150](https://github.com/petrpus/legal-docs/issues/150)) —
