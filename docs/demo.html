@@ -225,17 +225,25 @@ POST /api/edit/rerender {id, format}                  ─▶ renderFromSnapshot 
 <ol>
 <li>Pick a template and press <strong>Edit before export</strong>. The server freezes a <code>full</code> Snapshot (the tree
 <em>and</em> the inputs it came from) and returns the tree.</li>
-<li><strong>Click a block</strong> in the preview — every block addresses itself with <code>data-path</code>, which is the
-selection unit — and edit its fields in the form: text, per-block alignment/indent, a <code>richText</code>
-node as a <strong>markdown subset</strong> (<code>**bold**</code>, <code>*italic*</code>), party fields, key-value cells, signature
-places, list items, plus move / insert / remove. What is <em>not</em> offered is deliberate: article
+<li><strong>Write</strong> — the right panel opens on a TipTap <strong>WYSIWYG</strong> over the document: type, split and join
+paragraphs, reorder or delete blocks, bold/italic inside a <code>richText</code> clause. Every pause in typing
+becomes one Edit op (<code>src/editor/doc-ops.ts</code> maps the editor&#39;s document onto the session&#39;s tree), so
+the op log stays at the granularity a human would recognize. The atoms — party header, key/value
+table, signatures — are <strong>node views with a small form</strong> rather than typeable text; a Custom block is
+read-only; an article&#39;s number is a CSS decoration, not a character. Undo/redo in the editor toolbar
+are the <strong>session&#39;s</strong>: there is one history, and ProseMirror&#39;s own is deliberately not installed.</li>
+<li>Or switch to <strong>Preview</strong> and <strong>click a block</strong> — every block addresses itself with <code>data-path</code>, which
+is the selection unit — and edit its fields in the form: text, per-block alignment/indent, a
+<code>richText</code> node as a <strong>markdown subset</strong> (<code>**bold**</code>, <code>*italic*</code>), party fields, key-value cells,
+signature places, list items, plus move / insert / remove. Both editors drive the same session, so
+switching between them mid-edit changes nothing. What is <em>not</em> offered is deliberate: article
 numbering, <code>page</code> setup and Custom-block props are not editable (a Custom block can only be removed
 or moved), and articles are not inserted or moved.</li>
 <li><strong>Undo / redo</strong> any of it, and anchor <strong>comments</strong> to the selected block — they rebase through later
 ops, orphan when their block is removed, and come back on undo.</li>
-<li>Switch the right panel between <strong>Preview</strong>, <strong>Redline</strong> (inline <code>&lt;ins&gt;</code>/<code>&lt;del&gt;</code>) and <strong>Review</strong>
-(the same document with the comments in the margin). Neither view is an export path — a comment can
-never leak into a PDF/DOCX/HTML export.</li>
+<li>Switch the right panel between <strong>Write</strong>, <strong>Preview</strong>, <strong>Redline</strong> (inline <code>&lt;ins&gt;</code>/<code>&lt;del&gt;</code>) and
+<strong>Review</strong> (the same document with the comments in the margin). Neither view is an export path — a
+comment can never leak into a PDF/DOCX/HTML export.</li>
 <li><strong>Export</strong> HTML / PDF / DOCX. The browser posts the <em>Edit set</em>, never a document: the server
 validates it against the stored base, builds the edited Snapshot and renders that.</li>
 <li><strong>Re-render edited Snapshot</strong> and the result is byte-identical to the HTML export; <strong>Re-render base</strong>
@@ -245,6 +253,42 @@ sides, so &quot;byte-identical&quot; means what it says.)</li>
 <p>A rejected edit is shown, not thrown: an op that no longer applies names the <strong>op index</strong> and the tree
 path (<code>op 1 (setText) at /body/99/text: …</code>), and a malformed op comes back as zod issues under
 <code>ops/&lt;index&gt;</code>. <code>tests/demo-api.test.ts</code> covers the round trip and both failures.</p>
+<h3 id="the-wysiwyg-half">The WYSIWYG half</h3>
+<p>ProseMirror is the demo&#39;s dependency, never the library&#39;s: <code>@petrpus/legal-docs/edit</code> stays
+editor-agnostic (ADR-0014) and a guard test fails the build if a <code>prosemirror</code>/<code>tiptap</code> import ever
+appears under <code>src/</code>. Four files carry the editor, all under <code>src/editor/</code>:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>pm-schema.ts</code></td>
+<td>The lossless ProseMirror model of a <code>DocumentTree</code> — <code>treeToPmDoc</code> / <code>pmDocToTree</code>, proved by a fast-check round-trip property against the library&#39;s <code>normalizeTree</code>.</td>
+</tr>
+<tr>
+<td><code>doc-ops.ts</code></td>
+<td>The editor→session mapping: <code>opsBetween(before, after)</code> aligns the two documents with the library&#39;s own <code>lcsAlign</code> and emits the Edit ops that reconcile them; <code>treePathAt</code> answers &quot;which block is the caret in&quot;.</td>
+</tr>
+<tr>
+<td><code>tiptap-extensions.ts</code></td>
+<td>The TipTap extensions, <strong>generated</strong> from <code>pm-schema.ts</code>&#39;s specs so the editor&#39;s schema cannot drift from the mapped one (a test derives both and compares them).</td>
+</tr>
+<tr>
+<td><code>Editor.tsx</code></td>
+<td>The React shell — React node views for the atoms, the toolbar, and the debounce/re-projection loop that keeps the session the single source of truth.</td>
+</tr>
+</tbody></table>
+</div><p>A reorder reads as a removal and an insertion, never as <code>moveNode</code>: two positional documents cannot tell
+&quot;this block moved&quot; from &quot;it was deleted here and retyped there&quot;, and the audit trail should not guess.
+<code>moveNode</code> is what the explicit ↑/↓ commands emit, where the human said which block moved.</p>
+<p><code>src/editor/doc-ops.test.ts</code> drives a <strong>headless</strong> <code>EditorState</code> (typing, pasting marked content,
+splitting, joining, reordering, undo/redo) and pins the ops each produces;
+<code>src/editor/tiptap-extensions.test.ts</code> derives TipTap&#39;s schema and compares it with the mapped one node
+for node; <code>src/editor/wysiwyg-export.test.ts</code> takes the editor&#39;s Edit set through an edited Snapshot into
+HTML, PDF and DOCX. All three run under the repo-root <code>npm run verify</code>.</p>
 <h2 id="a-note-on-safety">A note on safety</h2>
 <p>The preview uses <code>dangerouslySetInnerHTML</code> on the library&#39;s HTML output. That is safe <strong>here</strong> because
 the renderer escapes all core-emitted text (incl. the payload you type), and the one Custom block in

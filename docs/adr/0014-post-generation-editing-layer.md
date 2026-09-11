@@ -206,6 +206,29 @@ losslessness claim that only the demo checks is a claim nothing checks. Within t
 `level` is **derived from nesting depth** on the way back rather than read from its attribute: the
 editor can move an article, and its depth is then the only truthful source — while `no` stays read-only.
 
+**The editor emits ops by comparing documents, not by translating steps.** ProseMirror reports a change
+as a transaction over positions; an Edit set speaks tree paths and typed ops. The shell therefore does
+not translate step by step — it maps the document the editor now holds against the session's tree with
+`lcsAlign`, the same alignment the redline is built from, and emits the ops that reconcile them
+(`examples/demo/src/editor/doc-ops.ts`). One alignment per node list, walked once, emitting paths that
+are valid *at the moment each op is applied*. `lcsAlign`/`pairAligned` are exported from the editing
+subpath for exactly this: an editor shell needs the library's notion of "the same node" to agree with
+the redline's, or the two would disagree about what changed.
+
+Two consequences are deliberate. A **reorder reads as a removal and an insertion**, never as `moveNode`:
+without node ids (and there are none — see above) two positional documents cannot distinguish "this block
+moved" from "it was deleted here and retyped there", and an audit trail must not guess. `moveNode` stays
+what an explicit move command emits, where the human said which block moved. And the editor's changes are
+**debounced**, so one pause in typing is one op: the op log, the redline and undo then read at the
+granularity a human would recognize instead of one op per keystroke.
+
+**One history: the session's.** The editor is a *view* of `session.tree` that happens to be typeable. Its
+changes go to the session and everything the session does on its own — undo, redo, another editor, a
+rejected op — is re-projected back into the editor. ProseMirror's `history` extension is deliberately not
+installed: two undo stacks over one document would let the editor step back over an op the Edit set still
+carries. A change the op model cannot express (inserting a `custom` block, which no op can do) is refused
+and the editor re-projects, rather than being silently dropped from the audit trail.
+
 ## Consequences
 
 - The base Snapshot and its output are untouched by editing; base and edited records are both kept, and

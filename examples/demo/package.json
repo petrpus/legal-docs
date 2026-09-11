@@ -14,11 +14,15 @@
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
+    "@tiptap/core": "^3.31.3",
+    "@tiptap/pm": "^3.31.3",
+    "@tiptap/react": "^3.31.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^4.3.4",
     "fast-check": "^4.10.0",
     "prosemirror-model": "^1.25.11",
+    "prosemirror-state": "^1.4.4",
     "typescript": "^6.0.3",
     "vite": "^6.0.0",
     "zod": "^4.4.3"

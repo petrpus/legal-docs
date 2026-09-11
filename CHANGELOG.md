@@ -144,6 +144,18 @@ Post-generation editing layer, in progress. PRD
   atoms holding their data verbatim. A fast-check property proves `pmDocToTree(treeToPmDoc(t))` equals
   `normalizeTree(t)` over generated trees covering every node kind, and it runs under the root `verify`.
   The editor libraries stay demo devDependencies — nothing under `src/` imports prosemirror or tiptap.
+- **A WYSIWYG editor in the demo** ([#159](https://github.com/petrpus/legal-docs/issues/159), ADR-0014) —
+  the Edit tab's new **Write** view is a TipTap editor over that ProseMirror schema, bound to the same
+  `EditSession` from the outside. `examples/demo/src/editor/doc-ops.ts` maps what the editor holds onto
+  the session's tree — `opsBetween(before, after)` aligns the two documents and emits the Edit ops that
+  reconcile them, debounced so one pause in typing is one op; `treePathAt` answers which block the caret
+  is in. Undo/redo are delegated to the session (ProseMirror's `history` is deliberately absent, so there
+  is one history), the atoms are React node views with a small form, a `custom` block is read-only and an
+  article's number is a CSS decoration. A reorder reads as a removal plus an insertion — `moveNode` is
+  reserved for an explicit move command, since two positional documents cannot prove a block moved.
+- **`lcsAlign` / `pairAligned` are public** — on the root entry and the `./edit` subpath, alongside
+  `diffWords`. They are the alignment the redline is built from, and an editor shell needs the same
+  notion of "the same node" as the redline or the two would disagree about what changed.
 
 ### Changed
 - **`Snapshot` gained an optional `derivedFrom`** ([#150](https://github.com/petrpus/legal-docs/issues/150)) —

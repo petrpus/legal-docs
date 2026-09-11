@@ -26,7 +26,9 @@ export {
   diffTree,
   diffWords,
   isCommentStale,
+  lcsAlign,
   nodeText,
+  pairAligned,
   quoteAt,
   editableNodeSchema,
   editOpPath,
@@ -43,6 +45,8 @@ export {
   treePathSchema,
 } from "../core/edit";
 export type {
+  AlignRun,
+  AlignStep,
   Comment,
   CommentAnchor,
   EditableNode,

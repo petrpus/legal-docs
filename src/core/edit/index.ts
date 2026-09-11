@@ -40,8 +40,10 @@ export type {
   RedlineRun,
   RedlineStats,
 } from "./redline-model";
-// The word-level diff the redline is built from — browser-safe and document-model-free.
-export { diffWords } from "../text-diff";
-export type { InlineOp, InlineSegment } from "../text-diff";
+// The word-level diff the redline is built from, and the sequence alignment underneath it — browser-safe
+// and document-model-free, so an editor shell can align its own document against the tree with the same
+// algorithm the redline uses (see the demo's `doc-ops.ts`).
+export { diffWords, lcsAlign, pairAligned } from "../text-diff";
+export type { AlignRun, AlignStep, InlineOp, InlineSegment } from "../text-diff";
 export { EditError, editError, formatTreePath, parseTreePath, transformPath } from "./tree-path";
 export type { EditErrorInit, EditErrorReason, TreePath, TreePathSegment } from "./tree-path";

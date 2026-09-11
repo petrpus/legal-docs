@@ -285,6 +285,18 @@ the level <strong>derived from nesting depth</strong>, lists to a kind-attribute
 atoms holding their data verbatim. A fast-check property proves <code>pmDocToTree(treeToPmDoc(t))</code> equals
 <code>normalizeTree(t)</code> over generated trees covering every node kind, and it runs under the root <code>verify</code>.
 The editor libraries stay demo devDependencies — nothing under <code>src/</code> imports prosemirror or tiptap.</li>
+<li><strong>A WYSIWYG editor in the demo</strong> (<a href="https://github.com/petrpus/legal-docs/issues/159" target="_blank" rel="noopener">#159</a>, ADR-0014) —
+the Edit tab&#39;s new <strong>Write</strong> view is a TipTap editor over that ProseMirror schema, bound to the same
+<code>EditSession</code> from the outside. <code>examples/demo/src/editor/doc-ops.ts</code> maps what the editor holds onto
+the session&#39;s tree — <code>opsBetween(before, after)</code> aligns the two documents and emits the Edit ops that
+reconcile them, debounced so one pause in typing is one op; <code>treePathAt</code> answers which block the caret
+is in. Undo/redo are delegated to the session (ProseMirror&#39;s <code>history</code> is deliberately absent, so there
+is one history), the atoms are React node views with a small form, a <code>custom</code> block is read-only and an
+article&#39;s number is a CSS decoration. A reorder reads as a removal plus an insertion — <code>moveNode</code> is
+reserved for an explicit move command, since two positional documents cannot prove a block moved.</li>
+<li><strong><code>lcsAlign</code> / <code>pairAligned</code> are public</strong> — on the root entry and the <code>./edit</code> subpath, alongside
+<code>diffWords</code>. They are the alignment the redline is built from, and an editor shell needs the same
+notion of &quot;the same node&quot; as the redline or the two would disagree about what changed.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>

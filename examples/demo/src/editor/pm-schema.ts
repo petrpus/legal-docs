@@ -1,5 +1,5 @@
 import { Schema } from "prosemirror-model";
-import type { Node as PmNode, NodeSpec } from "prosemirror-model";
+import type { MarkSpec, Node as PmNode, NodeSpec } from "prosemirror-model";
 import { normalizeTree } from "@petrpus/legal-docs/edit";
 import type {
   Align,
@@ -38,7 +38,11 @@ import type {
 
 const blockAttrs = { align: { default: null }, indent: { default: null } };
 
-const nodes: Record<string, NodeSpec> = {
+/**
+ * The node specs, exported so the TipTap shell (#159) can generate its extensions from *this* schema
+ * rather than restate it — the editor's document is then the one the round-trip property proves.
+ */
+export const nodeSpecs: Record<string, NodeSpec> = {
   // Page furniture and page geometry are not part of the editable document; they ride along here so
   // the editor can hand back a whole DocumentTree rather than only its body.
   doc: { content: "block*", attrs: { header: { default: null }, footer: { default: null }, page: { default: null } } },
@@ -65,9 +69,9 @@ const nodes: Record<string, NodeSpec> = {
 };
 
 /** Mark order here is the rank ProseMirror sorts by, and it matches the library's `MARK_VALUES`. */
-const marks = { bold: {}, italic: {} };
+export const markSpecs: Record<string, MarkSpec> = { bold: {}, italic: {} };
 
-export const documentSchema = new Schema({ nodes, marks });
+export const documentSchema = new Schema({ nodes: nodeSpecs, marks: markSpecs });
 
 /** The `list` node's attr — the Core list kinds, minus the `List` suffix nothing needs here. */
 type ListKind = Extract<DocumentNode, { items: unknown }>["kind"];

@@ -126,14 +126,18 @@ export {
   EDIT_SET_SCHEMA_VERSION,
   formatTreePath,
   isCommentStale,
+  lcsAlign,
   locate,
   nodeText,
+  pairAligned,
   parseTreePath,
   quoteAt,
   transformPath,
   treePathSchema,
 } from "./core/edit";
 export type {
+  AlignRun,
+  AlignStep,
   Comment,
   CommentAnchor,
   EditableNode,

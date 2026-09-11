@@ -9,7 +9,10 @@
  * the server is what turns it into an edited Snapshot, so no exported file exists without an audit
  * record. The re-render button proves the point: the stored Snapshot reproduces the export byte for byte.
  *
- * This is the form editor; the TipTap WYSIWYG (#159) binds to the same session from the outside.
+ * Two editors, one session: the **Write** view is the TipTap WYSIWYG (#159), which maps what it does to
+ * the same ops; the form below the preview edits whatever block was clicked (or whatever block the
+ * WYSIWYG caret is in). Neither owns any state — undo/redo, the op log and the comments are the
+ * session's, which is why switching between them mid-edit changes nothing.
  */
 
 import { useEffect, useReducer, useState } from "react";
@@ -27,12 +30,13 @@ import {
   type EditSession,
   type TreePath,
 } from "@petrpus/legal-docs/edit";
+import { DocumentEditor } from "./editor/Editor";
 import type { Meta } from "./meta";
 import { postJson } from "./meta";
 import { Field, MIME, S, download } from "./ui";
 
 type Format = "html" | "pdf" | "docx";
-type View = "preview" | "redline" | "review" | "output";
+type View = "write" | "preview" | "redline" | "review" | "output";
 
 const ALIGNMENTS: Align[] = ["left", "center", "right", "justify"];
 
@@ -50,7 +54,7 @@ export function EditTab({ meta }: { meta: Meta }) {
   // The session is an external store: it notifies on every change and `session.tree` is a new
   // reference exactly when the document changed, so a bare counter is all the re-render this needs.
   const [, bump] = useReducer((n: number) => n + 1, 0);
-  const [view, setView] = useState<View>("preview");
+  const [view, setView] = useState<View>("write");
   const [selected, setSelected] = useState<TreePath>();
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -73,7 +77,7 @@ export function EditTab({ meta }: { meta: Meta }) {
     setEditedId(undefined);
     setExportedHtml(undefined);
     setOutput(undefined);
-    setView("preview");
+    setView("write");
     const res = await postJson<ApiError & { baseId: string; tree: DocumentTree; html: string }>("/edit/start", {
       template: templateId,
       variant: template?.variants?.[0],
@@ -183,7 +187,13 @@ export function EditTab({ meta }: { meta: Meta }) {
 
   const node = selected ? session.getNode(selected) : undefined;
   const selectedKey = selected ? formatTreePath(selected) : "";
-  const html = view === "redline" ? session.redlineHtml() : view === "review" ? session.reviewHtml() : view === "output" ? (output?.html ?? "") : session.preview();
+  // The Write view is the editor itself; the other three are the library's Renderers over the same tree.
+  const html =
+    view === "write" ? "" :
+    view === "redline" ? session.redlineHtml() :
+    view === "review" ? session.reviewHtml() :
+    view === "output" ? (output?.html ?? "") :
+    session.preview();
 
   return (
     <div style={S.cols}>
@@ -264,6 +274,7 @@ export function EditTab({ meta }: { meta: Meta }) {
 
       <section style={S.preview}>
         <nav style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+          <button style={view === "write" ? S.tabOn : S.tab} onClick={() => setView("write")}>Write</button>
           <button style={view === "preview" ? S.tabOn : S.tab} onClick={() => setView("preview")}>Preview</button>
           <button style={view === "redline" ? S.tabOn : S.tab} onClick={() => setView("redline")}>Redline</button>
           <button style={view === "review" ? S.tabOn : S.tab} onClick={() => setView("review")}>Review</button>
@@ -271,8 +282,12 @@ export function EditTab({ meta }: { meta: Meta }) {
         </nav>
         {view === "output" && output && <p style={{ ...S.muted, fontSize: 12 }}>{output.title}</p>}
         <style>{`.edit-preview [data-path]{cursor:pointer}.edit-preview [data-path]:hover{outline:1px dashed #0a7}${selectedKey ? `.edit-preview [data-path="${selectedKey}"]{outline:2px solid #0a7;background:#f3fffa}` : ""}`}</style>
-        {/* Safe for the same reason the Render tab's preview is — see the demo README's safety note. */}
-        <div className="edit-preview" onClick={selectFrom} dangerouslySetInnerHTML={{ __html: html }} />
+        {view === "write" ? (
+          <DocumentEditor session={session} onSelect={setSelected} onError={setError} />
+        ) : (
+          /* Safe for the same reason the Render tab's preview is — see the demo README's safety note. */
+          <div className="edit-preview" onClick={selectFrom} dangerouslySetInnerHTML={{ __html: html }} />
+        )}
       </section>
     </div>
   );

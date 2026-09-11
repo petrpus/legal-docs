@@ -100,26 +100,57 @@ What to try:
 
 1. Pick a template and press **Edit before export**. The server freezes a `full` Snapshot (the tree
    *and* the inputs it came from) and returns the tree.
-2. **Click a block** in the preview — every block addresses itself with `data-path`, which is the
-   selection unit — and edit its fields in the form: text, per-block alignment/indent, a `richText`
-   node as a **markdown subset** (`**bold**`, `*italic*`), party fields, key-value cells, signature
-   places, list items, plus move / insert / remove. What is *not* offered is deliberate: article
+2. **Write** — the right panel opens on a TipTap **WYSIWYG** over the document: type, split and join
+   paragraphs, reorder or delete blocks, bold/italic inside a `richText` clause. Every pause in typing
+   becomes one Edit op (`src/editor/doc-ops.ts` maps the editor's document onto the session's tree), so
+   the op log stays at the granularity a human would recognize. The atoms — party header, key/value
+   table, signatures — are **node views with a small form** rather than typeable text; a Custom block is
+   read-only; an article's number is a CSS decoration, not a character. Undo/redo in the editor toolbar
+   are the **session's**: there is one history, and ProseMirror's own is deliberately not installed.
+3. Or switch to **Preview** and **click a block** — every block addresses itself with `data-path`, which
+   is the selection unit — and edit its fields in the form: text, per-block alignment/indent, a
+   `richText` node as a **markdown subset** (`**bold**`, `*italic*`), party fields, key-value cells,
+   signature places, list items, plus move / insert / remove. Both editors drive the same session, so
+   switching between them mid-edit changes nothing. What is *not* offered is deliberate: article
    numbering, `page` setup and Custom-block props are not editable (a Custom block can only be removed
    or moved), and articles are not inserted or moved.
-3. **Undo / redo** any of it, and anchor **comments** to the selected block — they rebase through later
+4. **Undo / redo** any of it, and anchor **comments** to the selected block — they rebase through later
    ops, orphan when their block is removed, and come back on undo.
-4. Switch the right panel between **Preview**, **Redline** (inline `<ins>`/`<del>`) and **Review**
-   (the same document with the comments in the margin). Neither view is an export path — a comment can
-   never leak into a PDF/DOCX/HTML export.
-5. **Export** HTML / PDF / DOCX. The browser posts the *Edit set*, never a document: the server
+5. Switch the right panel between **Write**, **Preview**, **Redline** (inline `<ins>`/`<del>`) and
+   **Review** (the same document with the comments in the margin). Neither view is an export path — a
+   comment can never leak into a PDF/DOCX/HTML export.
+6. **Export** HTML / PDF / DOCX. The browser posts the *Edit set*, never a document: the server
    validates it against the stored base, builds the edited Snapshot and renders that.
-6. **Re-render edited Snapshot** and the result is byte-identical to the HTML export; **Re-render base**
+7. **Re-render edited Snapshot** and the result is byte-identical to the HTML export; **Re-render base**
    still produces the original document. (The Edit tab deliberately uses the default Theme on both
    sides, so "byte-identical" means what it says.)
 
 A rejected edit is shown, not thrown: an op that no longer applies names the **op index** and the tree
 path (`op 1 (setText) at /body/99/text: …`), and a malformed op comes back as zod issues under
 `ops/<index>`. `tests/demo-api.test.ts` covers the round trip and both failures.
+
+### The WYSIWYG half
+
+ProseMirror is the demo's dependency, never the library's: `@petrpus/legal-docs/edit` stays
+editor-agnostic (ADR-0014) and a guard test fails the build if a `prosemirror`/`tiptap` import ever
+appears under `src/`. Four files carry the editor, all under `src/editor/`:
+
+| File | What it is |
+| --- | --- |
+| `pm-schema.ts` | The lossless ProseMirror model of a `DocumentTree` — `treeToPmDoc` / `pmDocToTree`, proved by a fast-check round-trip property against the library's `normalizeTree`. |
+| `doc-ops.ts` | The editor→session mapping: `opsBetween(before, after)` aligns the two documents with the library's own `lcsAlign` and emits the Edit ops that reconcile them; `treePathAt` answers "which block is the caret in". |
+| `tiptap-extensions.ts` | The TipTap extensions, **generated** from `pm-schema.ts`'s specs so the editor's schema cannot drift from the mapped one (a test derives both and compares them). |
+| `Editor.tsx` | The React shell — React node views for the atoms, the toolbar, and the debounce/re-projection loop that keeps the session the single source of truth. |
+
+A reorder reads as a removal and an insertion, never as `moveNode`: two positional documents cannot tell
+"this block moved" from "it was deleted here and retyped there", and the audit trail should not guess.
+`moveNode` is what the explicit ↑/↓ commands emit, where the human said which block moved.
+
+`src/editor/doc-ops.test.ts` drives a **headless** `EditorState` (typing, pasting marked content,
+splitting, joining, reordering, undo/redo) and pins the ops each produces;
+`src/editor/tiptap-extensions.test.ts` derives TipTap's schema and compares it with the mapped one node
+for node; `src/editor/wysiwyg-export.test.ts` takes the editor's Edit set through an edited Snapshot into
+HTML, PDF and DOCX. All three run under the repo-root `npm run verify`.
 
 ## A note on safety
 
