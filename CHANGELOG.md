@@ -156,8 +156,28 @@ Post-generation editing layer, in progress. PRD
 - **`lcsAlign` / `pairAligned` are public** — on the root entry and the `./edit` subpath, alongside
   `diffWords`. They are the alignment the redline is built from, and an editor shell needs the same
   notion of "the same node" as the redline or the two would disagree about what changed.
+- **`renderRedlineToDocx(redline, options?)`** ([#160](https://github.com/petrpus/legal-docs/issues/160),
+  ADR-0014) — the **Word compare document**: the edited document as a .docx with Word's own Track
+  Changes and comments. Changed words, whole inserted/deleted blocks and rewritten rich text become
+  `w:ins`/`w:del` runs carrying `author` and `date`; a wholly inserted or deleted block also carries a
+  tracked paragraph mark, so accepting or rejecting it leaves no empty paragraph behind. Comments are
+  emitted as `w:comment` entries with a comment range and reference, anchored on the first text their
+  path overlaps, and `resolved` travels with them. A `custom` block that was added or removed is
+  reported by a tracked marker paragraph (its DOCX is code-side, ADR-0005), and changed page-header /
+  footer slots as a trailing section (Word has no section-level tracked change, ADR-0011); a comment
+  the edit orphaned is dropped, because a Word comment is a range and there is nothing to hang it on.
+  Like the inline HTML redline it is a second, additional Renderer — no exporter routes through it.
+- **The demo exports a compare DOCX** — the Edit tab's new **DOCX (compare)** button posts the same
+  Edit set to `/api/edit/export` with `review: true`. The edited Snapshot is frozen either way, so the
+  compare document is a second rendering of the audit record, never a shortcut around it.
 
 ### Changed
+- **The DOCX Renderer's visitor is addressable and hookable**
+  ([#160](https://github.com/petrpus/legal-docs/issues/160)) — `createDocxRenderContext(options)` and
+  `renderNodeToDocx(node, context, path)` are public, the visitor threads the tree path (the same
+  scheme `locate` and the HTML `data-path` use), and an optional `DocxTrack` on the context takes over
+  text emission. That hook is what the compare document is built from; without it a paragraph's parts
+  are joined into a single run, so every ordinary render — and its golden — is byte for byte unchanged.
 - **`Snapshot` gained an optional `derivedFrom`** ([#150](https://github.com/petrpus/legal-docs/issues/150)) —
   present only on an edited Snapshot, validated by `assertValidSnapshot` and refused on a `pins`-mode
   snapshot. The id digest mixes in the base Snapshot id (and only that) for a derived snapshot, so

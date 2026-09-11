@@ -229,6 +229,34 @@ installed: two undo stacks over one document would let the editor step back over
 carries. A change the op model cannot express (inserting a `custom` block, which no op can do) is refused
 and the editor re-projects, rather than being silently dropped from the audit trail.
 
+**The Word compare document is the DOCX Renderer with a hook, not a second visitor.** Word already has
+a redline: `w:ins`/`w:del` runs, a tracked paragraph mark, and comments with a range and a reference.
+The temptation is to write a parallel emitter for the eleven node kinds; we do not, for the same reason
+the inline HTML redline reuses `renderNodeToHtml`. `src/render-docx/render-docx.ts` instead threads the
+tree path down its existing visitor and asks an optional `DocxTrack` what a piece of text is —
+`src/render-docx/redline-docx.ts` is the one implementation, answering from the same `RedlineDoc`.
+Absent the hook the parts of a paragraph are joined into a single run, so an ordinary render is
+unchanged and a compare document with no changes is byte for byte the document (a test pins both).
+Text is addressed in **parts** (`DocxTextPart`) rather than as one string precisely so the non-editable
+glue — an article's number, a list marker, the separator between an item's nodes — stays outside the
+tracked run: Word must not offer to reject a number the engine owns.
+
+Three things a .docx cannot say, each handled explicitly rather than silently:
+
+- A **`custom` block** that was added or removed is reported by a tracked marker paragraph naming the
+  component. Its DOCX is built by code we do not own (ADR-0005), so its runs are not ours to mark.
+- **Page furniture** is section-level in Word and carries no tracked change, so the edited header and
+  footer are rendered as they now read and the difference is reported as a trailing section — the same
+  answer the HTML redline gives for the same reason (ADR-0011).
+- A **comment Word has nowhere to hang** is dropped: one the edit orphaned (`path === null`), or one on
+  a block that contributes no text. A Word comment is a *range* over runs; there is no such thing as a
+  comment attached to nothing. Everything else anchors on the first text part its path overlaps, so a
+  comment on a whole node lands on that node's first words. Revisions and comments get **two id
+  counters**, because Word numbers them in two separate spaces.
+
+A whole inserted or deleted block also carries a tracked **paragraph mark** (`w:rPr/w:ins` inside
+`w:pPr`); without it, accepting an insertion in Word leaves the empty paragraph behind.
+
 ## Consequences
 
 - The base Snapshot and its output are untouched by editing; base and edited records are both kept, and

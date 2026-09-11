@@ -102,7 +102,12 @@ export function EditTab({ meta }: { meta: Meta }) {
     setStatus("");
   }
 
-  async function exportAs(format: Format) {
+  /**
+   * Export the Edit set. `review` asks for the Word **compare** document instead of the clean one —
+   * the same frozen edit, rendered a second way, with tracked changes and the comments in Word's own
+   * review pane. Both paths store the edited Snapshot, so neither is a shortcut around the audit record.
+   */
+  async function exportAs(format: Format, review = false) {
     if (!session) return;
     setBusy(true);
     setError("");
@@ -110,17 +115,18 @@ export function EditTab({ meta }: { meta: Meta }) {
       baseId: session.baseSnapshotId,
       edits: session.toEditSet(),
       format,
+      ...(review ? { review: true } : {}),
     });
     if (res.error) {
       setError(describe(res));
     } else {
       setEditedId(res.editedId);
-      if (format === "html" && res.html !== undefined) {
+      if (!review && format === "html" && res.html !== undefined) {
         setExportedHtml(res.html);
         setOutput({ title: `Exported HTML · edited Snapshot ${res.editedId}`, html: res.html });
         setView("output");
       } else if (res.base64 !== undefined) {
-        download(res.base64, `${templateId}-edited.${format}`, MIME[format]!);
+        download(res.base64, `${templateId}-${review ? "compare" : "edited"}.${format}`, MIME[format]!);
       }
       setStatus(`Edited Snapshot ${res.editedId} stored next to its base.`);
     }
@@ -259,6 +265,9 @@ export function EditTab({ meta }: { meta: Meta }) {
           {(["html", "pdf", "docx"] as Format[]).map((f) => (
             <button key={f} style={S.tab} onClick={() => exportAs(f)} disabled={busy}>{f.toUpperCase()}</button>
           ))}
+          <button style={S.tab} onClick={() => exportAs("docx", true)} disabled={busy} title="Word compare document: tracked changes + comments">
+            DOCX (compare)
+          </button>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
           <button style={S.tab} disabled={!editedId || busy} onClick={() => editedId && rerender(editedId, "Re-rendered edited Snapshot")}>

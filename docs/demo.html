@@ -215,7 +215,8 @@ every change frozen as an auditable <strong>Edit set</strong> and an <strong>edi
    browser: createEditSession({ base: { id: baseId, tree } })  ← the only client-side library import
             apply ops · undo/redo · comments · preview / redline / review
 
-POST /api/edit/export   {baseId, edits, format}       ─▶ renderEdited → edited Snapshot stored
+POST /api/edit/export   {baseId, edits, format,       ─▶ renderEdited → edited Snapshot stored
+                         review?}                        review: true → renderRedlineToDocx as well
                         ◀── { baseId, editedId, html | base64 }
 
 POST /api/edit/rerender {id, format}                  ─▶ renderFromSnapshot (base *or* edited)
@@ -245,7 +246,11 @@ ops, orphan when their block is removed, and come back on undo.</li>
 <strong>Review</strong> (the same document with the comments in the margin). Neither view is an export path — a
 comment can never leak into a PDF/DOCX/HTML export.</li>
 <li><strong>Export</strong> HTML / PDF / DOCX. The browser posts the <em>Edit set</em>, never a document: the server
-validates it against the stored base, builds the edited Snapshot and renders that.</li>
+validates it against the stored base, builds the edited Snapshot and renders that.
+<strong>DOCX (compare)</strong> posts the same Edit set with <code>review: true</code> and gets the <strong>Word compare
+document</strong> back: native tracked changes (<code>w:ins</code>/<code>w:del</code> with author and date) and the comments in
+Word&#39;s own review pane. It is a second rendering of the <em>same</em> frozen edit — the edited Snapshot is
+stored either way — so the clean DOCX and the compare DOCX can never tell different stories.</li>
 <li><strong>Re-render edited Snapshot</strong> and the result is byte-identical to the HTML export; <strong>Re-render base</strong>
 still produces the original document. (The Edit tab deliberately uses the default Theme on both
 sides, so &quot;byte-identical&quot; means what it says.)</li>

@@ -132,6 +132,19 @@ export function createApiHandler({ lib, catalogDir }) {
           });
           // The edited Snapshot is stored NEXT TO its base, never over it — both stay re-renderable.
           snapshots.set(out.snapshot.id, out.snapshot);
+          if (b.review === true) {
+            // The compare document is a SECOND rendering of the same frozen edit, never a shortcut
+            // around it: the edited Snapshot above is what proves the two trees below belong together.
+            if (out.format !== "docx") throw new Error(`A review export is a Word compare document — ask for format "docx", not "${out.format}".`);
+            const buffer = await lib.renderRedlineToDocx(lib.buildRedline(snapshot.tree, out.snapshot.tree), {
+              ...customBlocksOf(cfg[snapshot.template]),
+              ...(b.edits.author ? { author: b.edits.author } : {}),
+              ...(b.edits.at ? { date: b.edits.at } : {}),
+              ...(b.edits.comments ? { comments: b.edits.comments } : {}),
+            });
+            json(res, { baseId: snapshot.id, editedId: out.snapshot.id, format: "docx", review: true, base64: buffer.toString("base64") });
+            return true;
+          }
           json(res, { baseId: snapshot.id, editedId: out.snapshot.id, ...rendered(out) });
           return true;
         }

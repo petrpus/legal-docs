@@ -297,9 +297,29 @@ reserved for an explicit move command, since two positional documents cannot pro
 <li><strong><code>lcsAlign</code> / <code>pairAligned</code> are public</strong> — on the root entry and the <code>./edit</code> subpath, alongside
 <code>diffWords</code>. They are the alignment the redline is built from, and an editor shell needs the same
 notion of &quot;the same node&quot; as the redline or the two would disagree about what changed.</li>
+<li><strong><code>renderRedlineToDocx(redline, options?)</code></strong> (<a href="https://github.com/petrpus/legal-docs/issues/160" target="_blank" rel="noopener">#160</a>,
+ADR-0014) — the <strong>Word compare document</strong>: the edited document as a .docx with Word&#39;s own Track
+Changes and comments. Changed words, whole inserted/deleted blocks and rewritten rich text become
+<code>w:ins</code>/<code>w:del</code> runs carrying <code>author</code> and <code>date</code>; a wholly inserted or deleted block also carries a
+tracked paragraph mark, so accepting or rejecting it leaves no empty paragraph behind. Comments are
+emitted as <code>w:comment</code> entries with a comment range and reference, anchored on the first text their
+path overlaps, and <code>resolved</code> travels with them. A <code>custom</code> block that was added or removed is
+reported by a tracked marker paragraph (its DOCX is code-side, ADR-0005), and changed page-header /
+footer slots as a trailing section (Word has no section-level tracked change, ADR-0011); a comment
+the edit orphaned is dropped, because a Word comment is a range and there is nothing to hang it on.
+Like the inline HTML redline it is a second, additional Renderer — no exporter routes through it.</li>
+<li><strong>The demo exports a compare DOCX</strong> — the Edit tab&#39;s new <strong>DOCX (compare)</strong> button posts the same
+Edit set to <code>/api/edit/export</code> with <code>review: true</code>. The edited Snapshot is frozen either way, so the
+compare document is a second rendering of the audit record, never a shortcut around it.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
+<li><strong>The DOCX Renderer&#39;s visitor is addressable and hookable</strong>
+(<a href="https://github.com/petrpus/legal-docs/issues/160" target="_blank" rel="noopener">#160</a>) — <code>createDocxRenderContext(options)</code> and
+<code>renderNodeToDocx(node, context, path)</code> are public, the visitor threads the tree path (the same
+scheme <code>locate</code> and the HTML <code>data-path</code> use), and an optional <code>DocxTrack</code> on the context takes over
+text emission. That hook is what the compare document is built from; without it a paragraph&#39;s parts
+are joined into a single run, so every ordinary render — and its golden — is byte for byte unchanged.</li>
 <li><strong><code>Snapshot</code> gained an optional <code>derivedFrom</code></strong> (<a href="https://github.com/petrpus/legal-docs/issues/150" target="_blank" rel="noopener">#150</a>) —
 present only on an edited Snapshot, validated by <code>assertValidSnapshot</code> and refused on a <code>pins</code>-mode
 snapshot. The id digest mixes in the base Snapshot id (and only that) for a derived snapshot, so

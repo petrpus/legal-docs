@@ -89,7 +89,8 @@ POST /api/edit/start    {template, variant, data}     ─▶ renderDocument (sna
    browser: createEditSession({ base: { id: baseId, tree } })  ← the only client-side library import
             apply ops · undo/redo · comments · preview / redline / review
 
-POST /api/edit/export   {baseId, edits, format}       ─▶ renderEdited → edited Snapshot stored
+POST /api/edit/export   {baseId, edits, format,       ─▶ renderEdited → edited Snapshot stored
+                         review?}                        review: true → renderRedlineToDocx as well
                         ◀── { baseId, editedId, html | base64 }
 
 POST /api/edit/rerender {id, format}                  ─▶ renderFromSnapshot (base *or* edited)
@@ -121,6 +122,10 @@ What to try:
    comment can never leak into a PDF/DOCX/HTML export.
 6. **Export** HTML / PDF / DOCX. The browser posts the *Edit set*, never a document: the server
    validates it against the stored base, builds the edited Snapshot and renders that.
+   **DOCX (compare)** posts the same Edit set with `review: true` and gets the **Word compare
+   document** back: native tracked changes (`w:ins`/`w:del` with author and date) and the comments in
+   Word's own review pane. It is a second rendering of the *same* frozen edit — the edited Snapshot is
+   stored either way — so the clean DOCX and the compare DOCX can never tell different stories.
 7. **Re-render edited Snapshot** and the result is byte-identical to the HTML export; **Re-render base**
    still produces the original document. (The Edit tab deliberately uses the default Theme on both
    sides, so "byte-identical" means what it says.)

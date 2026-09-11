@@ -238,6 +238,45 @@ describe("demo edit API (/api/edit/*)", () => {
     expect(await zip.file("word/document.xml")!.async("string")).toContain(EDITED_TITLE);
   });
 
+  it("exports a review DOCX: the same edit as a Word compare document with comments", async () => {
+    const started = await start();
+    const session = lib.createEditSession({ base: { id: started.baseId, tree: started.tree }, author: "Demo Editor" });
+    expect(session.apply({ op: "setText", path: ["body", 0, "text"], value: EDITED_TITLE }).ok).toBe(true);
+    session.addComment({ path: ["body", 0, "text"], text: "Agreed with counsel." });
+
+    const review = await postJson(base, "/edit/export", {
+      baseId: started.baseId,
+      edits: session.toEditSet(),
+      format: "docx",
+      review: true,
+    });
+
+    expect(review.review).toBe(true);
+    // A review export still freezes the edit: the edited Snapshot is stored and re-renders on its own.
+    expect(review.editedId).not.toBe(started.baseId);
+    const zip = await JSZip.loadAsync(Buffer.from(review.base64, "base64"));
+    const xml = await zip.file("word/document.xml")!.async("string");
+    expect(xml).toContain("<w:ins ");
+    expect(xml).toContain("<w:delText");
+    expect(xml).toContain("w:commentReference");
+    expect(await zip.file("word/comments.xml")!.async("string")).toContain("Agreed with counsel.");
+    // The plain DOCX export of the same Edit set carries no tracked changes at all.
+    const plain = await postJson(base, "/edit/export", { baseId: started.baseId, edits: session.toEditSet(), format: "docx" });
+    expect(await (await JSZip.loadAsync(Buffer.from(plain.base64, "base64"))).file("word/document.xml")!.async("string")).not.toContain("<w:ins ");
+  });
+
+  it("rejects a review export in a format that cannot carry tracked changes", async () => {
+    const started = await start();
+    const res = await fetch(`${base}/edit/export`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ baseId: started.baseId, edits: editSet(started.baseId, retitle), format: "html", review: true }),
+    });
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/compare document/);
+  });
+
   it("rejects an unknown base Snapshot id with a 400 naming it", async () => {
     const res = await fetch(`${base}/edit/export`, {
       method: "POST",
