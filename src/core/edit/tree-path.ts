@@ -42,9 +42,7 @@ export type EditErrorReason =
   /** Editable, but not by this op (`setText` aimed at a node list). */
   | "wrong-target"
   /** The op's value does not fit its target (`null` on a required leaf, a value failing the schema). */
-  | "invalid-value"
-  /** A defined op this build does not apply yet. */
-  | "not-implemented";
+  | "invalid-value";
 
 export interface EditErrorInit {
   reason: EditErrorReason;

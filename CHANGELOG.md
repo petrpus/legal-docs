@@ -34,9 +34,15 @@ Post-generation editing layer, in progress. PRD
   block cannot be inserted or replaced (ADR-0005).
 - **`applyEdits(tree, ops)` / `applyEdit(tree, op)`** — pure (the input tree is never mutated),
   sequential, validating the tree before and after, and never writing `undefined` keys, so an edit
-  that restores the original yields a deep-equal tree. `setText` is implemented; the other ops are
-  rejected by name until the slice that adds them. Browser-safe by construction — the whole module
+  that restores the original yields a deep-equal tree. Browser-safe by construction — the whole module
   graph is scanned by a guard test — and re-exported from the browser entry.
+- **The whole op set applies** ([#151](https://github.com/petrpus/legal-docs/issues/151)) —
+  `setRichText`, `setStyle` (a partial `indent` replaces the whole override; `null` clears it),
+  `replaceNode`, `insertNode`, `removeNode`, `moveNode`, `insertListItem`, `removeListItem` and
+  `setFurniture` join `setText`. An insert addresses a *position*, so an index equal to the list
+  length appends; `removeNode`/`moveNode` are kind-agnostic (a `custom` block can be moved out of the
+  way but never rewritten); an inserted article keeps the number the caller supplied, because
+  numbering is never recomputed. A compound edit using every op kind renders to HTML, PDF and DOCX.
 - **The edited Snapshot** ([#150](https://github.com/petrpus/legal-docs/issues/150), ADR-0014) — an
   edited document is a first-class `Snapshot`. `buildEditedSnapshot(base, edits)` applies an Edit set
   to a tree-bearing base and returns a `tree`-mode Snapshot with its own deterministic id and

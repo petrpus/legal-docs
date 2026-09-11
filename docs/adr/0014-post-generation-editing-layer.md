@@ -29,7 +29,10 @@ state, so a UI holding a stale path must rebase it — `transformPath` shifts a 
 structural op, and that rebasing is the editing layer's job, not the caller's.
 
 **Sequential op semantics (RFC 6902 style).** Ops apply in order, each against the tree as the previous
-one left it. `moveNode`'s `to` is read against the tree *after* the removal. `applyEdits` validates
+one left it. An insert addresses a *position* rather than an element, so an index equal to the list's
+length appends. `moveNode`'s `to` is read against the tree *after* the removal — which is also what
+makes a destination inside the moved subtree fail, since that subtree is no longer there to address.
+`applyEdits` validates
 the input tree, works on a deep copy and validates the result, so it is pure: the caller's tree is
 never mutated and a rejected op leaves it exactly as it was — no partial edits. An `EditError` names
 the op index, the op kind and the path, so an API can answer "op 3 (`setText`) at `/body/9/props`".

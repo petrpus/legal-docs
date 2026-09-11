@@ -43,6 +43,10 @@ import { editError, formatTreePath, type TreePath } from "./tree-path";
 type StyledNode = Extract<DocumentNode, { kind: "title" | "paragraph" }>;
 type RichTextNode = Extract<DocumentNode, { kind: "richText" }>;
 
+/** Why a `custom` block is refused as an edit target — shared with `apply` so the wording is one. */
+export const CUSTOM_IS_OPAQUE =
+  "a custom block is opaque to editing (ADR-0005) — it can only be removed or moved";
+
 /** The furniture slots of a page header or footer. */
 const FURNITURE_SLOTS: readonly string[] = ["left", "center", "right"];
 
@@ -148,9 +152,7 @@ function inNode(node: DocumentNode, list: DocumentNode[], index: number, path: T
       if (key === "places") return inRowList(node.places, SIGNATURE_FIELDS, "a signature place", path, at + 1);
       break;
     case "custom":
-      if (key === "component" || key === "props") {
-        throw editError("not-editable", path, "a custom block is opaque to editing (ADR-0005) — it can only be removed or moved");
-      }
+      if (key === "component" || key === "props") throw editError("not-editable", path, CUSTOM_IS_OPAQUE);
       break;
   }
   throw unknownKey(path, key, `${node.kind} node`);

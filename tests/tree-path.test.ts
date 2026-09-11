@@ -234,6 +234,13 @@ describe("transformPath shifts a path through a structural op", () => {
     expect(transformPath(["body", 0], remove)).toEqual(["body", 0]);
   });
 
+  it("drops anything anywhere inside a removed subtree", () => {
+    // Not just the node itself: a comment anchored deep in an article that was removed is orphaned.
+    expect(transformPath(["body", 1, "body", 0, "text"], remove)).toBeNull();
+    expect(transformPath(["body", 1, "items", 2, 0, "text"], remove)).toBeNull();
+    expect(transformPath(["body", 6, "items", 0, 1, "text"], removeItem)).toBeNull();
+  });
+
   it("follows a moved node and rebases its siblings", () => {
     expect(transformPath(["body", 0, "text"], move)).toEqual(["body", 2, "text"]);
     expect(transformPath(["body", 1], move)).toEqual(["body", 0]);
@@ -245,6 +252,14 @@ describe("transformPath shifts a path through a structural op", () => {
     expect(transformPath(["body", 6, "items"], insertItem)).toEqual(["body", 6, "items"]);
     expect(transformPath(["body", 6, "items", 0, 0], removeItem)).toBeNull();
     expect(transformPath(["body", 6, "items", 1], removeItem)).toEqual(["body", 6, "items", 0]);
+    // Another list's items are a different parent and stay put.
+    expect(transformPath(["body", 7, "items", 0], insertItem)).toEqual(["body", 7, "items", 0]);
+  });
+
+  it("drops a path inside a subtree the move's source consumed only when it was removed outright", () => {
+    // A move never orphans: the subtree reappears at `to`, so paths inside it follow it there.
+    expect(transformPath(["body", 0, "body", 1, "text"], move)).toEqual(["body", 2, "body", 1, "text"]);
+    expect(transformPath(["body", 0], move)).toEqual(["body", 2]);
   });
 
   it("leaves a path untouched for a non-structural op", () => {
