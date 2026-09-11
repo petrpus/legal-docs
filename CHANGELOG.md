@@ -21,6 +21,22 @@ Post-generation editing layer, in progress. PRD
 - **`exportDocumentTreeSchema(options?)`** — JSON Schema (draft-7 by default, `draft-2020-12` on
   request) for the document tree itself, alongside the existing payload export; the article/list
   recursion is hoisted into a `documentNodeList` definition.
+- **Tree paths** ([#149](https://github.com/petrpus/legal-docs/issues/149)) — a place in a document
+  tree is addressed by an array of keys and indices (`["body", 2, "heading"]`) with the canonical
+  string form `/body/2/heading` (`formatTreePath` / `parseTreePath`). `locate(tree, path)` is the
+  single definition of the editable surface and refuses anything outside it — article numbering,
+  `custom` props, page setup, a node's `kind` — with an `EditError` naming the path and a reason.
+  `transformPath(path, op)` shifts a path through an insert/remove/move (`null` when it was removed).
+- **The Edit set model** — the `EditOp` union (`setText`, `setRichText`, `setStyle`, `replaceNode`,
+  `insertNode`, `removeNode`, `moveNode`, `insertListItem`, `removeListItem`, `setFurniture`), the
+  `Comment` shape and the `EditSet` envelope `{ schemaVersion, baseSnapshotId, ops, comments?, author?,
+  at?, note? }`, each with a zod schema, `assertValidEditSet` and `exportEditSetSchema()`. A `custom`
+  block cannot be inserted or replaced (ADR-0005).
+- **`applyEdits(tree, ops)` / `applyEdit(tree, op)`** — pure (the input tree is never mutated),
+  sequential, validating the tree before and after, and never writing `undefined` keys, so an edit
+  that restores the original yields a deep-equal tree. `setText` is implemented; the other ops are
+  rejected by name until the slice that adds them. Browser-safe by construction — the whole module
+  graph is scanned by a guard test — and re-exported from the browser entry.
 
 ### Changed
 - **`assertValidSnapshot` now validates the tree of a `full`/`tree`-mode snapshot against the schema**,

@@ -94,6 +94,40 @@ export {
 } from "./core/document-tree-schema";
 export type { TreeIssue } from "./core/document-tree-schema";
 
+// The editing layer (PRD #147 / ADR-0014): tree paths, the Edit set model and the pure apply function.
+// Everything here is browser-safe and is also reachable from the browser entry.
+export {
+  applyEdit,
+  applyEdits,
+  assertValidEditSet,
+  commentSchema,
+  editableNodeSchema,
+  editOpPath,
+  editOpSchema,
+  editSetSchema,
+  EditError,
+  EditSetValidationError,
+  EDIT_OP_KINDS,
+  EDIT_SET_SCHEMA_VERSION,
+  formatTreePath,
+  locate,
+  parseTreePath,
+  transformPath,
+  treePathSchema,
+} from "./core/edit";
+export type {
+  Comment,
+  EditableNode,
+  EditErrorReason,
+  EditOp,
+  EditOpKind,
+  EditSet,
+  TextLocation,
+  TreeLocation,
+  TreePath,
+  TreePathSegment,
+} from "./core/edit";
+
 export type { Clause } from "./core/clause";
 export { parseClauseRef } from "./core/clause-ref";
 export type { ClauseRef } from "./core/clause-ref";
@@ -112,7 +146,7 @@ export { resolvePayload } from "./core/resolve";
 export type { Derivation, DerivationRegistry, ResolvedPayload } from "./core/resolve";
 export { money, loan, party } from "./core/schema-fragments";
 export type { Money, Loan, Party } from "./core/schema-fragments";
-export { exportDocumentTreeSchema, exportPayloadSchema, exportPayloadSchemas } from "./core/json-schema";
+export { exportDocumentTreeSchema, exportEditSetSchema, exportPayloadSchema, exportPayloadSchemas } from "./core/json-schema";
 export type { JsonSchema, JsonSchemaTarget, JsonSchemaOptions } from "./core/json-schema";
 export { defaultHelpers, makeDefaultHelpers } from "./core/helpers";
 export type { Helper, HelperRegistry } from "./core/helpers";

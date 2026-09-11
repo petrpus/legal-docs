@@ -1,5 +1,6 @@
 import { z, type ZodType } from "zod";
 import { documentTreeSchema } from "./document-tree-schema";
+import { editSetSchema } from "./edit/edit-set";
 import { LegalDocsError } from "./errors";
 import type { PayloadSchemaRegistry } from "./payload";
 
@@ -39,6 +40,15 @@ export function exportPayloadSchema(schema: ZodType, options: JsonSchemaOptions 
  */
 export function exportDocumentTreeSchema(options: JsonSchemaOptions = {}): JsonSchema {
   return exportPayloadSchema(documentTreeSchema, options);
+}
+
+/**
+ * Convert the {@link EditSet} contract to a JSON Schema document — the Edit op union, the Comment
+ * shape and the set's envelope. An API gateway or a non-TypeScript client can then validate an Edit
+ * set before it reaches `applyEdits`.
+ */
+export function exportEditSetSchema(options: JsonSchemaOptions = {}): JsonSchema {
+  return exportPayloadSchema(editSetSchema, options);
 }
 
 /**

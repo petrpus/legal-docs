@@ -15,6 +15,35 @@ import type { CatalogStore } from "./catalog/catalog-store";
 import { MemoryCatalogStore, type MemoryCatalogSeed } from "./catalog/memory-catalog-store";
 import { resolveClause, resolveTemplate } from "./catalog/resolve";
 import type { DocumentTree } from "./core/document-tree";
+// The editing layer is browser-first (ADR-0012): a client applies ops and previews HTML, while only
+// identity (`node:crypto`) and the PDF/DOCX exporters stay on the server. Re-exported here so the
+// in-browser demo drives an edit without a second bundle.
+import {
+  applyEdit,
+  applyEdits,
+  assertValidEditSet,
+  EditError,
+  EditSetValidationError,
+  editOpPath,
+  EDIT_OP_KINDS,
+  EDIT_SET_SCHEMA_VERSION,
+  formatTreePath,
+  locate,
+  parseTreePath,
+  transformPath,
+} from "./core/edit";
+import type {
+  Comment,
+  EditableNode,
+  EditErrorReason,
+  EditOp,
+  EditOpKind,
+  EditSet,
+  TextLocation,
+  TreeLocation,
+  TreePath,
+  TreePathSegment,
+} from "./core/edit";
 import { assembleDocument } from "./core/engine";
 import { NotFoundError } from "./core/errors";
 import { ExpressionError, type ExpressionLocation } from "./core/expression";
@@ -48,6 +77,32 @@ export {
   ExpressionError,
   // The zod value, so the demo page can build a payload schema for its registry (see import note).
   z,
+  // The editing layer.
+  applyEdit,
+  applyEdits,
+  assertValidEditSet,
+  editOpPath,
+  formatTreePath,
+  locate,
+  parseTreePath,
+  transformPath,
+  EDIT_OP_KINDS,
+  EDIT_SET_SCHEMA_VERSION,
+  // Class VALUES, so the demo page can `instanceof` them across the bundle boundary.
+  EditError,
+  EditSetValidationError,
+};
+export type {
+  Comment,
+  EditableNode,
+  EditErrorReason,
+  EditOp,
+  EditOpKind,
+  EditSet,
+  TextLocation,
+  TreeLocation,
+  TreePath,
+  TreePathSegment,
 };
 export type { CatalogStore, MemoryCatalogSeed, PayloadSchemaRegistry, DerivationRegistry, HelperRegistry, DeepPartial, Theme };
 export type { DocumentTree };
