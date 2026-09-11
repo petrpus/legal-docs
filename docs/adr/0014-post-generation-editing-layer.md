@@ -102,6 +102,18 @@ Because paths carry no node identity, **a move is remove + add too**; this is th
 structural paths above, and it is documented rather than worked around. A change is reported at its path
 in the **edited** tree, except a removal, which keeps its base-tree path — the only tree it exists in.
 
+**The rendered document addresses itself with `data-path`.** A UI needs to map a click in the preview
+back to a place in the tree, and with no node ids (above) the only address is the path. The HTML
+Renderer therefore takes an opt-in `emitPaths` option that puts the canonical path string on every
+block element — the same string `formatTreePath` produces and `parseTreePath` reads back, so the
+editor never invents an addressing scheme of its own. It is **off by default**: an exported document
+carries no editing metadata, and the default output stays byte-identical. A `custom` block owns its
+markup (ADR-0005/0006), so its HTML is never rewritten to carry the attribute — in `emitPaths` mode it
+is wrapped in a plain addressable `<div>` instead, which is enough for the only edits a `custom` node
+admits (remove, move). The per-node render step is exported alongside, so the redline and review
+Renderers render an untouched block exactly as a plain render does rather than re-implementing the
+visitor and drifting from it.
+
 ## Consequences
 
 - The base Snapshot and its output are untouched by editing; base and edited records are both kept, and

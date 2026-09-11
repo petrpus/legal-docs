@@ -74,6 +74,16 @@ Post-generation editing layer, in progress. PRD
 - **`diffWords(before, after)`** — word-level inline diff (`equal` / `ins` / `del` segments).
   Whitespace runs are tokens of their own, so the segments reassemble both inputs exactly, with no
   normalisation; non-ASCII and astral-plane text survive untouched.
+- **`renderTreeToHtml(tree, { emitPaths: true })`** ([#153](https://github.com/petrpus/legal-docs/issues/153)) —
+  opt-in `data-path` attributes carrying the canonical tree path (`/body/5/items/0`) on every block
+  element: title, paragraph, rich-text container, article (and every nested article body), list and
+  list item, party header, key-value table, signatures, and a Custom block (whose own markup is
+  wrapped, never rewritten). A UI maps a click in the rendered document back to an editable location
+  this way. Off by default, so exported documents carry no editing metadata and the default output is
+  byte-identical.
+- **`renderNodeToHtml(node, cx, path)` / `createHtmlRenderContext(options)`** — the HTML Renderer's
+  per-node step and its resolved context, exported so the redline and review Renderers render an
+  untouched node exactly as a plain render does.
 - **An ADR index** ([`docs/adr/README.md`](./docs/adr/README.md)) listing every decision record.
 
 ### Changed

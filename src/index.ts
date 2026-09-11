@@ -197,7 +197,8 @@ export type {
 } from "./custom-block";
 export type { RenderTreeOptions } from "./custom-block";
 export { renderTreeToPdf } from "./render-pdf/render-pdf";
-export { renderTreeToHtml } from "./render-html/render-html";
+export { createHtmlRenderContext, renderNodeToHtml, renderTreeToHtml } from "./render-html/render-html";
+export type { HtmlRenderContext, RenderHtmlOptions } from "./render-html/render-html";
 export { escapeHtml } from "./render-html/escape";
 export { renderClauseDiff } from "./render-html/clause-diff-html";
 export { renderTreeToDocx } from "./render-docx/render-docx";
