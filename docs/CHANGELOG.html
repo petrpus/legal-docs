@@ -314,6 +314,16 @@ compare document is a second rendering of the audit record, never a shortcut aro
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
+<li><strong>The documentation covers the editing layer</strong>
+(<a href="https://github.com/petrpus/legal-docs/issues/161" target="_blank" rel="noopener">#161</a>) — README gained an <strong>Edit before export</strong>
+section (session → Edit set → edited Snapshot → redline), <code>ARCHITECTURE.md</code> the optional
+<code>applyEdits</code> step in the data flow, an <code>edit</code> module row, a <em>Post-generation editing</em> section and the
+two-entry public API, and <code>CONTEXT.md</code> the terms the layer introduced: <strong>Tree path</strong>, <strong>Edit op</strong>,
+<strong>Edit set</strong>, <strong>Edit session</strong>, <strong>Base Snapshot</strong>, <strong>Edited Snapshot</strong>, <strong>Redline</strong> and <strong>Comment</strong>.
+&quot;Edit audit&quot; is now always qualified — the <em>catalog</em> edit audit (ADR-0009) changes the wording of
+every future document, the <em>document</em> edit audit (an Edit set, ADR-0014) changes exactly one — and
+README&#39;s catalog-editing section is retitled to match. A guard test keeps every public value of the
+<code>./edit</code> subpath named in the docs and the generated doc site in step with its sources.</li>
 <li><strong>The DOCX Renderer&#39;s visitor is addressable and hookable</strong>
 (<a href="https://github.com/petrpus/legal-docs/issues/160" target="_blank" rel="noopener">#160</a>) — <code>createDocxRenderContext(options)</code> and
 <code>renderNodeToDocx(node, context, path)</code> are public, the visitor threads the tree path (the same

@@ -172,6 +172,16 @@ Post-generation editing layer, in progress. PRD
   compare document is a second rendering of the audit record, never a shortcut around it.
 
 ### Changed
+- **The documentation covers the editing layer**
+  ([#161](https://github.com/petrpus/legal-docs/issues/161)) — README gained an **Edit before export**
+  section (session → Edit set → edited Snapshot → redline), `ARCHITECTURE.md` the optional
+  `applyEdits` step in the data flow, an `edit` module row, a *Post-generation editing* section and the
+  two-entry public API, and `CONTEXT.md` the terms the layer introduced: **Tree path**, **Edit op**,
+  **Edit set**, **Edit session**, **Base Snapshot**, **Edited Snapshot**, **Redline** and **Comment**.
+  "Edit audit" is now always qualified — the *catalog* edit audit (ADR-0009) changes the wording of
+  every future document, the *document* edit audit (an Edit set, ADR-0014) changes exactly one — and
+  README's catalog-editing section is retitled to match. A guard test keeps every public value of the
+  `./edit` subpath named in the docs and the generated doc site in step with its sources.
 - **The DOCX Renderer's visitor is addressable and hookable**
   ([#160](https://github.com/petrpus/legal-docs/issues/160)) — `createDocxRenderContext(options)` and
   `renderNodeToDocx(node, context, path)` are public, the visitor threads the tree path (the same
