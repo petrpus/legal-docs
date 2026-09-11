@@ -72,6 +72,8 @@ export type {
 // The document model the ops address, and the markdown subset a form editor offers for a `richText`
 // node — `richTextToMarkdown` is `parseRichText`'s inverse.
 export { MARK_VALUES, parseRichText, richTextToMarkdown } from "../core/rich-text";
+// The canonical form a WYSIWYG shell round-trips through — see `normalize.ts` and ADR-0014.
+export { normalizeRichText, normalizeTree } from "./normalize";
 export type { Mark, RichParagraph, RichRun, RichTextV1 } from "../core/rich-text";
 export { assertValidTree, documentNodeKinds, TreeValidationError } from "../core/document-tree-schema";
 export type {

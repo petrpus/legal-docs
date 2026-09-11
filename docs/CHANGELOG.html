@@ -271,6 +271,20 @@ the audit record that reproduces it — the demo&#39;s re-render button shows th
 reproducing the export byte for byte, and the base still rendering the original. The client is the
 first consumer of the <code>@petrpus/legal-docs/edit</code> subpath: a form editor over <code>data-path</code> block
 selection with undo/redo, comments and the Preview / Redline / Review views.</li>
+<li><strong><code>normalizeTree(tree)</code> / <code>normalizeRichText(value)</code></strong> (<a href="https://github.com/petrpus/legal-docs/issues/158" target="_blank" rel="noopener">#158</a>,
+ADR-0014) — the canonical form of a document tree: empty runs dropped, adjacent runs carrying the same
+marks merged, marks in canonical order, a style key set to <code>undefined</code> omitted, one empty run kept for
+an empty paragraph. Pure, on the root entry and the <code>./edit</code> subpath. It is the shape a WYSIWYG editor
+can hold, so it is what an editor round trip is specified against; numbering, <code>custom.props</code> and page
+furniture are carried through untouched. Useful outside an editor too — two Edit sets that produce the
+same document produce the same normalized tree.</li>
+<li><strong>A lossless ProseMirror mapping for the demo editor</strong> — <code>examples/demo/src/editor/pm-schema.ts</code>
+(<code>documentSchema</code>, <code>treeToPmDoc</code>, <code>pmDocToTree</code>), DOM- and TipTap-free, mapping title/paragraph to
+mark-free text blocks, <code>richText</code> to marked paragraphs, articles to an optional heading plus body with
+the level <strong>derived from nesting depth</strong>, lists to a kind-attributed node, and the four data blocks to
+atoms holding their data verbatim. A fast-check property proves <code>pmDocToTree(treeToPmDoc(t))</code> equals
+<code>normalizeTree(t)</code> over generated trees covering every node kind, and it runs under the root <code>verify</code>.
+The editor libraries stay demo devDependencies — nothing under <code>src/</code> imports prosemirror or tiptap.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>

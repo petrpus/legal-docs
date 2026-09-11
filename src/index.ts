@@ -163,6 +163,8 @@ export type {
 // subpath an editor UI imports without pulling the Node-only half of this entry in.
 export { createEditSession, EditSessionError } from "./edit";
 export type { EditApplyResult, EditSession, EditSessionBase, EditSessionInit } from "./edit";
+// The canonical tree form an editor round-trips through (#158).
+export { normalizeRichText, normalizeTree } from "./edit/normalize";
 
 export type { Clause } from "./core/clause";
 export { parseClauseRef } from "./core/clause-ref";

@@ -1,8 +1,20 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      // The demo imports the library through its published specifier. Under `verify` the tests run
+      // BEFORE `npm run build`, so — exactly as `tests/demo-api.test.ts` injects `src` into the demo
+      // server — the subpath resolves to the sources here, not to `dist/edit.js`.
+      "@petrpus/legal-docs/edit": fileURLToPath(new URL("./src/edit/index.ts", import.meta.url)),
+    },
+  },
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    // The demo's editor mapping (`examples/demo/src/editor/`) is proved by a fast-check property that
+    // belongs to the root gate; its `prosemirror-model` / `fast-check` devDependencies stay in the
+    // demo (CI installs them alongside the root ones — see `.github/workflows/ci.yml`).
+    include: ["tests/**/*.test.ts", "examples/demo/src/**/*.test.ts"],
   },
 });

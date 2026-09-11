@@ -130,6 +130,20 @@ Post-generation editing layer, in progress. PRD
   reproducing the export byte for byte, and the base still rendering the original. The client is the
   first consumer of the `@petrpus/legal-docs/edit` subpath: a form editor over `data-path` block
   selection with undo/redo, comments and the Preview / Redline / Review views.
+- **`normalizeTree(tree)` / `normalizeRichText(value)`** ([#158](https://github.com/petrpus/legal-docs/issues/158),
+  ADR-0014) — the canonical form of a document tree: empty runs dropped, adjacent runs carrying the same
+  marks merged, marks in canonical order, a style key set to `undefined` omitted, one empty run kept for
+  an empty paragraph. Pure, on the root entry and the `./edit` subpath. It is the shape a WYSIWYG editor
+  can hold, so it is what an editor round trip is specified against; numbering, `custom.props` and page
+  furniture are carried through untouched. Useful outside an editor too — two Edit sets that produce the
+  same document produce the same normalized tree.
+- **A lossless ProseMirror mapping for the demo editor** — `examples/demo/src/editor/pm-schema.ts`
+  (`documentSchema`, `treeToPmDoc`, `pmDocToTree`), DOM- and TipTap-free, mapping title/paragraph to
+  mark-free text blocks, `richText` to marked paragraphs, articles to an optional heading plus body with
+  the level **derived from nesting depth**, lists to a kind-attributed node, and the four data blocks to
+  atoms holding their data verbatim. A fast-check property proves `pmDocToTree(treeToPmDoc(t))` equals
+  `normalizeTree(t)` over generated trees covering every node kind, and it runs under the root `verify`.
+  The editor libraries stay demo devDependencies — nothing under `src/` imports prosemirror or tiptap.
 
 ### Changed
 - **`Snapshot` gained an optional `derivedFrom`** ([#150](https://github.com/petrpus/legal-docs/issues/150)) —

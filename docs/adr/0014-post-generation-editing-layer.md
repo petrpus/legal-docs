@@ -184,6 +184,28 @@ record that reproduces it, and `rerender` over either stored id is what proves i
 stored side by side, never one over the other: the base keeps rendering the original document after the
 edited one exists.
 
+**A WYSIWYG binds through a normal form, and the editor model lives outside the library.** A rich-text
+editor cannot represent every tree that is *data*-distinct: ProseMirror has no empty text node, it joins
+adjacent text carrying the same marks, and it holds marks in one fixed order. Rather than let a document
+change shape invisibly the first time it is opened in an editor, `normalizeTree` (`src/edit/normalize.ts`)
+names that shape — empty runs dropped, adjacent equal-marked runs merged, marks canonically ordered,
+a style key set to `undefined` omitted, one empty run kept for an empty paragraph — and the round trip is
+specified against it: `pmDocToTree(treeToPmDoc(t))` equals `normalizeTree(t)`, not `t`. Normalization
+stops where editing stops: `article.no`/`level` are carried verbatim (nothing is renumbered),
+`custom.props` is opaque and passes through by reference, and page furniture/setup are untouched.
+
+The ProseMirror schema itself (`examples/demo/src/editor/pm-schema.ts`) is **demo code, never `src/`**.
+The editing subpath is editor-agnostic by design, so the mapping belongs to the consumer that chose an
+editor — `tests/edit-browser-safety.test.ts` fails the build if a `prosemirror`/`tiptap` import ever
+appears under `src/`, and `prosemirror-model`/`fast-check` stay demo devDependencies. What the library
+owes such a consumer is the normal form, and the proof that the mapping is lossless: a fast-check
+property over generated trees covering all eleven kinds, articles nested to depth, lists of lists, empty
+runs, set and unset styling and arbitrary `custom` props. It runs under the root `verify` (a vitest
+include for `examples/demo/src/**/*.test.ts`, with CI installing the demo's devDependencies), because a
+losslessness claim that only the demo checks is a claim nothing checks. Within that mapping an article's
+`level` is **derived from nesting depth** on the way back rather than read from its attribute: the
+editor can move an article, and its depth is then the only truthful source — while `no` stays read-only.
+
 ## Consequences
 
 - The base Snapshot and its output are untouched by editing; base and edited records are both kept, and
