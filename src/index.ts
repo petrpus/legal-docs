@@ -46,8 +46,18 @@ export type {
   HtmlFromSnapshot,
   DocxFromSnapshot,
 } from "./facade/render-from-snapshot";
+export { renderEdited } from "./facade/render-edited";
+export type {
+  RenderEditedInput,
+  RenderEditedResult,
+  PdfEditedResult,
+  HtmlEditedResult,
+  DocxEditedResult,
+} from "./facade/render-edited";
 export { buildSnapshot, DEFAULT_SNAPSHOT_MODE, SNAPSHOT_SCHEMA_VERSION, SnapshotError, assertValidSnapshot } from "./core/snapshot";
 export type { Snapshot, SnapshotMode, ClausePin, SnapshotInput } from "./core/snapshot";
+export { buildEditedSnapshot, verifyEditedSnapshot } from "./core/edited-snapshot";
+export type { EditedSnapshot, EditedSnapshotIssue, EditedSnapshotVerification } from "./core/edited-snapshot";
 
 export { assembleTree, assembleDocument } from "./core/engine";
 export type { AssembleContext, ClauseResolver } from "./core/engine";

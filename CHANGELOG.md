@@ -37,8 +37,27 @@ Post-generation editing layer, in progress. PRD
   that restores the original yields a deep-equal tree. `setText` is implemented; the other ops are
   rejected by name until the slice that adds them. Browser-safe by construction — the whole module
   graph is scanned by a guard test — and re-exported from the browser entry.
+- **The edited Snapshot** ([#150](https://github.com/petrpus/legal-docs/issues/150), ADR-0014) — an
+  edited document is a first-class `Snapshot`. `buildEditedSnapshot(base, edits)` applies an Edit set
+  to a tree-bearing base and returns a `tree`-mode Snapshot with its own deterministic id and
+  `derivedFrom: EditSet`, inheriting the base's template/version/variant/locale and its provenance
+  (payload, resolved payload, Clause pins). A `pins`-mode base, an Edit set naming another Snapshot and
+  a malformed Edit set are rejected with typed errors; the base object is never mutated; editing an
+  edited Snapshot chains.
+- **`verifyEditedSnapshot(base, edited)`** — the audit check: re-applies the Edit set and compares the
+  record field by field, reporting a typed `issue` (`tree-mismatch`, `id-mismatch`, `base-mismatch`,
+  `not-applicable`, `metadata-mismatch`, `not-derived`) instead of throwing.
+- **`renderEdited({ snapshot, edits, format, … })`** — export a document with an Edit set applied and
+  get the edited Snapshot back. The edit is frozen as a Snapshot before rendering, so
+  `renderFromSnapshot(result.snapshot)` reproduces the export exactly, in PDF, HTML and DOCX.
+- **An ADR index** ([`docs/adr/README.md`](./docs/adr/README.md)) listing every decision record.
 
 ### Changed
+- **`Snapshot` gained an optional `derivedFrom`** ([#150](https://github.com/petrpus/legal-docs/issues/150)) —
+  present only on an edited Snapshot, validated by `assertValidSnapshot` and refused on a `pins`-mode
+  snapshot. The id digest mixes in the base Snapshot id (and only that) for a derived snapshot, so
+  every existing id and `SNAPSHOT_SCHEMA_VERSION` (2) are unchanged — an optional additive field is not
+  a breaking shape change.
 - **`assertValidSnapshot` now validates the tree of a `full`/`tree`-mode snapshot against the schema**,
   so a persisted snapshot with a malformed node is rejected by path (`body.1.kind: …`) instead of
   failing deep inside a renderer. Snapshot ids, `SNAPSHOT_SCHEMA_VERSION` (2) and the existing

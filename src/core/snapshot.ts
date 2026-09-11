@@ -2,6 +2,7 @@ import { LegalDocsError } from "./errors";
 import { createHash } from "node:crypto";
 import type { DocumentTree } from "./document-tree";
 import { describeIssues, documentTreeSchema } from "./document-tree-schema";
+import { editSetSchema, type EditSet } from "./edit/edit-set";
 
 /**
  * What a {@link Snapshot} freezes (ADR-0003). The engine default is `full`; a caller may override it.
@@ -73,6 +74,13 @@ export interface Snapshot {
   pins?: ClausePin[];
   /** The assembled DocumentNode tree (modes `full`, `tree`). */
   tree?: DocumentTree;
+  /**
+   * Present only on an **edited Snapshot** (ADR-0014): the Edit set whose ops, applied to the base
+   * Snapshot named by `derivedFrom.baseSnapshotId`, produce this snapshot's `tree`. Additive and
+   * optional, so `SNAPSHOT_SCHEMA_VERSION` stays 2 and no existing snapshot changes shape or id.
+   * Never present on a `pins`-mode snapshot — an Edit set addresses a frozen tree.
+   */
+  derivedFrom?: EditSet;
 }
 
 /** Everything a generation can freeze; {@link buildSnapshot} keeps only the mode-relevant parts. */
@@ -94,7 +102,7 @@ export interface SnapshotInput {
 export function buildSnapshot(gen: SnapshotInput, mode: SnapshotMode = DEFAULT_SNAPSHOT_MODE): Snapshot {
   const base: Snapshot = {
     schemaVersion: SNAPSHOT_SCHEMA_VERSION,
-    id: snapshotId(gen),
+    id: computeSnapshotId(gen),
     mode,
     template: gen.template,
     version: gen.version,
@@ -159,9 +167,45 @@ export function assertValidSnapshot(value: unknown): asserts value is Snapshot {
       throw new SnapshotError(`Malformed snapshot: invalid tree — ${describeIssues(parsed.error.issues)}`);
     }
   }
+  // An edited Snapshot (ADR-0014) carries the Edit set it was derived from. It is persisted JSON like
+  // the rest of the record, so it is validated here — a tampered or hand-written Edit set is named
+  // before `verifyEditedSnapshot` (or a renderer) meets it.
+  if (s.derivedFrom !== undefined) {
+    if (s.mode === "pins") {
+      throw new SnapshotError("Malformed snapshot: a pins-mode snapshot cannot carry derivedFrom — an Edit set addresses a frozen tree");
+    }
+    const parsed = editSetSchema.safeParse(s.derivedFrom);
+    if (!parsed.success) {
+      throw new SnapshotError(`Malformed snapshot: invalid derivedFrom Edit set — ${describeIssues(parsed.error.issues)}`);
+    }
+  }
 }
 
-function snapshotId(gen: SnapshotInput): string {
+/**
+ * What the digest is computed over. A superset of {@link SnapshotInput}'s identifying fields plus the
+ * derivation mix-in, so {@link buildEditedSnapshot} can compute an id the same way a generation does.
+ */
+export interface SnapshotIdFields {
+  template: string;
+  version: number;
+  variant?: string;
+  locale: string;
+  payload?: unknown;
+  tree: DocumentTree;
+  /**
+   * The base Snapshot id, for an edited Snapshot (ADR-0014). **Only** the base id is mixed in — not
+   * the ops — so identity stays a function of the content plus what it was derived from: re-applying
+   * the same Edit set reproduces the id, and two Edit sets reaching the same wording agree. Absent for
+   * a generated Snapshot, which is why every existing id is unchanged.
+   */
+  derivedFromSnapshotId?: string;
+}
+
+/**
+ * The Snapshot digest. Exported for {@link buildEditedSnapshot} (`src/core/edited-snapshot.ts`), which
+ * must hash exactly as a generation does; not part of the package's public surface.
+ */
+export function computeSnapshotId(gen: SnapshotIdFields): string {
   return createHash("sha256")
     .update(
       JSON.stringify({
@@ -176,6 +220,7 @@ function snapshotId(gen: SnapshotInput): string {
         ...(gen.tree.footer !== undefined ? { footer: gen.tree.footer } : {}),
         ...(gen.tree.page !== undefined ? { page: gen.tree.page } : {}),
         payload: gen.payload ?? null,
+        ...(gen.derivedFromSnapshotId !== undefined ? { derivedFrom: gen.derivedFromSnapshotId } : {}),
       }),
     )
     .digest("hex")

@@ -155,5 +155,5 @@ shell/CI use, and a composite **GitHub Action** wrapping `validate` as a PR chec
 
 - [`CONTEXT.md`](./CONTEXT.md) — ubiquitous language.
 - [`AUTHORING.md`](./AUTHORING.md) — how to write templates, clauses, variants, derivations.
-- [`adr/`](./adr/) — the decisions behind this architecture.
+- [`adr/`](./adr/README.md) — the decisions behind this architecture (indexed).
 - [`PLAN.md`](./PLAN.md) — the approved source-of-truth design plan.
