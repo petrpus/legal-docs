@@ -13,7 +13,7 @@
  */
 
 export { createEditSession, EditSessionError } from "./session";
-export type { EditApplyResult, EditSession, EditSessionBase, EditSessionInit } from "./session";
+export type { AddCommentInput, EditApplyResult, EditSession, EditSessionBase, EditSessionInit } from "./session";
 
 export {
   applyEdit,
@@ -22,8 +22,12 @@ export {
   assertValidEditSet,
   buildRedline,
   commentSchema,
+  deriveCommentPath,
   diffTree,
   diffWords,
+  isCommentStale,
+  nodeText,
+  quoteAt,
   editableNodeSchema,
   editOpPath,
   editOpSchema,
@@ -40,6 +44,7 @@ export {
 } from "../core/edit";
 export type {
   Comment,
+  CommentAnchor,
   EditableNode,
   EditErrorInit,
   EditErrorReason,
@@ -81,6 +86,9 @@ export type {
   SignaturePlace,
 } from "../core/document-tree";
 
-// The preview Renderer, so a UI can render a tree (or a single node) without the root entry.
+// The preview Renderer, so a UI can render a tree (or a single node) without the root entry, and the
+// review view that shows the same document with its comments in the margin.
 export { createHtmlRenderContext, renderNodeToHtml, renderTreeToHtml } from "../render-html/render-html";
 export type { HtmlRenderContext, RenderHtmlOptions } from "../render-html/render-html";
+export { renderReviewHtml } from "../render-html/review";
+export type { RenderReviewOptions } from "../render-html/review";

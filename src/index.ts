@@ -113,6 +113,7 @@ export {
   assertValidEditSet,
   buildRedline,
   commentSchema,
+  deriveCommentPath,
   diffTree,
   diffWords,
   editableNodeSchema,
@@ -124,13 +125,17 @@ export {
   EDIT_OP_KINDS,
   EDIT_SET_SCHEMA_VERSION,
   formatTreePath,
+  isCommentStale,
   locate,
+  nodeText,
   parseTreePath,
+  quoteAt,
   transformPath,
   treePathSchema,
 } from "./core/edit";
 export type {
   Comment,
+  CommentAnchor,
   EditableNode,
   EditErrorReason,
   EditOp,
@@ -206,6 +211,8 @@ export { renderTreeToPdf } from "./render-pdf/render-pdf";
 export { createHtmlRenderContext, renderNodeToHtml, renderTreeToHtml } from "./render-html/render-html";
 export type { HtmlRenderContext, RenderHtmlOptions } from "./render-html/render-html";
 export { escapeHtml } from "./render-html/escape";
+export { renderReviewHtml } from "./render-html/review";
+export type { RenderReviewOptions } from "./render-html/review";
 export { renderClauseDiff } from "./render-html/clause-diff-html";
 export { renderTreeToDocx } from "./render-docx/render-docx";
 export { halfPoints, twips, eighths } from "./render-docx/theme-docx";

@@ -20,9 +20,11 @@ import {
   applyEdits,
   assertValidEditOp,
   assertValidEditSet,
+  deriveCommentPath,
   EditError,
   EDIT_SET_SCHEMA_VERSION,
   locate,
+  quoteAt,
   type Comment,
   type EditOp,
   type EditSet,
@@ -30,6 +32,7 @@ import {
 } from "../core/edit";
 import { LegalDocsError } from "../core/errors";
 import { renderTreeToHtml, type RenderHtmlOptions } from "../render-html/render-html";
+import { renderReviewHtml, type RenderReviewOptions } from "../render-html/review";
 
 /**
  * What a session needs of a base Snapshot: its id, and the tree it froze. Structural on purpose — any
@@ -69,6 +72,19 @@ export interface EditSessionInit {
  */
 export type EditApplyResult = { ok: true; tree: DocumentTree } | { ok: false; error: EditError };
 
+/** What a caller supplies when anchoring a comment; the session fills in the rest of the {@link Comment}. */
+export interface AddCommentInput {
+  /** Where to anchor. Must address something in the current tree — an unresolvable path is an `EditError`. */
+  path: TreePath;
+  text: string;
+  /** Defaults to a generated `c1`, `c2`, … unique within the session. */
+  id?: string;
+  /** Defaults to the session's author. */
+  author?: string;
+  /** ISO-8601 timestamp; defaults to the session clock. */
+  at?: string;
+}
+
 export interface EditSession {
   /** The unedited tree the session started from. Never changes. Treat as read-only. */
   readonly base: DocumentTree;
@@ -90,10 +106,25 @@ export interface EditSession {
   undo(): boolean;
   /** Step the cursor forward one op. `false` when there is no redo tail left. */
   redo(): boolean;
+  /**
+   * The comments, each with its anchor re-derived for the current cursor (`path` is `null` when an
+   * applied op removed the anchored node). A new array exactly when a comment or the tree changed.
+   */
+  readonly comments: readonly Comment[];
+  /** Anchor a comment, capturing the anchored node's text as its quote. Not an undoable edit. */
+  addComment(input: AddCommentInput): Comment;
+  /** Reword a comment. Throws an {@link EditSessionError} for an unknown id. */
+  editComment(id: string, text: string): Comment;
+  /** Mark a comment resolved (or, with `false`, reopen it). */
+  resolveComment(id: string, resolved?: boolean): Comment;
+  /** Delete a comment. `false` when there was no such comment. */
+  removeComment(id: string): boolean;
   /** The node at `path` in the current tree, or `undefined` when the path addresses no node. */
   getNode(path: TreePath): DocumentNode | undefined;
   /** The current tree as HTML. `emitPaths` defaults to `true` — a UI selects by `data-path`. */
   preview(options?: RenderHtmlOptions): string;
+  /** The current tree as HTML with the comments as margin notes (never an export format). */
+  reviewHtml(options?: RenderReviewOptions): string;
   /** Freeze the ops up to the cursor as an Edit set. Carries no id: the server stamps identity. */
   toEditSet(): EditSet;
   /** Register a change listener; call the returned function to stop listening. */
@@ -131,10 +162,13 @@ class Session implements EditSession {
   private readonly author?: string;
   private readonly note?: string;
   /**
-   * Comments carried through from a resumed Edit set. Anchoring, rebasing and orphaning are the next
-   * slice (#155); until then they travel with the Edit set untouched rather than being dropped.
+   * The comments, stored WITHOUT their `path`: the anchor is derived from `originalPath` +
+   * `anchoredAfterOp` against the op log every time it is read, which is what makes undo/redo move the
+   * anchors without any comment bookkeeping (see `deriveCommentPath`).
    */
-  private readonly comments: Comment[];
+  private readonly commentStore: AnchoredComment[];
+  /** The derived comment list, memoized per cursor position — invalidated by any comment mutation. */
+  private commentView: { at: number; value: readonly Comment[] } | undefined;
   private readonly renderOptions: RenderHtmlOptions;
 
   constructor(init: EditSessionInit) {
@@ -148,13 +182,18 @@ class Session implements EditSession {
     this.now = init.now ?? (() => new Date().toISOString());
     this.author = init.author ?? init.editSet?.author;
     this.note = init.note ?? init.editSet?.note;
-    this.comments = structuredClone(init.editSet?.comments ?? []);
+    this.commentStore = [];
     this.renderOptions = { theme: init.theme, customBlocks: init.customBlocks };
     for (const op of init.editSet?.ops ?? []) {
       const result = this.apply(op);
       // A resumed Edit set is a persisted artifact: if it no longer replays, the caller is holding the
       // wrong base, and a half-applied session would hide that.
       if (!result.ok) throw result.error;
+    }
+    // Comments are adopted AFTER the replay: their `anchoredAfterOp` counts ops in the log they
+    // travelled with, and replaying with them already in place would re-anchor them (see `apply`).
+    for (const comment of init.editSet?.comments ?? []) {
+      this.commentStore.push(adoptComment(comment, this.log.length));
     }
   }
 
@@ -196,6 +235,14 @@ class Session implements EditSession {
     // Applying after an undo abandons the redo tail — history stays linear (no branching, ADR-0014).
     this.log.length = this.position;
     this.trees.length = this.position + 1;
+    // A comment written in that abandoned future would point into ops that no longer exist, so it is
+    // re-anchored here: its `originalPath` is now read against the tree at the cursor.
+    for (const comment of this.commentStore) {
+      if (comment.anchoredAfterOp > this.position) {
+        comment.anchoredAfterOp = this.position;
+        this.commentView = undefined;
+      }
+    }
     // Own the op: a caller mutating the object it passed must not rewrite this session's history.
     this.log.push(structuredClone(op));
     this.trees.push(next);
@@ -212,6 +259,58 @@ class Session implements EditSession {
     return this.moveTo(this.position + 1);
   }
 
+  get comments(): readonly Comment[] {
+    if (this.commentView?.at !== this.position) {
+      const value = this.commentStore.map((comment) => ({
+        ...structuredClone(comment),
+        path: deriveCommentPath(comment, this.log, this.position),
+      }));
+      this.commentView = { at: this.position, value };
+    }
+    return this.commentView.value;
+  }
+
+  addComment(input: AddCommentInput): Comment {
+    // An anchor that addresses nothing is a caller bug, not a rejected edit — `locate` says why.
+    locate(this.tree, input.path);
+    const quote = quoteAt(this.tree, input.path);
+    const id = input.id ?? this.nextCommentId();
+    if (this.commentStore.some((comment) => comment.id === id)) {
+      throw new EditSessionError(`comment ${id} already exists in this session`);
+    }
+    const comment: AnchoredComment = {
+      id,
+      originalPath: [...input.path],
+      anchoredAfterOp: this.position,
+      text: input.text,
+      at: input.at ?? this.now(),
+    };
+    if (quote !== undefined) comment.quote = quote;
+    const author = input.author ?? this.author;
+    if (author !== undefined) comment.author = author;
+    this.commentStore.push(comment);
+    return this.afterCommentChange(id);
+  }
+
+  editComment(id: string, text: string): Comment {
+    this.requireComment(id).text = text;
+    return this.afterCommentChange(id);
+  }
+
+  resolveComment(id: string, resolved = true): Comment {
+    this.requireComment(id).resolved = resolved;
+    return this.afterCommentChange(id);
+  }
+
+  removeComment(id: string): boolean {
+    const index = this.commentStore.findIndex((comment) => comment.id === id);
+    if (index === -1) return false;
+    this.commentStore.splice(index, 1);
+    this.commentView = undefined;
+    this.notify();
+    return true;
+  }
+
   getNode(path: TreePath): DocumentNode | undefined {
     try {
       const location = locate(this.tree, path);
@@ -224,6 +323,10 @@ class Session implements EditSession {
 
   preview(options: RenderHtmlOptions = {}): string {
     return renderTreeToHtml(this.tree, { emitPaths: true, ...this.renderOptions, ...options });
+  }
+
+  reviewHtml(options: RenderReviewOptions = {}): string {
+    return renderReviewHtml(this.tree, this.comments, { ...this.renderOptions, ...options });
   }
 
   toEditSet(): EditSet {
@@ -239,7 +342,9 @@ class Session implements EditSession {
       ops: structuredClone(this.log.slice(0, this.position)),
       at: this.now(),
     };
-    if (this.comments.length > 0) editSet.comments = structuredClone(this.comments);
+    // Comments are exported at the anchors they currently show, so a stored Edit set reads the same way
+    // it looked; a resumed session derives those very paths again from the log.
+    if (this.commentStore.length > 0) editSet.comments = structuredClone(this.comments) as Comment[];
     if (this.author !== undefined) editSet.author = this.author;
     if (this.note !== undefined) editSet.note = this.note;
     return editSet;
@@ -250,6 +355,27 @@ class Session implements EditSession {
     return () => {
       this.listeners.delete(listener);
     };
+  }
+
+  private requireComment(id: string): AnchoredComment {
+    const comment = this.commentStore.find((candidate) => candidate.id === id);
+    if (comment === undefined) throw new EditSessionError(`no comment ${id} in this session`);
+    return comment;
+  }
+
+  /** Publish a comment mutation: drop the memoized view, notify, and hand back the derived comment. */
+  private afterCommentChange(id: string): Comment {
+    this.commentView = undefined;
+    this.notify();
+    return this.comments.find((comment) => comment.id === id)!;
+  }
+
+  /** The first free `c<n>` — stable across a session and readable in a golden. */
+  private nextCommentId(): string {
+    for (let n = this.commentStore.length + 1; ; n += 1) {
+      const id = `c${n}`;
+      if (!this.commentStore.some((comment) => comment.id === id)) return id;
+    }
   }
 
   /** Move the cursor, notifying only when it actually moved (nothing changed = no re-render). */
@@ -263,6 +389,28 @@ class Session implements EditSession {
   private notify(): void {
     for (const listener of [...this.listeners]) listener();
   }
+}
+
+/** A stored comment: everything but `path`, which the session derives for the current cursor. */
+type AnchoredComment = Omit<Comment, "path">;
+
+/**
+ * Take a persisted comment into the session: drop its `path` (derived, not stored) and clamp its anchor
+ * to the log it arrived with, so a hand-written or truncated Edit set cannot anchor into ops that are
+ * not there.
+ */
+function adoptComment(comment: Comment, ops: number): AnchoredComment {
+  const adopted: AnchoredComment = {
+    id: comment.id,
+    originalPath: [...comment.originalPath],
+    anchoredAfterOp: Math.min(comment.anchoredAfterOp, ops),
+    text: comment.text,
+  };
+  if (comment.quote !== undefined) adopted.quote = comment.quote;
+  if (comment.author !== undefined) adopted.author = comment.author;
+  if (comment.at !== undefined) adopted.at = comment.at;
+  if (comment.resolved !== undefined) adopted.resolved = comment.resolved;
+  return adopted;
 }
 
 function resolveBase(init: EditSessionInit): { tree: DocumentTree; baseSnapshotId: string | undefined } {

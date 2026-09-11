@@ -131,6 +131,30 @@ under `src/**`. A WYSIWYG shell binds to the session from outside (the demo does
 their own editor and the library never carries one. Both rules are enforced by guard tests — a static
 scan of the module graph, and a grep of the built bundle's import specifiers.
 
+**A comment's anchor is derived from the op log, never stored.** A comment is written against a path,
+which is only meaningful for one tree state, so the session keeps what does not move — `originalPath`
+plus `anchoredAfterOp`, the length of the op log when the note was written — and replays the anchor
+forward through `transformPath` for each op between that point and the cursor. A structural edit before
+the anchor shifts it; an op that removes the anchored node **orphans** the comment (`path: null`) rather
+than dropping it, because a question about a deleted clause is still a question. Deriving rather than
+storing is what keeps comments off the undo stack: undoing the removal re-derives the old path and the
+comment is simply back, and adding, rewording, resolving or deleting a comment never touches history.
+
+Two edges follow from `transformPath` having no inverse. Below its anchoring point a comment can only be
+shown where it was authored — and if the redo tail it was written into is abandoned by a new op, it is
+**re-anchored** at the cursor, its `originalPath` now read against that tree. Both cases are caught by
+the `quote` captured at anchoring time: the review view compares it with the text now at the anchor and
+flags the note as an **outdated quote** when they differ. That is also the whole staleness model — no
+attempt is made to re-locate a node by content.
+
+**The review view is a second Renderer, never a mode of the exporters.** `renderReviewHtml` wraps the
+plain `emitPaths` render — byte for byte — in a flex row next to an `<aside>` of notes addressed by the
+same `data-path`, so margin layout is CSS-only and a reviewer sees exactly what will be exported. No
+export path goes through it, which is how "final PDF/DOCX/HTML never contain comments" is a structural
+property rather than a filter someone has to remember. Comments still travel *inside* the Edit set
+(`EditSet.comments`), so they are part of the audit trail of an edited Snapshot without being part of
+the document.
+
 ## Consequences
 
 - The base Snapshot and its output are untouched by editing; base and edited records are both kept, and

@@ -100,6 +100,17 @@ Post-generation editing layer, in progress. PRD
 - **`richTextToMarkdown(value)`** — the inverse of `parseRichText` for the bold/italic subset, so a
   form editor can offer a `richText` node as a plain textarea. Also `assertValidEditOp(value)`, the
   single-op counterpart of `assertValidEditSet`.
+- **Comments anchored to tree paths** ([#155](https://github.com/petrpus/legal-docs/issues/155),
+  ADR-0014) — `session.addComment/editComment/resolveComment/removeComment` and `session.comments`,
+  whose anchors are *derived* from `originalPath` + `anchoredAfterOp` by replaying the op log: an
+  insert before a comment shifts it, removing its node orphans it (`path: null`), and undoing that
+  removal brings it back. Comments are not on the undo stack, and they round-trip through
+  `EditSet.comments`. The quote captured at anchoring time flags a note whose text has since changed.
+- **`renderReviewHtml(tree, comments, options)`** — the preview with the comments as CSS-only margin
+  notes (quote, author, time, and resolved / orphaned / outdated-quote flags), also reachable as
+  `session.reviewHtml()`. It wraps the plain `emitPaths` render byte for byte and no exporter goes
+  through it, so PDF, DOCX and plain HTML never contain a comment. Helpers `quoteAt`, `nodeText`,
+  `deriveCommentPath` and `isCommentStale` are exported for a UI that renders its own review view.
 - **An ADR index** ([`docs/adr/README.md`](./docs/adr/README.md)) listing every decision record.
 
 ### Changed

@@ -8,6 +8,8 @@
  */
 
 export { applyEdit, applyEdits } from "./apply";
+export { deriveCommentPath, isCommentStale, nodeText, quoteAt } from "./comments";
+export type { CommentAnchor } from "./comments";
 export { diffTree } from "./diff-tree";
 export type { TreeChange } from "./diff-tree";
 export {
