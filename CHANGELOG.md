@@ -56,6 +56,24 @@ Post-generation editing layer, in progress. PRD
 - **`renderEdited({ snapshot, edits, format, … })`** — export a document with an Edit set applied and
   get the edited Snapshot back. The edit is frozen as a Snapshot before rendering, so
   `renderFromSnapshot(result.snapshot)` reproduces the export exactly, in PDF, HTML and DOCX.
+- **`diffTree(base, edited)`** ([#152](https://github.com/petrpus/legal-docs/issues/152), ADR-0014) —
+  the flat, path-addressed list of what an edit did: `inserted` / `removed` nodes, `insertedItem` /
+  `removedItem` list items, and `text`, `richText` and `attr` changes, each at the path where it
+  happened. Identical trees produce an empty list. Node lists align on structural equality and changed
+  runs pair positionally, so a reworded paragraph reads as a rewording; a pair that cannot be
+  reconciled in place — different kinds, a different article `no`/`level` or party `kind`, a different
+  row/place count, any change inside an opaque `custom` block, and every **move** — degrades to a
+  removal plus an insertion. A change is reported at its path in the edited tree; a removal keeps its
+  base-tree path.
+- **`buildRedline(base, edited)` → `RedlineDoc`** — one renderer-agnostic description of an edit: the
+  edited document mirrored block by block (`unchanged`, `inserted`, `deleted`, `textChanged`,
+  `attrsChanged`, `container`), deleted blocks kept in place, changed strings carrying word-level
+  segments, changed rich text carrying per-paragraph runs whose marks come from the after side except
+  on a deletion, page-furniture changes per slot, plus a `stats` tally. The HTML and DOCX redline
+  renderers will both be visitors over this structure, and `diffTree` is its flattening.
+- **`diffWords(before, after)`** — word-level inline diff (`equal` / `ins` / `del` segments).
+  Whitespace runs are tokens of their own, so the segments reassemble both inputs exactly, with no
+  normalisation; non-ASCII and astral-plane text survive untouched.
 - **An ADR index** ([`docs/adr/README.md`](./docs/adr/README.md)) listing every decision record.
 
 ### Changed
@@ -68,6 +86,10 @@ Post-generation editing layer, in progress. PRD
   so a persisted snapshot with a malformed node is rejected by path (`body.1.kind: …`) instead of
   failing deep inside a renderer. Snapshot ids, `SNAPSHOT_SCHEMA_VERSION` (2) and the existing
   "no tree body array" / `schemaVersion` errors are unchanged.
+- **The Clause paragraph diff now shares its alignment with the tree diff**
+  ([#152](https://github.com/petrpus/legal-docs/issues/152)) — the LCS and the positional pairing moved
+  into `src/core/text-diff.ts` as the generic `lcsAlign` / `pairAligned`. `diffRichText`'s output is
+  unchanged.
 
 ## [0.2.0-beta.2] — 2026-09-19
 

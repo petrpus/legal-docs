@@ -8,6 +8,8 @@
  */
 
 export { applyEdit, applyEdits } from "./apply";
+export { diffTree } from "./diff-tree";
+export type { TreeChange } from "./diff-tree";
 export {
   assertValidEditSet,
   commentSchema,
@@ -23,5 +25,20 @@ export {
 export type { Comment, EditableNode, EditOp, EditOpKind, EditSet } from "./edit-set";
 export { locate } from "./locate";
 export type { TextLocation, TreeLocation } from "./locate";
+export { buildRedline } from "./redline-model";
+export type {
+  RedlineAttr,
+  RedlineBlock,
+  RedlineChildren,
+  RedlineDoc,
+  RedlineField,
+  RedlineListItem,
+  RedlineParagraph,
+  RedlineRun,
+  RedlineStats,
+} from "./redline-model";
+// The word-level diff the redline is built from — browser-safe and document-model-free.
+export { diffWords } from "../text-diff";
+export type { InlineOp, InlineSegment } from "../text-diff";
 export { EditError, editError, formatTreePath, parseTreePath, transformPath } from "./tree-path";
 export type { EditErrorInit, EditErrorReason, TreePath, TreePathSegment } from "./tree-path";

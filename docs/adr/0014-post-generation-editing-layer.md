@@ -78,6 +78,30 @@ plus that Edit set produce?" is the question, and a failure is an answer to it.
 edit as a Snapshot *first* and then renders that tree, so an exported document can never exist without
 its audit record, and `renderFromSnapshot(result.snapshot)` reproduces the export exactly.
 
+**One redline model, two renderers — and the change list is its flattening.** The difference between a
+base tree and an edited one is described once, as a `RedlineDoc` (`src/core/edit/redline-model.ts`):
+the edited document mirrored block by block, each block labelled `unchanged` / `inserted` / `deleted` /
+`textChanged` / `attrsChanged` / `container`, with every changed string carrying word-level segments and
+every changed rich-text value carrying per-paragraph runs. Deleted blocks stay in place so the reader
+sees both states at once. The inline HTML redline and the DOCX tracked-changes export are visitors over
+this one structure, and `diffTree` — the flat, path-addressed change list an API or an audit log wants —
+is literally its flattening, so a change list and a rendered redline can never disagree.
+
+**Alignment is structural, pairing is positional.** Node lists and list items align on a longest common
+subsequence over structural equality (`lcsAlign`, generalized out of the Clause paragraph diff so both
+share one implementation and `diffRichText`'s output is unchanged); each changed run is then paired
+positionally, the k-th removal standing for the k-th addition. An alignment can only say *that* a run
+changed, never which old node became which new one, so this is a heuristic — but it is the one that
+reads as "this paragraph was reworded" instead of "one vanished and an unrelated one appeared".
+
+**A pair that cannot be reconciled in place degrades to a deletion plus an insertion.** Different kinds
+(including a title that became a paragraph, or a numbered list that became bulleted), a different
+article `no`/`level`, a different party `kind`, a different key-value row or signature place count, and
+*any* difference inside a `custom` block — whose props are opaque (ADR-0005) — are all remove + add.
+Because paths carry no node identity, **a move is remove + add too**; this is the cost accepted with
+structural paths above, and it is documented rather than worked around. A change is reported at its path
+in the **edited** tree, except a removal, which keeps its base-tree path — the only tree it exists in.
+
 ## Consequences
 
 - The base Snapshot and its output are untouched by editing; base and edited records are both kept, and
