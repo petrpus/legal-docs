@@ -117,13 +117,17 @@ export function renderNodeToHtml(node: DocumentNode, cx: HtmlRenderContext, path
  * ` data-path="…"` for a block, or "" when the context does not emit paths. The value is escaped like
  * any other attribute: a path is built from document-model keys and indices today, but it travels from
  * an Edit set through a UI, so it is not trusted here.
+ *
+ * Exported — with {@link blockStyle} and {@link runHtml} — for the redline Renderer (`redline.ts`),
+ * which re-emits a *changed* block's markup itself. Sharing these three keeps a changed block byte-for-
+ * byte the block the plain Renderer would produce, apart from the `<ins>`/`<del>` inside it.
  */
-function pathAttr(cx: HtmlRenderContext, path: TreePath): string {
+export function pathAttr(cx: HtmlRenderContext, path: TreePath): string {
   return cx.emitPaths ? ` data-path="${escapeHtml(formatTreePath(path))}"` : "";
 }
 
 /** Inline `style` for per-block alignment/indent overrides, or "" to fall back to the Theme's class CSS. */
-function blockStyle(node: { align?: Align; indent?: BlockIndent }): string {
+export function blockStyle(node: { align?: Align; indent?: BlockIndent }): string {
   const parts: string[] = [];
   if (node.align !== undefined) parts.push(`text-align:${node.align}`);
   if (node.indent?.firstLine !== undefined) parts.push(`text-indent:${node.indent.firstLine}px`);
@@ -140,7 +144,8 @@ function richTextHtml(value: RichTextV1, cx: HtmlRenderContext, path: TreePath):
   return `<div class="rich"${pathAttr(cx, path)}>${paragraphs}</div>`;
 }
 
-function runHtml(run: RichRun): string {
+/** One rich-text run: its text escaped, wrapped in the tags its marks ask for. */
+export function runHtml(run: RichRun): string {
   let text = escapeHtml(run.text);
   if (run.marks?.includes("bold")) text = `<strong>${text}</strong>`;
   if (run.marks?.includes("italic")) text = `<em>${text}</em>`;

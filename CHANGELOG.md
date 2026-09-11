@@ -111,6 +111,14 @@ Post-generation editing layer, in progress. PRD
   `session.reviewHtml()`. It wraps the plain `emitPaths` render byte for byte and no exporter goes
   through it, so PDF, DOCX and plain HTML never contain a comment. Helpers `quoteAt`, `nodeText`,
   `deriveCommentPath` and `isCommentStale` are exported for a UI that renders its own review view.
+- **`renderRedlineHtml(redline, options)`** ([#156](https://github.com/petrpus/legal-docs/issues/156),
+  ADR-0014) — the inline redline: the edited document as it now reads, with `<ins>`/`<del>` around the
+  words that moved and block-level markers for an insertion, a deletion, a dropped or added list item
+  and a presentation-only change. It renders a `RedlineDoc` (`buildRedline`), so it and the DOCX
+  compare export describe the same edit. An untouched block goes through the plain Renderer itself, so
+  a redline of an unedited document is the document; changed page-header/footer slots are reported as
+  a trailing section. Also reachable as `session.redline()` / `session.redlineHtml()`, on the
+  `./edit` subpath and on the browser entry. `mode` reserves a future side-by-side layout.
 - **An ADR index** ([`docs/adr/README.md`](./docs/adr/README.md)) listing every decision record.
 
 ### Changed

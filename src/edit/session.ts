@@ -31,7 +31,9 @@ import {
   type TreePath,
 } from "../core/edit";
 import { LegalDocsError } from "../core/errors";
+import { buildRedline, type RedlineDoc } from "../core/edit/redline-model";
 import { renderTreeToHtml, type RenderHtmlOptions } from "../render-html/render-html";
+import { renderRedlineHtml, type RenderRedlineOptions } from "../render-html/redline";
 import { renderReviewHtml, type RenderReviewOptions } from "../render-html/review";
 
 /**
@@ -125,6 +127,10 @@ export interface EditSession {
   preview(options?: RenderHtmlOptions): string;
   /** The current tree as HTML with the comments as margin notes (never an export format). */
   reviewHtml(options?: RenderReviewOptions): string;
+  /** What the ops up to the cursor did to the base, as the renderer-agnostic Redline model. */
+  redline(): RedlineDoc;
+  /** The same redline rendered inline as HTML, insertions and deletions in place. */
+  redlineHtml(options?: RenderRedlineOptions): string;
   /** Freeze the ops up to the cursor as an Edit set. Carries no id: the server stamps identity. */
   toEditSet(): EditSet;
   /** Register a change listener; call the returned function to stop listening. */
@@ -327,6 +333,15 @@ class Session implements EditSession {
 
   reviewHtml(options: RenderReviewOptions = {}): string {
     return renderReviewHtml(this.tree, this.comments, { ...this.renderOptions, ...options });
+  }
+
+  redline(): RedlineDoc {
+    // Always base-to-cursor: undoing back to the start yields a redline with nothing in it.
+    return buildRedline(this.base, this.tree);
+  }
+
+  redlineHtml(options: RenderRedlineOptions = {}): string {
+    return renderRedlineHtml(this.redline(), { ...this.renderOptions, ...options });
   }
 
   toEditSet(): EditSet {

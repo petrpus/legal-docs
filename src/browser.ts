@@ -22,6 +22,7 @@ import {
   applyEdit,
   applyEdits,
   assertValidEditSet,
+  buildRedline,
   EditError,
   EditSetValidationError,
   editOpPath,
@@ -39,6 +40,7 @@ import type {
   EditOp,
   EditOpKind,
   EditSet,
+  RedlineDoc,
   TextLocation,
   TreeLocation,
   TreePath,
@@ -67,6 +69,7 @@ import { z } from "zod";
 import { resolvePayload, type DerivationRegistry } from "./core/resolve";
 import type { Template } from "./core/template";
 import { renderTreeToHtml } from "./render-html/render-html";
+import { renderRedlineHtml, type RedlineMode, type RenderRedlineOptions } from "./render-html/redline";
 import { mergeTheme, defaultTheme, type DeepPartial, type Theme } from "./theme";
 
 export {
@@ -74,6 +77,8 @@ export {
   resolveTemplate,
   resolveClause,
   renderTreeToHtml,
+  // The inline redline, so the demo can show what an edit did without a server round trip.
+  renderRedlineHtml,
   mergeTheme,
   defaultTheme,
   validatePayload,
@@ -87,6 +92,7 @@ export {
   applyEdit,
   applyEdits,
   assertValidEditSet,
+  buildRedline,
   createEditSession,
   editOpPath,
   formatTreePath,
@@ -113,6 +119,9 @@ export type {
   EditSessionBase,
   EditSessionInit,
   EditSet,
+  RedlineDoc,
+  RedlineMode,
+  RenderRedlineOptions,
   RichTextV1,
   TextLocation,
   TreeLocation,

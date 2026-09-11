@@ -92,3 +92,6 @@ export { createHtmlRenderContext, renderNodeToHtml, renderTreeToHtml } from "../
 export type { HtmlRenderContext, RenderHtmlOptions } from "../render-html/render-html";
 export { renderReviewHtml } from "../render-html/review";
 export type { RenderReviewOptions } from "../render-html/review";
+// The inline redline — the second view over the same document, built from the Redline model above.
+export { renderRedlineHtml } from "../render-html/redline";
+export type { RedlineMode, RenderRedlineOptions } from "../render-html/redline";

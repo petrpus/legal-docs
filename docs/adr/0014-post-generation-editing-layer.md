@@ -155,6 +155,24 @@ property rather than a filter someone has to remember. Comments still travel *in
 (`EditSet.comments`), so they are part of the audit trail of an edited Snapshot without being part of
 the document.
 
+**The inline redline is a third Renderer, and it reuses the plain one rather than imitating it.**
+`renderRedlineHtml` walks the Redline model and emits a `.legal-doc` root that also carries
+`.legal-redline`, under which every redline rule is scoped, so the Theme's own CSS keeps the document
+looking like the document. An untouched block goes through `renderNodeToHtml` itself; a *changed* one is
+re-emitted by a per-kind emitter that shares the plain Renderer's `blockStyle`, `pathAttr` and `runHtml`,
+so the only difference from the plain markup is the `<ins>`/`<del>` inside it. That is deliberate: a
+redline that quietly rendered a changed paragraph differently from an unchanged one would make the
+reader distrust both. With nothing changed, the emitted blocks are byte-identical to the plain
+`emitPaths` render — pinned by a test. Page furniture has no place in an HTML fragment (ADR-0011) but an
+edit to it is still a change, so changed slots are reported as a trailing section rather than dropped.
+
+**A deleted block is addressed by `data-base-path`, never `data-path`.** Paths are positional, so a
+removed node's path belongs to the base tree and either addresses nothing in the edited document or —
+worse — addresses a *different* node. Emitting it as `data-path` would hand a UI a selection target that
+resolves to the wrong place; the redline therefore renders a deleted block with paths suppressed
+throughout its subtree and marks it with a distinct attribute. `mode` is reserved on the options for a
+future side-by-side layout, and today rejects anything but `"inline"` rather than silently ignoring it.
+
 ## Consequences
 
 - The base Snapshot and its output are untouched by editing; base and edited records are both kept, and

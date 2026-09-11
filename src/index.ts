@@ -213,6 +213,8 @@ export type { HtmlRenderContext, RenderHtmlOptions } from "./render-html/render-
 export { escapeHtml } from "./render-html/escape";
 export { renderReviewHtml } from "./render-html/review";
 export type { RenderReviewOptions } from "./render-html/review";
+export { renderRedlineHtml } from "./render-html/redline";
+export type { RedlineMode, RenderRedlineOptions } from "./render-html/redline";
 export { renderClauseDiff } from "./render-html/clause-diff-html";
 export { renderTreeToDocx } from "./render-docx/render-docx";
 export { halfPoints, twips, eighths } from "./render-docx/theme-docx";

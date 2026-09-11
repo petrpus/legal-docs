@@ -3,7 +3,14 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, it, expect, beforeAll } from "vitest";
-import { applyEdits, createEditSession, renderTreeToHtml, type DocumentTree } from "../src/browser";
+import {
+  applyEdits,
+  buildRedline,
+  createEditSession,
+  renderRedlineHtml,
+  renderTreeToHtml,
+  type DocumentTree,
+} from "../src/browser";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const srcDir = path.join(root, "src");
@@ -194,5 +201,16 @@ describe("the browser entry can edit and re-render", () => {
     expect(session.preview()).toContain("EDITED TITLE");
     expect(session.undo()).toBe(true);
     expect(session.preview()).toContain("ORIGINAL TITLE");
+  });
+
+  it("shows what the edit did, without a server round trip", () => {
+    const session = createEditSession({ base: { body: [{ kind: "paragraph", text: "The price is 100 CZK." }] } });
+    session.apply({ op: "setText", path: ["body", 0, "text"], value: "The price is 120 CZK." });
+
+    const html = session.redlineHtml();
+
+    expect(html).toContain("<del>100</del><ins>120</ins>");
+    // The same model the DOCX compare export walks (#160), reachable from the browser entry too.
+    expect(renderRedlineHtml(buildRedline(session.base, session.tree))).toBe(html);
   });
 });
