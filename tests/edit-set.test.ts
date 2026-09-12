@@ -94,6 +94,18 @@ describe("the Edit set schema", () => {
     expect(() => assertValidEditSet(value)).toThrow(EditSetValidationError);
   });
 
+  it.each(["insertNode", "replaceNode"])("rejects a custom node nested inside the node %s carries", (op) => {
+    const node = { kind: "article", no: "9.", level: 1, body: [{ kind: "custom", component: "qr-code", props: {} }] };
+    const value = { schemaVersion: 1, baseSnapshotId: "x", ops: [{ op, path: ["body", 0], node }] };
+    expect(() => assertValidEditSet(value)).toThrow(EditSetValidationError);
+  });
+
+  it("rejects a custom node nested inside an inserted list item", () => {
+    const item = [{ kind: "bulletList", items: [[{ kind: "custom", component: "qr-code", props: {} }]] }];
+    const value = { schemaVersion: 1, baseSnapshotId: "x", ops: [{ op: "insertListItem", path: ["body", 6, "items", 0], item }] };
+    expect(() => assertValidEditSet(value)).toThrow(EditSetValidationError);
+  });
+
   it("reports where the set is malformed", () => {
     try {
       assertValidEditSet({ schemaVersion: 1, baseSnapshotId: "x", ops: [{ op: "setText", path: ["body", 0, "text"], value: 7 }] });

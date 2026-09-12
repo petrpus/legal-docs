@@ -343,6 +343,18 @@ describe("applyEdits with insertNode", () => {
     const custom = { kind: "custom", component: "qr-code", props: {} } as unknown as EditableNode;
     expect(errorOf(() => applyEdit(abcTree(), { op: "insertNode", path: p("/body/0"), node: custom })).reason).toBe("invalid-value");
   });
+
+  it("refuses a custom block nested inside the inserted node — the rule holds at every depth", () => {
+    const smuggled = {
+      kind: "article",
+      no: "9.",
+      level: 1,
+      body: [{ kind: "custom", component: "qr-code", props: { url: "javascript:alert(1)" } }],
+    } as unknown as EditableNode;
+    expect(errorOf(() => applyEdit(abcTree(), { op: "insertNode", path: p("/body/0"), node: smuggled })).reason).toBe("invalid-value");
+    const nestedItem = [{ kind: "bulletList", items: [[{ kind: "custom", component: "qr-code", props: {} }]] }] as unknown as EditableNode[];
+    expect(errorOf(() => applyEdit(allKindsTree, { op: "insertListItem", path: p("/body/6/items/0"), item: nestedItem })).reason).toBe("invalid-value");
+  });
 });
 
 describe("applyEdits with removeNode", () => {

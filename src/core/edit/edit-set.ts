@@ -30,10 +30,28 @@ export const EDIT_SET_SCHEMA_VERSION = 1;
 
 /**
  * A node an editor may author. `custom` is excluded: a Custom block is code-side and opaque to editing
- * (ADR-0005), so it can be removed or moved but never inserted or replaced by a human. Nested `custom`
- * blocks deeper inside an inserted node are untouched — only the node the op carries is restricted.
+ * (ADR-0005), so it can be removed or moved but never inserted or replaced by a human. The rule holds
+ * at every depth: an inserted article or list item may not smuggle a `custom` block in its body either,
+ * otherwise an Edit set could hand a consumer's block implementation attacker-chosen `props`. The TS
+ * type only excludes the top level; {@link editableNodeSchema} enforces the deep rule at runtime.
  */
 export type EditableNode = Exclude<DocumentNode, { kind: "custom" }>;
+
+/** True when `node` is, or anywhere inside contains, a `custom` block (article bodies and list items). */
+export function containsCustomNode(node: DocumentNode): boolean {
+  switch (node.kind) {
+    case "custom":
+      return true;
+    case "article":
+      return node.body.some(containsCustomNode);
+    case "numberedList":
+    case "bulletList":
+    case "alphaList":
+      return node.items.some((item) => item.some(containsCustomNode));
+    default:
+      return false;
+  }
+}
 
 /** The closed set of Edit op kinds, as a runtime list. */
 export const EDIT_OP_KINDS = [
@@ -112,9 +130,9 @@ export interface EditSet {
 
 export const treePathSchema = z.array(z.union([z.string(), z.number().int().nonnegative()]));
 
-/** {@link documentNodeSchema} minus the `custom` escape hatch — see {@link EditableNode}. */
-export const editableNodeSchema = documentNodeSchema.refine((node) => node.kind !== "custom", {
-  message: "a custom block is opaque to editing (ADR-0005) — it cannot be inserted or replaced",
+/** {@link documentNodeSchema} minus the `custom` escape hatch, at every depth — see {@link EditableNode}. */
+export const editableNodeSchema = documentNodeSchema.refine((node) => !containsCustomNode(node), {
+  message: "a custom block is opaque to editing (ADR-0005) — it cannot be inserted or replaced, not even nested inside an inserted node",
 });
 
 export const editOpSchema = z.discriminatedUnion("op", [
