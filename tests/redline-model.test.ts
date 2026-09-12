@@ -144,6 +144,16 @@ describe("buildRedline", () => {
     expect(doc.stats.attrsChanged).toBe(1);
   });
 
+  it("counts a container whose own heading changed as changed, even with untouched children", () => {
+    const index = allKindsTree.body.findIndex((node) => node.kind === "article");
+    const doc = redlineOf({ op: "setText", path: ["body", index, "heading"], value: "Definitions (amended)" });
+    const block = doc.blocks[index];
+    if (block?.status !== "container") throw new Error("expected a container block");
+    expect(block.fields).toHaveLength(1);
+    expect(doc.stats.textChanged).toBe(0);
+    expect(doc.stats.changed).toBe(1);
+  });
+
   it("marks an inserted node as inserted and leaves every other block alone", () => {
     const node = { kind: "paragraph", text: "A brand new recital." } as const;
     const doc = redlineOf({ op: "insertNode", path: ["body", 1], node });

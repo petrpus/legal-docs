@@ -89,7 +89,12 @@ export interface RedlineStats {
   textChanged: number;
   attrsChanged: number;
   container: number;
-  /** Everything but `unchanged` and `container` — the headline "n blocks changed". */
+  /**
+   * The headline "n blocks changed": every `inserted`, `deleted`, `textChanged` and `attrsChanged`
+   * block, plus each `container` whose OWN fields changed (an article heading) even when its children
+   * did not — so the tally agrees with `diffTree`, which surfaces that heading change too. Furniture
+   * changes and comments are not blocks and are not counted here.
+   */
   changed: number;
 }
 
@@ -371,16 +376,18 @@ function tally(blocks: readonly RedlineBlock[]): RedlineStats {
     container: 0,
     changed: 0,
   };
+  let containersWithFieldChanges = 0;
   const walk = (list: readonly RedlineBlock[]) => {
     for (const block of list) {
       stats[block.status] += 1;
       if (block.status !== "container") continue;
+      if (block.fields.length > 0) containersWithFieldChanges += 1;
       if (block.children.of === "body") walk(block.children.blocks);
       else for (const item of block.children.items) walk(item.blocks);
     }
   };
   walk(blocks);
-  stats.changed = stats.inserted + stats.deleted + stats.textChanged + stats.attrsChanged;
+  stats.changed = stats.inserted + stats.deleted + stats.textChanged + stats.attrsChanged + containersWithFieldChanges;
   return stats;
 }
 

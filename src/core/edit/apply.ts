@@ -16,7 +16,7 @@
  * trailing index here — see {@link positionIn}.
  */
 
-import type { DocumentNode, DocumentTree } from "../document-tree";
+import type { BlockIndent, DocumentNode, DocumentTree } from "../document-tree";
 import { assertValidTree, describeIssues } from "../document-tree-schema";
 import { editOpPath, editOpSchema, type EditOp, type EditOpKind } from "./edit-set";
 import { CUSTOM_IS_OPAQUE, locate, type TreeLocation } from "./locate";
@@ -118,9 +118,16 @@ function setStyle(draft: DocumentTree, op: Op<"setStyle">): void {
   }
   if (op.value === null) delete location.node.indent;
   // A partial indent REPLACES the whole object — an absent side means "inherit the Theme default"
-  // (ADR-0008), so merging into the old value would make that impossible to express.
-  else if (typeof op.value === "object") location.node.indent = { ...op.value };
-  else throw editError("invalid-value", op.path, `"indent" takes an indent object, not the alignment ${JSON.stringify(op.value)}`);
+  // (ADR-0008), so merging into the old value would make that impossible to express. An indent with
+  // no set side is no indent at all: it is stored as an absent key, never as `{}`, so two Edit sets
+  // that mean the same thing produce the same tree (and the same Snapshot id).
+  else if (typeof op.value === "object") {
+    const indent: BlockIndent = {};
+    if (op.value.firstLine !== undefined) indent.firstLine = op.value.firstLine;
+    if (op.value.left !== undefined) indent.left = op.value.left;
+    if (indent.firstLine === undefined && indent.left === undefined) delete location.node.indent;
+    else location.node.indent = indent;
+  } else throw editError("invalid-value", op.path, `"indent" takes an indent object, not the alignment ${JSON.stringify(op.value)}`);
 }
 
 function replaceNode(draft: DocumentTree, op: Op<"replaceNode">): void {

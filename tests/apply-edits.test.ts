@@ -231,6 +231,15 @@ describe("applyEdits with setStyle", () => {
     expect(() => assertValidTree(edited)).not.toThrow();
   });
 
+  it("stores an indent with no set side as an absent key, not as `{}`", () => {
+    // Two Edit sets that mean the same thing must produce the same tree (and Snapshot id): `{}` and
+    // `null` are both "inherit the Theme default" (ADR-0008).
+    const viaEmpty = applyEdit(allKindsTree, { op: "setStyle", path: p("/body/1/indent"), value: {} });
+    const viaNull = applyEdit(allKindsTree, { op: "setStyle", path: p("/body/1/indent"), value: null });
+    expect("indent" in (viaEmpty.body[1] as object)).toBe(false);
+    expect(viaEmpty).toEqual(viaNull);
+  });
+
   it("clearing an override that was never set is a no-op", () => {
     const edited = applyEdit(allKindsTree, { op: "setStyle", path: p("/body/0/indent"), value: null });
     expect(edited).toEqual(allKindsTree);
