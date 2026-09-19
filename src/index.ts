@@ -46,8 +46,18 @@ export type {
   HtmlFromSnapshot,
   DocxFromSnapshot,
 } from "./facade/render-from-snapshot";
+export { renderEdited } from "./facade/render-edited";
+export type {
+  RenderEditedInput,
+  RenderEditedResult,
+  PdfEditedResult,
+  HtmlEditedResult,
+  DocxEditedResult,
+} from "./facade/render-edited";
 export { buildSnapshot, DEFAULT_SNAPSHOT_MODE, SNAPSHOT_SCHEMA_VERSION, SnapshotError, assertValidSnapshot } from "./core/snapshot";
 export type { Snapshot, SnapshotMode, ClausePin, SnapshotInput } from "./core/snapshot";
+export { buildEditedSnapshot, verifyEditedSnapshot } from "./core/edited-snapshot";
+export type { EditedSnapshot, EditedSnapshotIssue, EditedSnapshotVerification } from "./core/edited-snapshot";
 
 export { assembleTree, assembleDocument } from "./core/engine";
 export type { AssembleContext, ClauseResolver } from "./core/engine";
@@ -65,9 +75,16 @@ export type {
 export { expandIncludes, IncludeError } from "./core/includes";
 export type { IncludeLoader } from "./core/includes";
 export { composeTemplate, CompositionError } from "./core/compose";
-export { asDocumentTree, PAGE_NUMBER_SENTINEL, PAGE_TOTAL_SENTINEL } from "./core/document-tree";
+export {
+  asDocumentTree,
+  DOCUMENT_NODE_KINDS,
+  isDocumentNodeKind,
+  PAGE_NUMBER_SENTINEL,
+  PAGE_TOTAL_SENTINEL,
+} from "./core/document-tree";
 export type {
   DocumentNode,
+  DocumentNodeKind,
   DocumentTree,
   DocumentBody,
   PageFurniture,
@@ -76,11 +93,87 @@ export type {
   KeyValueRow,
   SignaturePlace,
 } from "./core/document-tree";
+export {
+  assertValidTree,
+  documentNodeKinds,
+  documentNodeSchema,
+  documentTreeSchema,
+  richTextV1Schema,
+  TreeValidationError,
+  DOCUMENT_NODE_LIST_SCHEMA_ID,
+} from "./core/document-tree-schema";
+export type { TreeIssue } from "./core/document-tree-schema";
+
+// The editing layer (PRD #147 / ADR-0014): tree paths, the Edit set model and the pure apply function.
+// Everything here is browser-safe and is also reachable from the browser entry.
+export {
+  applyEdit,
+  applyEdits,
+  assertValidEditOp,
+  assertValidEditSet,
+  buildRedline,
+  commentSchema,
+  deriveCommentPath,
+  diffTree,
+  diffWords,
+  editableNodeSchema,
+  editOpPath,
+  editOpSchema,
+  editSetSchema,
+  EditError,
+  EditSetValidationError,
+  EDIT_OP_KINDS,
+  EDIT_SET_SCHEMA_VERSION,
+  formatTreePath,
+  isCommentStale,
+  lcsAlign,
+  locate,
+  nodeText,
+  pairAligned,
+  parseTreePath,
+  quoteAt,
+  transformPath,
+  treePathSchema,
+} from "./core/edit";
+export type {
+  AlignRun,
+  AlignStep,
+  Comment,
+  CommentAnchor,
+  EditableNode,
+  EditErrorReason,
+  EditOp,
+  EditOpKind,
+  EditSet,
+  InlineOp,
+  InlineSegment,
+  RedlineAttr,
+  RedlineBlock,
+  RedlineChildren,
+  RedlineDoc,
+  RedlineField,
+  RedlineListItem,
+  RedlineParagraph,
+  RedlineRun,
+  RedlineStats,
+  TextLocation,
+  TreeChange,
+  TreeLocation,
+  TreePath,
+  TreePathSegment,
+} from "./core/edit";
+
+// The editing SESSION — also published on its own as `@petrpus/legal-docs/edit`, the browser-safe
+// subpath an editor UI imports without pulling the Node-only half of this entry in.
+export { createEditSession, EditSessionError } from "./edit";
+export type { EditApplyResult, EditSession, EditSessionBase, EditSessionInit } from "./edit";
+// The canonical tree form an editor round-trips through (#158).
+export { normalizeRichText, normalizeTree } from "./edit/normalize";
 
 export type { Clause } from "./core/clause";
 export { parseClauseRef } from "./core/clause-ref";
 export type { ClauseRef } from "./core/clause-ref";
-export { parseRichText } from "./core/rich-text";
+export { MARK_VALUES, parseRichText, richTextToMarkdown } from "./core/rich-text";
 export type { RichTextV1, RichParagraph, RichRun, Mark } from "./core/rich-text";
 export { validateVars, VarsValidationError } from "./core/vars-schema";
 export type { VarsSchema, VarSpec, VarType } from "./core/vars-schema";
@@ -95,7 +188,7 @@ export { resolvePayload } from "./core/resolve";
 export type { Derivation, DerivationRegistry, ResolvedPayload } from "./core/resolve";
 export { money, loan, party } from "./core/schema-fragments";
 export type { Money, Loan, Party } from "./core/schema-fragments";
-export { exportPayloadSchema, exportPayloadSchemas } from "./core/json-schema";
+export { exportDocumentTreeSchema, exportEditSetSchema, exportPayloadSchema, exportPayloadSchemas } from "./core/json-schema";
 export type { JsonSchema, JsonSchemaTarget, JsonSchemaOptions } from "./core/json-schema";
 export { defaultHelpers, makeDefaultHelpers } from "./core/helpers";
 export type { Helper, HelperRegistry } from "./core/helpers";
@@ -121,9 +214,17 @@ export type {
 } from "./custom-block";
 export type { RenderTreeOptions } from "./custom-block";
 export { renderTreeToPdf } from "./render-pdf/render-pdf";
-export { renderTreeToHtml } from "./render-html/render-html";
+export { createHtmlRenderContext, renderNodeToHtml, renderTreeToHtml } from "./render-html/render-html";
+export type { HtmlRenderContext, RenderHtmlOptions } from "./render-html/render-html";
 export { escapeHtml } from "./render-html/escape";
+export { renderReviewHtml } from "./render-html/review";
+export type { RenderReviewOptions } from "./render-html/review";
+export { renderRedlineHtml } from "./render-html/redline";
+export type { RedlineMode, RenderRedlineOptions } from "./render-html/redline";
 export { renderClauseDiff } from "./render-html/clause-diff-html";
-export { renderTreeToDocx } from "./render-docx/render-docx";
+export { createDocxRenderContext, renderNodeToDocx, renderTreeToDocx } from "./render-docx/render-docx";
+export type { DocxRenderContext, DocxRunStyle, DocxTextPart, DocxTrack } from "./render-docx/render-docx";
+export { renderRedlineToDocx } from "./render-docx/redline-docx";
+export type { RenderRedlineDocxOptions } from "./render-docx/redline-docx";
 export { halfPoints, twips, eighths } from "./render-docx/theme-docx";
 export { deepBind } from "./core/deep-bind";

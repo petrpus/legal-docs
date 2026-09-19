@@ -19,6 +19,9 @@ code change and a deploy, and non-developers can't touch the text. This library 
   PDF, HTML, or DOCX by independent visitors.
 - **Versioning + diffs** come from files + Git; an immutable **Snapshot** is returned with every
   generation for audit and deterministic re-render.
+- **Edits after generation stay in the model** — a lawyer's changes to a generated draft are typed
+  operations on the tree, frozen as an **Edit set** and a linked Snapshot, with a redline (inline HTML
+  or a Word compare document) showing exactly what changed.
 
 ## Install
 
@@ -137,6 +140,53 @@ const again = await renderFromSnapshot(snapshot, { format: "pdf" }); // immune t
 The Snapshot mode (`full` default / `tree` / `pins`) controls what is frozen; see
 [`docs/adr/0003-snapshot-mode-configurable-default-full.md`](docs/adr/0003-snapshot-mode-configurable-default-full.md).
 
+## Edit before export
+
+A generated draft is rarely the final word: a lawyer rewords a sentence, strikes one, adds a paragraph
+the catalog does not have. Those edits happen **over the document tree**, not over exported HTML or
+DOCX, so one edit still renders to all three formats — and the result is a Snapshot like any other,
+linked to the one it came from (ADR-0014).
+
+The browser drives an **Edit session** from the `@petrpus/legal-docs/edit` subpath — browser-safe, with
+no editor library of its own, so it binds to any UI (the demo uses TipTap):
+
+```ts
+import { createEditSession, type EditOp, type EditSet } from "@petrpus/legal-docs/edit";
+
+const session = createEditSession({ base: snapshot });   // the Snapshot a render returned
+const op: EditOp = { kind: "setText", path: ["body", 0, "text"], text: "Loan Agreement (2026)" };
+session.apply(op);            // → { ok: true } | { ok: false, error } — undo()/redo() included
+session.addComment({ path: ["body", 2], text: "check with counsel" });
+
+session.preview();            // HTML with `data-path` on every block, for click-to-select
+session.redlineHtml();        // the same document with <ins>/<del> where it changed
+session.reviewHtml();         // …with the comments as margin notes
+
+const edits: EditSet = session.toEditSet(); // ops + comments + the base id — the artifact you send
+```
+
+The **Edit set** is what crosses the wire and what you persist — never an edited document — so no
+export exists without the record that reproduces it. The server freezes it and renders:
+
+```ts
+import { renderEdited, buildEditedSnapshot, verifyEditedSnapshot,
+         buildRedline, diffTree, renderRedlineToDocx } from "@petrpus/legal-docs";
+
+const { buffer, snapshot: edited } = await renderEdited({ snapshot, edits, format: "pdf" });
+await renderFromSnapshot(edited, { format: "pdf" });      // reproduces that export exactly
+
+verifyEditedSnapshot(snapshot, edited);                   // re-applies the ops; { ok } | { ok: false, issue }
+diffTree(snapshot.tree!, edited.tree);                    // a flat, path-addressed list of what changed
+await renderRedlineToDocx(buildRedline(snapshot.tree!, edited.tree)); // Word compare document
+```
+
+`buildEditedSnapshot` is the same freeze without a render, `applyEdits(tree, ops)` is the pure function
+underneath it all, `renderRedlineHtml` / `renderReviewHtml` render a redline or a comment view outside a
+session, and `normalizeTree` is the canonical tree form a WYSIWYG round-trips through. Comments live in
+the review view only — a PDF, DOCX or plain HTML export never contains one. See
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#post-generation-editing) and the **Edit** tab of
+[`examples/demo/`](examples/demo/).
+
 ## Clause diff
 
 Compare two Clause versions and render the diff for review:
@@ -157,11 +207,12 @@ it per render, with fallback for a partially-translated catalog:
 await renderDocument({ catalog, template: "notice", locale: "cs", format: "html" }); // Czech clauses
 ```
 
-## Editing at runtime
+## Editing the catalog at runtime
 
 Beyond the file catalog, content can be edited **at runtime** through a `draft → in_review → published`
 workflow with an audit trail (ADR-0009). It's an adapter of the same `CatalogStore` seam, so the core
-stays DB-free:
+stays DB-free. This changes the wording of every *future* document — to change one already-generated
+document, see [Edit before export](#edit-before-export) above:
 
 ```ts
 import { Catalog, MemoryEditableCatalogStore } from "@petrpus/legal-docs";
@@ -211,8 +262,10 @@ token surface, the fonts recipe, and how each renderer maps units.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the renderer-agnostic tree, modules, data flow.
 - [`docs/CONTEXT.md`](docs/CONTEXT.md) — the ubiquitous-language glossary.
 - [`docs/THEMING.md`](docs/THEMING.md) — theme tokens, fonts, per-renderer units.
-- [`docs/adr/`](docs/adr/) — Architecture Decision Records (0009 = the editing API).
-- [`examples/demo/`](examples/demo/) — a runnable Vite + React demo (render, diff, editor).
+- [`docs/adr/`](docs/adr/) — Architecture Decision Records (0009 = the catalog editing API,
+  0014 = the post-generation editing layer).
+- [`examples/demo/`](examples/demo/) — a runnable Vite + React demo (render, diff, catalog editor,
+  edit before export).
 - [`docs/recipes/llm-drafting.md`](docs/recipes/llm-drafting.md) — an LLM drafts a clause revision
   through the same `createDraft → previewDiff → validate()-gated publish` flow as a human editor.
 - [`CHANGELOG.md`](CHANGELOG.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md)

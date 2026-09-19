@@ -1,23 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { EditTab } from "./EditTab";
+import type { Meta } from "./meta";
+import { Field, MIME, S, download } from "./ui";
 
 type Format = "html" | "pdf" | "docx";
-
-interface TemplateInfo {
-  id: string;
-  variants?: string[];
-  data?: unknown;
-}
-interface Meta {
-  templates: TemplateInfo[];
-  locales: string[];
-  defaultTheme: Record<string, unknown>;
-  diff: { clause: string; from: number; to: number };
-}
-
-const MIME: Record<string, string> = {
-  pdf: "application/pdf",
-  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-};
 
 // Known enum Theme tokens, rendered as a <select> in the editor (matched by the token's current value).
 // Safe because the Theme has no free-form string tokens today (every string leaf is a #rrggbb colour or
@@ -29,7 +15,7 @@ const ENUMS: readonly string[][] = [
   ["portrait", "landscape"], // page.orientation
 ];
 
-type Tab = "render" | "diff" | "editor";
+type Tab = "render" | "diff" | "editor" | "edit";
 
 export function App() {
   const [meta, setMeta] = useState<Meta>();
@@ -51,11 +37,13 @@ export function App() {
       <nav style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         <button style={tab === "render" ? S.tabOn : S.tab} onClick={() => setTab("render")}>Render</button>
         <button style={tab === "diff" ? S.tabOn : S.tab} onClick={() => setTab("diff")}>Clause diff</button>
-        <button style={tab === "editor" ? S.tabOn : S.tab} onClick={() => setTab("editor")}>Editor (Phase 7)</button>
+        <button style={tab === "editor" ? S.tabOn : S.tab} onClick={() => setTab("editor")}>Clause editor</button>
+        <button style={tab === "edit" ? S.tabOn : S.tab} onClick={() => setTab("edit")}>Edit before export</button>
       </nav>
       {tab === "render" && <RenderTab meta={meta} />}
       {tab === "diff" && <DiffTab meta={meta} />}
       {tab === "editor" && <EditorTab />}
+      {tab === "edit" && <EditTab meta={meta} />}
     </main>
   );
 }
@@ -392,39 +380,3 @@ function Leaf({ label, value, path, set }: { label: string; value: unknown; path
   return <Field label={label}><input type="text" value={String(value)} onChange={(e) => set(path, e.target.value)} style={S.input} /></Field>;
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label style={{ display: "block", marginBottom: 10 }}>
-      {label && <div style={{ fontSize: 12, color: "#555", marginBottom: 3 }}>{label}</div>}
-      {children}
-    </label>
-  );
-}
-
-function download(base64: string, name: string, mime: string) {
-  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-  const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-const S: Record<string, React.CSSProperties> = {
-  page: { maxWidth: 1100, margin: "0 auto", padding: 24, fontFamily: "system-ui, sans-serif", color: "#111" },
-  muted: { color: "#666" },
-  cols: { display: "grid", gridTemplateColumns: "360px 1fr", gap: 20, alignItems: "start" },
-  panel: { border: "1px solid #ddd", borderRadius: 8, padding: 16 },
-  preview: { border: "1px solid #ddd", borderRadius: 8, padding: 16, minHeight: 300, background: "#fff" },
-  input: { width: "100%", padding: "6px 8px", border: "1px solid #ccc", borderRadius: 4, boxSizing: "border-box" },
-  tab: { padding: "6px 12px", border: "1px solid #ccc", borderRadius: 6, background: "#f6f6f6", cursor: "pointer" },
-  tabOn: { padding: "6px 12px", border: "1px solid #111", borderRadius: 6, background: "#111", color: "#fff", cursor: "pointer" },
-  primary: { marginTop: 10, padding: "8px 16px", border: "none", borderRadius: 6, background: "#0a7", color: "#fff", cursor: "pointer", fontWeight: 600 },
-  secondary: { marginTop: 10, marginLeft: 8, padding: "8px 16px", border: "1px solid #0a7", borderRadius: 6, background: "#fff", color: "#0a7", cursor: "pointer", fontWeight: 600 },
-  h3: { fontSize: 14, margin: "14px 0 8px" },
-  badge: { fontSize: 11, padding: "1px 6px", borderRadius: 10, color: "#333" },
-  group: { border: "1px solid #eee", borderRadius: 6, padding: "6px 10px", marginBottom: 6 },
-  summary: { cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#333" },
-  error: { whiteSpace: "pre-wrap", color: "#b00020", background: "#fff0f2", padding: 8, borderRadius: 4, marginTop: 10 },
-};

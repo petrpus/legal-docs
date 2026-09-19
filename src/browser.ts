@@ -15,6 +15,43 @@ import type { CatalogStore } from "./catalog/catalog-store";
 import { MemoryCatalogStore, type MemoryCatalogSeed } from "./catalog/memory-catalog-store";
 import { resolveClause, resolveTemplate } from "./catalog/resolve";
 import type { DocumentTree } from "./core/document-tree";
+// The editing layer is browser-first (ADR-0012): a client applies ops and previews HTML, while only
+// identity (`node:crypto`) and the PDF/DOCX exporters stay on the server. Re-exported here so the
+// in-browser demo drives an edit without a second bundle.
+import {
+  applyEdit,
+  applyEdits,
+  assertValidEditSet,
+  buildRedline,
+  EditError,
+  EditSetValidationError,
+  editOpPath,
+  EDIT_OP_KINDS,
+  EDIT_SET_SCHEMA_VERSION,
+  formatTreePath,
+  locate,
+  parseTreePath,
+  transformPath,
+} from "./core/edit";
+import type {
+  Comment,
+  EditableNode,
+  EditErrorReason,
+  EditOp,
+  EditOpKind,
+  EditSet,
+  RedlineDoc,
+  TextLocation,
+  TreeLocation,
+  TreePath,
+  TreePathSegment,
+} from "./core/edit";
+// The session — the same `@petrpus/legal-docs/edit` surface, bundled into the static demo so the page
+// can drive undo/redo and a `data-path` preview without loading a second bundle.
+import { createEditSession, EditSessionError } from "./edit";
+import type { EditApplyResult, EditSession, EditSessionBase, EditSessionInit } from "./edit";
+import { parseRichText, richTextToMarkdown } from "./core/rich-text";
+import type { RichTextV1 } from "./core/rich-text";
 import { assembleDocument } from "./core/engine";
 import { NotFoundError } from "./core/errors";
 import { ExpressionError, type ExpressionLocation } from "./core/expression";
@@ -32,6 +69,7 @@ import { z } from "zod";
 import { resolvePayload, type DerivationRegistry } from "./core/resolve";
 import type { Template } from "./core/template";
 import { renderTreeToHtml } from "./render-html/render-html";
+import { renderRedlineHtml, type RedlineMode, type RenderRedlineOptions } from "./render-html/redline";
 import { mergeTheme, defaultTheme, type DeepPartial, type Theme } from "./theme";
 
 export {
@@ -39,6 +77,8 @@ export {
   resolveTemplate,
   resolveClause,
   renderTreeToHtml,
+  // The inline redline, so the demo can show what an edit did without a server round trip.
+  renderRedlineHtml,
   mergeTheme,
   defaultTheme,
   validatePayload,
@@ -48,6 +88,45 @@ export {
   ExpressionError,
   // The zod value, so the demo page can build a payload schema for its registry (see import note).
   z,
+  // The editing layer.
+  applyEdit,
+  applyEdits,
+  assertValidEditSet,
+  buildRedline,
+  createEditSession,
+  editOpPath,
+  formatTreePath,
+  locate,
+  parseRichText,
+  parseTreePath,
+  richTextToMarkdown,
+  transformPath,
+  EDIT_OP_KINDS,
+  EDIT_SET_SCHEMA_VERSION,
+  // Class VALUES, so the demo page can `instanceof` them across the bundle boundary.
+  EditError,
+  EditSessionError,
+  EditSetValidationError,
+};
+export type {
+  Comment,
+  EditableNode,
+  EditApplyResult,
+  EditErrorReason,
+  EditOp,
+  EditOpKind,
+  EditSession,
+  EditSessionBase,
+  EditSessionInit,
+  EditSet,
+  RedlineDoc,
+  RedlineMode,
+  RenderRedlineOptions,
+  RichTextV1,
+  TextLocation,
+  TreeLocation,
+  TreePath,
+  TreePathSegment,
 };
 export type { CatalogStore, MemoryCatalogSeed, PayloadSchemaRegistry, DerivationRegistry, HelperRegistry, DeepPartial, Theme };
 export type { DocumentTree };

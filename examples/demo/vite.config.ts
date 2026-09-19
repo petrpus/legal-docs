@@ -48,4 +48,13 @@ function legalDocsApi(): Plugin {
 
 export default defineConfig({
   plugins: [react(), legalDocsApi()],
+  resolve: {
+    alias: {
+      // The Edit tab is the one part of the client that imports the library — the browser-safe
+      // `./edit` subpath, consumed from `dist` under the same rule as the server half (run
+      // `npm run build` at the repo root first). Its only bare dependency is zod, which the demo
+      // already has; keep the two zod versions aligned, as with the Custom-block instances.
+      "@petrpus/legal-docs/edit": fileURLToPath(new URL("../../dist/edit.js", import.meta.url)),
+    },
+  },
 });

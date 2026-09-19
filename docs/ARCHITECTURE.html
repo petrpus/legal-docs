@@ -166,11 +166,18 @@ Resolved payload
    │    └─ Reference resolution             Block &amp; Clause refs (@vN | @latest) looked up
    ▼
 DocumentTree = { body: DocumentNode[]; header?; footer?; page? }  ◄── the renderer-agnostic seam
+   │  applyEdits(tree, ops)   [optional]  ← post-generation editing: a human&#39;s Edit set, applied to
+   │                                        the frozen tree of a Snapshot → an edited Snapshot
+   ▼
+DocumentTree (edited)                     ← same shape, so nothing downstream changes
    │  Renderer (visitor)                 ← PDF / HTML / DOCX, one per format
    ▼
 result (discriminated by format)         ← pdf/docx: { buffer, stream }; html: { html };
                                             all carry { snapshot, snapshotId } for re-render
 </code></pre>
+<p>The <strong>editing step is optional and off the generation path</strong>: an ordinary render goes straight from
+tree assembly to a Renderer. When it runs, it consumes a <strong>Snapshot</strong> rather than a payload — see
+<a href="#post-generation-editing">Post-generation editing</a> below.</p>
 <p><code>header</code>/<code>footer</code> are optional, resolved <strong>Page furniture</strong> (running page header/footer text plus
 <code>$page.number</code>/<code>$page.total</code>, paged output only — ADR-0011), and <code>page</code> is the template&#39;s optional
 <strong>Page setup</strong> (a size/orientation requirement overriding <code>theme.page</code> per-field — ADR-0013); a tree
@@ -236,8 +243,13 @@ split into a workspace once the seams are proven. The eventual package shape:</p
 <td>core</td>
 </tr>
 <tr>
+<td><code>edit</code></td>
+<td>Post-generation editing — the Edit session (undo/redo, comments, preview) and tree normalization over <code>core/edit</code>&#39;s ops, paths and redline model; browser-safe and editor-agnostic, published as the <code>@petrpus/legal-docs/edit</code> subpath</td>
+<td>core, render-html</td>
+</tr>
+<tr>
 <td>facade <code>@petrpus/legal-docs</code></td>
-<td>Unified public API (<code>renderDocument</code>, <code>Catalog</code>)</td>
+<td>Unified public API (<code>renderDocument</code>, <code>Catalog</code>, <code>renderEdited</code>)</td>
 <td>all</td>
 </tr>
 <tr>
@@ -258,6 +270,9 @@ single text element (there is no separate &quot;Snippet&quot; — see ADR-0002).
 <li><strong>Template</strong> — the renderable, versioned unit. <strong>Template family</strong> / <strong>Base template</strong> / <strong>Variant</strong>
 / <strong>Slot</strong> / <strong>Include</strong> compose variants without copying. A Variant resolves to a Template before
 assembly.</li>
+<li><strong>Edit set</strong> — an ordered list of <strong>Edit op</strong>s, each addressing a node by <strong>Tree path</strong>, written
+against a <strong>Base Snapshot</strong> and frozen as an <strong>Edited Snapshot</strong>. The document edit audit; distinct
+from the catalog edit audit (ADR-0009), which changes the wording of <em>future</em> documents.</li>
 </ul>
 <h2 id="rendering">Rendering</h2>
 <p>Each <strong>Renderer</strong> is an exhaustive visitor over the closed <strong>Core node set</strong>. Adding a core node kind
@@ -282,6 +297,49 @@ exposes <code>validate()</code> (integrity lint) and <code>clauses.diff(...)</co
 <p>Three <strong>code-side registries</strong> sit outside the Catalog: the <strong>Helper registry</strong> (whitelisted pure
 functions for expressions and Derivations), the <strong>Custom-block registry</strong> (renderer-native
 implementations), and <strong>Theme/Font registries</strong>.</p>
+<h2 id="post-generation-editing">Post-generation editing</h2>
+<p>A generated document is frozen by its <strong>Snapshot</strong>, but legal work continues on the draft: a lawyer
+rewords a sentence, strikes one, adds a paragraph the catalog does not have. That happens <strong>over the
+<code>DocumentTree</code></strong>, never over rendered output (ADR-0014), so one edit still renders to all three
+formats and stays structurally diffable.</p>
+<pre><code>base Snapshot (full | tree)
+   │  Edit session          ← createEditSession: op log + cursor (undo/redo), path-anchored comments,
+   │                          preview / redline / review HTML, toEditSet()
+   ▼
+Edit set { baseSnapshotId, ops, comments? }   ◄── the artifact; plain JSON, this is what crosses the wire
+   │  buildEditedSnapshot   ← applyEdits(tree, ops) + a deterministic id + derivedFrom
+   ▼
+edited Snapshot (tree mode, derivedFrom)      ── renderFromSnapshot / renderEdited → PDF · HTML · DOCX
+   │  buildRedline(base, edited) → RedlineDoc  ← one model, three views:
+   ▼                                             renderRedlineHtml · renderRedlineToDocx · diffTree
+</code></pre>
+<p>Four properties hold the design together:</p>
+<ul>
+<li><strong>Ops address a <code>TreePath</code>, not a node id.</strong> A <code>DocumentNode</code> has no identity, so an <code>EditOp</code> names a
+position (<code>/body/2/heading</code>). <code>locate</code> is the single definition of the editable surface; <code>transformPath</code>
+rebases a path held across a structural op. An <code>EditError</code> names the op index, kind and path.</li>
+<li><strong><code>applyEdits</code> is pure.</strong> It validates the input tree, works on a deep copy and validates the result —
+a rejected op leaves the caller&#39;s tree untouched, so there are no partial edits.</li>
+<li><strong>The edited document is a Snapshot like any other.</strong> <code>verifyEditedSnapshot(base, edited)</code> re-applies
+the ops to prove the audit record is intact; re-rendering goes through the unchanged
+<code>renderFromSnapshot</code>. <code>SNAPSHOT_SCHEMA_VERSION</code> is unchanged (2) — <code>derivedFrom</code> is additive.</li>
+<li><strong>Editing is a browser concern, export is not.</strong> <code>@petrpus/legal-docs/edit</code> is a separate bundle
+(ADR-0012) carrying the session, the model and the HTML Renderer — no <code>node:</code> built-in, and no
+ProseMirror/TipTap/React: a WYSIWYG binds to the session from outside. Snapshot identity
+(<code>node:crypto</code>) and the PDF/DOCX exporters stay on the root entry.</li>
+</ul>
+<p>The redline and review views are <strong>additional Renderers over the same model</strong>, never an export route:
+<code>renderRedlineHtml</code> and <code>renderRedlineToDocx</code> (Word tracked changes + comments) render a <code>RedlineDoc</code>,
+<code>renderReviewHtml</code> renders the document with its comments in the margin, and <code>diffTree</code> is the
+<code>RedlineDoc</code> flattened to a path-addressed change list. A final PDF/DOCX/HTML goes through the ordinary
+Renderers, so a comment can never leak into a deliverable. <code>normalizeTree</code> gives the canonical tree
+form a WYSIWYG round-trips through.</p>
+<p>Every boundary the artifact crosses is zod-validated: <code>editOpSchema</code>, <code>editSetSchema</code>, <code>commentSchema</code>,
+<code>treePathSchema</code> and <code>editableNodeSchema</code> (the node union minus the opaque <code>custom</code> block), with
+<code>assertValidEditSet</code> / <code>assertValidEditOp</code> throwing a path-precise <code>EditSetValidationError</code>.
+<code>EDIT_SET_SCHEMA_VERSION</code> versions the artifact independently of the Snapshot, <code>EDIT_OP_KINDS</code> and
+<code>documentNodeKinds()</code> expose the closed sets as data (a UI builds its op menu from them), <code>editOpPath</code>
+reads an op&#39;s target, and <code>EditSessionError</code> reports a session used without a base id.</p>
 <h2 id="safety">Safety</h2>
 <p>Template expressions and Derivations run through a small, safe evaluator over the Helper registry —
 no <code>eval</code>, no Turing-complete logic. A non-developer author cannot inject arbitrary code. The
@@ -305,6 +363,36 @@ catalog.validate({ customBlocks });                           // integrity lint
 renderClauseDiff(await catalog.clauses.diff(&quot;aml.intro&quot;, { from: 2, to: 3 })); // HTML diff view
 exportPayloadSchema(payloadSchema);                            // payload contract as JSON Schema
 </code></pre>
+<p>Post-generation editing splits over the two entries — the browser drives a session, the server freezes
+and renders the result:</p>
+<pre><code class="language-ts">// browser (or anywhere): @petrpus/legal-docs/edit — no node: built-ins, no editor library
+import { createEditSession, applyEdits, diffTree, buildRedline, normalizeTree,
+         renderRedlineHtml, renderReviewHtml, type EditOp, type EditSet, type RedlineDoc,
+         type TreePath } from &quot;@petrpus/legal-docs/edit&quot;;
+
+const session = createEditSession({ base: snapshot });         // a full|tree-mode base Snapshot
+const path: TreePath = [&quot;body&quot;, 2, &quot;text&quot;];
+const op: EditOp = { kind: &quot;setText&quot;, path, text: &quot;Governing law: Czech law.&quot; };
+session.apply(op);                                             // { ok: true } | { ok: false, error }
+session.addComment({ path, text: &quot;check with counsel&quot;, author: &quot;jd&quot; });
+session.preview();                                             // HTML with data-path
+session.redlineHtml();                                         // inline &lt;ins&gt;/&lt;del&gt; view
+session.reviewHtml();                                          // the same, with margin comments
+const edits: EditSet = session.toEditSet();                    // the artifact to send/store
+
+// server: the root entry — identity and the exporters
+import { buildEditedSnapshot, verifyEditedSnapshot, renderEdited,
+         renderRedlineToDocx } from &quot;@petrpus/legal-docs&quot;;
+
+const edited = buildEditedSnapshot(snapshot, edits);           // tree-mode Snapshot + derivedFrom
+verifyEditedSnapshot(snapshot, edited);                        // { ok } | { ok: false, issue }
+const docx = await renderEdited({ snapshot, edits, format: &quot;docx&quot; }); // → { buffer, stream, snapshot }
+const redline: RedlineDoc = buildRedline(snapshot.tree!, edited.tree); // diffTree(…) flattens it
+await renderRedlineToDocx(redline, { author: &quot;jd&quot; });          // Word compare document
+</code></pre>
+<p>Everything above is also reachable from the root entry: <code>applyEdits</code>, <code>createEditSession</code>,
+<code>normalizeTree</code>, <code>renderRedlineHtml</code> and <code>renderReviewHtml</code> are re-exported there, so a Node-only
+consumer never needs the subpath.</p>
 <p>Also available: a <code>legal-docs</code> <strong>CLI</strong> (<code>render</code>/<code>validate</code>/<code>schema</code>) over this same facade for
 shell/CI use, and a composite <strong>GitHub Action</strong> wrapping <code>validate</code> as a PR check — see the root
 <a href="./index.html"><code>README.md</code></a>.</p>
@@ -312,7 +400,7 @@ shell/CI use, and a composite <strong>GitHub Action</strong> wrapping <code>vali
 <ul>
 <li><a href="./CONTEXT.html"><code>CONTEXT.md</code></a> — ubiquitous language.</li>
 <li><a href="./AUTHORING.html"><code>AUTHORING.md</code></a> — how to write templates, clauses, variants, derivations.</li>
-<li><a href="https://github.com/petrpus/legal-docs/tree/main/docs/adr" target="_blank" rel="noopener"><code>adr/</code></a> — the decisions behind this architecture.</li>
+<li><a href="https://github.com/petrpus/legal-docs/blob/main/docs/adr/README.md" target="_blank" rel="noopener"><code>adr/</code></a> — the decisions behind this architecture (indexed).</li>
 <li><a href="https://github.com/petrpus/legal-docs/blob/main/docs/PLAN.md" target="_blank" rel="noopener"><code>PLAN.md</code></a> — the approved source-of-truth design plan.</li>
 </ul>
 

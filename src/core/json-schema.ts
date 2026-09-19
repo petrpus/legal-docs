@@ -1,4 +1,6 @@
 import { z, type ZodType } from "zod";
+import { documentTreeSchema } from "./document-tree-schema";
+import { editSetSchema } from "./edit/edit-set";
 import { LegalDocsError } from "./errors";
 import type { PayloadSchemaRegistry } from "./payload";
 
@@ -28,6 +30,25 @@ export function exportPayloadSchema(schema: ZodType, options: JsonSchemaOptions 
     const reason = cause instanceof Error ? cause.message : String(cause);
     throw new LegalDocsError(`Cannot export schema to JSON Schema: ${reason}`, { cause });
   }
+}
+
+/**
+ * Convert the {@link DocumentTree} contract itself to a JSON Schema document — the renderer-agnostic
+ * document shape, with every node kind and the article/list recursion expressed as `$ref`s into
+ * `$defs`. Lets an editor, a form generator or a validator in another language check a tree without
+ * depending on zod or on this package's TypeScript types.
+ */
+export function exportDocumentTreeSchema(options: JsonSchemaOptions = {}): JsonSchema {
+  return exportPayloadSchema(documentTreeSchema, options);
+}
+
+/**
+ * Convert the {@link EditSet} contract to a JSON Schema document — the Edit op union, the Comment
+ * shape and the set's envelope. An API gateway or a non-TypeScript client can then validate an Edit
+ * set before it reaches `applyEdits`.
+ */
+export function exportEditSetSchema(options: JsonSchemaOptions = {}): JsonSchema {
+  return exportPayloadSchema(editSetSchema, options);
 }
 
 /**

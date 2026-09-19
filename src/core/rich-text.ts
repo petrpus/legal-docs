@@ -3,7 +3,10 @@
  * Authors write a markdown-subset (paragraphs separated by a blank line, `**bold**`, `*italic*`),
  * which `parseRichText` turns into this structure. Marks grow as documents need them.
  */
-export type Mark = "bold" | "italic";
+/** The inline marks a {@link RichRun} may carry. The array is the single source of truth for both the
+ * `Mark` type and the runtime guard in `document-tree-schema.ts`. */
+export const MARK_VALUES = ["bold", "italic"] as const;
+export type Mark = (typeof MARK_VALUES)[number];
 
 export interface RichRun {
   text: string;
@@ -50,6 +53,24 @@ function parseInline(text: string): RichRun[] {
   }
   if (last < text.length) runs.push({ text: text.slice(last) });
   return runs.length > 0 ? runs : [{ text: "" }];
+}
+
+/**
+ * Serialize RichTextV1 back into the markdown subset {@link parseRichText} reads — its inverse for
+ * everything that subset can express, so a form editor can offer a `richText` node as a plain textarea
+ * and turn what a human types back into a `setRichText` op.
+ *
+ * The inverse is exact only for values the parser can produce: a run carrying BOTH marks is written
+ * `***text***` (bold outside italic), which the non-nesting parser reads back as a single bold run.
+ */
+export function richTextToMarkdown(value: RichTextV1): string {
+  return value.blocks.map((block) => block.runs.map(runToMarkdown).join("")).join("\n\n");
+}
+
+function runToMarkdown(run: RichRun): string {
+  const marks = run.marks ?? [];
+  const italic = marks.includes("italic") ? `*${run.text}*` : run.text;
+  return marks.includes("bold") ? `**${italic}**` : italic;
 }
 
 function emptyParagraph(): RichParagraph {

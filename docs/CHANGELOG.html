@@ -148,7 +148,202 @@ hr { border: none; border-top: 1px solid var(--line); margin: 2.2rem 0; }
 <a href="https://keepachangelog.com/" target="_blank" rel="noopener">Keep a Changelog</a>, and the project aims to follow
 <a href="https://semver.org/" target="_blank" rel="noopener">Semantic Versioning</a> once published.</p>
 <h2 id="unreleased"><a href="https://github.com/petrpus/legal-docs/compare/v0.2.0-beta.2...HEAD" target="_blank" rel="noopener">Unreleased</a></h2>
-<p>Nothing yet.</p>
+<p>Post-generation editing layer, in progress. PRD
+<a href="https://github.com/petrpus/legal-docs/issues/147" target="_blank" rel="noopener">#147</a>.</p>
+<h3 id="added">Added</h3>
+<ul>
+<li><strong>Runtime validation of the <code>DocumentTree</code></strong> (<a href="https://github.com/petrpus/legal-docs/issues/148" target="_blank" rel="noopener">#148</a>) —
+a zod mirror of the node union (<code>documentTreeSchema</code>, <code>documentNodeSchema</code>, <code>richTextV1Schema</code>) and
+<code>assertValidTree(value)</code>, which throws a path-precise <code>TreeValidationError</code> carrying every issue
+(<code>{ path, message }</code>). Schemas are plain, never strict: a tree written by a newer build still
+validates, and a <code>custom</code> node&#39;s <code>props</code> stays opaque (ADR-0005).</li>
+<li><strong>The node-kind list as data</strong> — public <code>DOCUMENT_NODE_KINDS</code>, <code>DocumentNodeKind</code>,
+<code>isDocumentNodeKind</code> and <code>MARK_VALUES</code>, kept in lockstep with the TypeScript union at compile time
+and with the schema at runtime.</li>
+<li><strong><code>exportDocumentTreeSchema(options?)</code></strong> — JSON Schema (draft-7 by default, <code>draft-2020-12</code> on
+request) for the document tree itself, alongside the existing payload export; the article/list
+recursion is hoisted into a <code>documentNodeList</code> definition.</li>
+<li><strong>Tree paths</strong> (<a href="https://github.com/petrpus/legal-docs/issues/149" target="_blank" rel="noopener">#149</a>) — a place in a document
+tree is addressed by an array of keys and indices (<code>[&quot;body&quot;, 2, &quot;heading&quot;]</code>) with the canonical
+string form <code>/body/2/heading</code> (<code>formatTreePath</code> / <code>parseTreePath</code>). <code>locate(tree, path)</code> is the
+single definition of the editable surface and refuses anything outside it — article numbering,
+<code>custom</code> props, page setup, a node&#39;s <code>kind</code> — with an <code>EditError</code> naming the path and a reason.
+<code>transformPath(path, op)</code> shifts a path through an insert/remove/move (<code>null</code> when it was removed).</li>
+<li><strong>The Edit set model</strong> — the <code>EditOp</code> union (<code>setText</code>, <code>setRichText</code>, <code>setStyle</code>, <code>replaceNode</code>,
+<code>insertNode</code>, <code>removeNode</code>, <code>moveNode</code>, <code>insertListItem</code>, <code>removeListItem</code>, <code>setFurniture</code>), the
+<code>Comment</code> shape and the <code>EditSet</code> envelope <code>{ schemaVersion, baseSnapshotId, ops, comments?, author?, at?, note? }</code>, each with a zod schema, <code>assertValidEditSet</code> and <code>exportEditSetSchema()</code>. A <code>custom</code>
+block cannot be inserted or replaced (ADR-0005).</li>
+<li><strong><code>applyEdits(tree, ops)</code> / <code>applyEdit(tree, op)</code></strong> — pure (the input tree is never mutated),
+sequential, validating the tree before and after, and never writing <code>undefined</code> keys, so an edit
+that restores the original yields a deep-equal tree. Browser-safe by construction — the whole module
+graph is scanned by a guard test — and re-exported from the browser entry.</li>
+<li><strong>The whole op set applies</strong> (<a href="https://github.com/petrpus/legal-docs/issues/151" target="_blank" rel="noopener">#151</a>) —
+<code>setRichText</code>, <code>setStyle</code> (a partial <code>indent</code> replaces the whole override; <code>null</code> clears it),
+<code>replaceNode</code>, <code>insertNode</code>, <code>removeNode</code>, <code>moveNode</code>, <code>insertListItem</code>, <code>removeListItem</code> and
+<code>setFurniture</code> join <code>setText</code>. An insert addresses a <em>position</em>, so an index equal to the list
+length appends; <code>removeNode</code>/<code>moveNode</code> are kind-agnostic (a <code>custom</code> block can be moved out of the
+way but never rewritten); an inserted article keeps the number the caller supplied, because
+numbering is never recomputed. A compound edit using every op kind renders to HTML, PDF and DOCX.</li>
+<li><strong>The edited Snapshot</strong> (<a href="https://github.com/petrpus/legal-docs/issues/150" target="_blank" rel="noopener">#150</a>, ADR-0014) — an
+edited document is a first-class <code>Snapshot</code>. <code>buildEditedSnapshot(base, edits)</code> applies an Edit set
+to a tree-bearing base and returns a <code>tree</code>-mode Snapshot with its own deterministic id and
+<code>derivedFrom: EditSet</code>, inheriting the base&#39;s template/version/variant/locale and its provenance
+(payload, resolved payload, Clause pins). A <code>pins</code>-mode base, an Edit set naming another Snapshot and
+a malformed Edit set are rejected with typed errors; the base object is never mutated; editing an
+edited Snapshot chains.</li>
+<li><strong><code>verifyEditedSnapshot(base, edited)</code></strong> — the audit check: re-applies the Edit set and compares the
+record field by field, reporting a typed <code>issue</code> (<code>tree-mismatch</code>, <code>id-mismatch</code>, <code>base-mismatch</code>,
+<code>not-applicable</code>, <code>metadata-mismatch</code>, <code>not-derived</code>) instead of throwing.</li>
+<li><strong><code>renderEdited({ snapshot, edits, format, … })</code></strong> — export a document with an Edit set applied and
+get the edited Snapshot back. The edit is frozen as a Snapshot before rendering, so
+<code>renderFromSnapshot(result.snapshot)</code> reproduces the export exactly, in PDF, HTML and DOCX.</li>
+<li><strong><code>diffTree(base, edited)</code></strong> (<a href="https://github.com/petrpus/legal-docs/issues/152" target="_blank" rel="noopener">#152</a>, ADR-0014) —
+the flat, path-addressed list of what an edit did: <code>inserted</code> / <code>removed</code> nodes, <code>insertedItem</code> /
+<code>removedItem</code> list items, and <code>text</code>, <code>richText</code> and <code>attr</code> changes, each at the path where it
+happened. Identical trees produce an empty list. Node lists align on structural equality and changed
+runs pair positionally, so a reworded paragraph reads as a rewording; a pair that cannot be
+reconciled in place — different kinds, a different article <code>no</code>/<code>level</code> or party <code>kind</code>, a different
+row/place count, any change inside an opaque <code>custom</code> block, and every <strong>move</strong> — degrades to a
+removal plus an insertion. A change is reported at its path in the edited tree; a removal keeps its
+base-tree path.</li>
+<li><strong><code>buildRedline(base, edited)</code> → <code>RedlineDoc</code></strong> — one renderer-agnostic description of an edit: the
+edited document mirrored block by block (<code>unchanged</code>, <code>inserted</code>, <code>deleted</code>, <code>textChanged</code>,
+<code>attrsChanged</code>, <code>container</code>), deleted blocks kept in place, changed strings carrying word-level
+segments, changed rich text carrying per-paragraph runs whose marks come from the after side except
+on a deletion, page-furniture changes per slot, plus a <code>stats</code> tally. The HTML and DOCX redline
+renderers will both be visitors over this structure, and <code>diffTree</code> is its flattening.</li>
+<li><strong><code>diffWords(before, after)</code></strong> — word-level inline diff (<code>equal</code> / <code>ins</code> / <code>del</code> segments).
+Whitespace runs are tokens of their own, so the segments reassemble both inputs exactly, with no
+normalisation; non-ASCII and astral-plane text survive untouched.</li>
+<li><strong><code>renderTreeToHtml(tree, { emitPaths: true })</code></strong> (<a href="https://github.com/petrpus/legal-docs/issues/153" target="_blank" rel="noopener">#153</a>) —
+opt-in <code>data-path</code> attributes carrying the canonical tree path (<code>/body/5/items/0</code>) on every block
+element: title, paragraph, rich-text container, article (and every nested article body), list and
+list item, party header, key-value table, signatures, and a Custom block (whose own markup is
+wrapped, never rewritten). A UI maps a click in the rendered document back to an editable location
+this way. Off by default, so exported documents carry no editing metadata and the default output is
+byte-identical.</li>
+<li><strong><code>renderNodeToHtml(node, cx, path)</code> / <code>createHtmlRenderContext(options)</code></strong> — the HTML Renderer&#39;s
+per-node step and its resolved context, exported so the redline and review Renderers render an
+untouched node exactly as a plain render does.</li>
+<li><strong><code>createEditSession(init)</code></strong> (<a href="https://github.com/petrpus/legal-docs/issues/154" target="_blank" rel="noopener">#154</a>, ADR-0014) —
+the framework-agnostic editing state an editor UI drives: <code>apply(op)</code> (a typed <code>{ ok }</code> result — an
+op that does not fit the tree is an answer, not an exception — truncating the redo tail),
+<code>undo</code>/<code>redo</code>/<code>canUndo</code>/<code>canRedo</code>, <code>getNode(path)</code>, <code>preview()</code> (HTML with <code>data-path</code>),
+<code>toEditSet()</code> and <code>subscribe(listener)</code> for <code>useSyncExternalStore</code>. History is an op log plus a
+cursor with every prefix memoized, so <code>session.tree</code> is a new reference exactly when the document
+changed. A session starts from a base Snapshot or a bare tree, resumes from a stored Edit set, and
+refuses a <code>pins</code>-mode base or an Edit set naming another Snapshot.</li>
+<li><strong><code>@petrpus/legal-docs/edit</code></strong> — a new browser-safe subpath export carrying the session, the Edit set
+model, tree paths, <code>applyEdits</code>, the tree diff / redline model and the HTML Renderer. Built as its
+own bundle so it shares no chunk with the Node-only half of the package; guard tests assert the
+built bundle imports no <code>node:</code> built-in, and that nothing under <code>src/**</code> imports ProseMirror or
+TipTap (a WYSIWYG binds to the session from outside).</li>
+<li><strong><code>richTextToMarkdown(value)</code></strong> — the inverse of <code>parseRichText</code> for the bold/italic subset, so a
+form editor can offer a <code>richText</code> node as a plain textarea. Also <code>assertValidEditOp(value)</code>, the
+single-op counterpart of <code>assertValidEditSet</code>.</li>
+<li><strong>Comments anchored to tree paths</strong> (<a href="https://github.com/petrpus/legal-docs/issues/155" target="_blank" rel="noopener">#155</a>,
+ADR-0014) — <code>session.addComment/editComment/resolveComment/removeComment</code> and <code>session.comments</code>,
+whose anchors are <em>derived</em> from <code>originalPath</code> + <code>anchoredAfterOp</code> by replaying the op log: an
+insert before a comment shifts it, removing its node orphans it (<code>path: null</code>), and undoing that
+removal brings it back. Comments are not on the undo stack, and they round-trip through
+<code>EditSet.comments</code>. The quote captured at anchoring time flags a note whose text has since changed.</li>
+<li><strong><code>renderReviewHtml(tree, comments, options)</code></strong> — the preview with the comments as CSS-only margin
+notes (quote, author, time, and resolved / orphaned / outdated-quote flags), also reachable as
+<code>session.reviewHtml()</code>. It wraps the plain <code>emitPaths</code> render byte for byte and no exporter goes
+through it, so PDF, DOCX and plain HTML never contain a comment. Helpers <code>quoteAt</code>, <code>nodeText</code>,
+<code>deriveCommentPath</code> and <code>isCommentStale</code> are exported for a UI that renders its own review view.</li>
+<li><strong><code>renderRedlineHtml(redline, options)</code></strong> (<a href="https://github.com/petrpus/legal-docs/issues/156" target="_blank" rel="noopener">#156</a>,
+ADR-0014) — the inline redline: the edited document as it now reads, with <code>&lt;ins&gt;</code>/<code>&lt;del&gt;</code> around the
+words that moved and block-level markers for an insertion, a deletion, a dropped or added list item
+and a presentation-only change. It renders a <code>RedlineDoc</code> (<code>buildRedline</code>), so it and the DOCX
+compare export describe the same edit. An untouched block goes through the plain Renderer itself, so
+a redline of an unedited document is the document; changed page-header/footer slots are reported as
+a trailing section. Also reachable as <code>session.redline()</code> / <code>session.redlineHtml()</code>, on the
+<code>./edit</code> subpath and on the browser entry. <code>mode</code> reserves a future side-by-side layout.</li>
+<li><strong>An ADR index</strong> (<a href="https://github.com/petrpus/legal-docs/blob/main/docs/adr/README.md" target="_blank" rel="noopener"><code>docs/adr/README.md</code></a>) listing every decision record.</li>
+<li><strong>&quot;Edit before export&quot; in the demo</strong> (<a href="https://github.com/petrpus/legal-docs/issues/157" target="_blank" rel="noopener">#157</a>,
+ADR-0014) — the first end-to-end product flow over the editing layer, and the reference shape for the
+three routes a consuming app needs: <code>POST /api/edit/start</code> freezes and stores a <code>full</code> base Snapshot
+and hands the browser its tree, <code>POST /api/edit/export</code> validates the posted <strong>Edit set</strong>, builds and
+stores the edited Snapshot and renders <em>it</em> (HTML/PDF/DOCX), and <code>POST /api/edit/rerender</code> re-renders
+either stored Snapshot. The wire carries ops, never a document, so no exported file exists without
+the audit record that reproduces it — the demo&#39;s re-render button shows the edited Snapshot
+reproducing the export byte for byte, and the base still rendering the original. The client is the
+first consumer of the <code>@petrpus/legal-docs/edit</code> subpath: a form editor over <code>data-path</code> block
+selection with undo/redo, comments and the Preview / Redline / Review views.</li>
+<li><strong><code>normalizeTree(tree)</code> / <code>normalizeRichText(value)</code></strong> (<a href="https://github.com/petrpus/legal-docs/issues/158" target="_blank" rel="noopener">#158</a>,
+ADR-0014) — the canonical form of a document tree: empty runs dropped, adjacent runs carrying the same
+marks merged, marks in canonical order, a style key set to <code>undefined</code> omitted, one empty run kept for
+an empty paragraph. Pure, on the root entry and the <code>./edit</code> subpath. It is the shape a WYSIWYG editor
+can hold, so it is what an editor round trip is specified against; numbering, <code>custom.props</code> and page
+furniture are carried through untouched. Useful outside an editor too — two Edit sets that produce the
+same document produce the same normalized tree.</li>
+<li><strong>A lossless ProseMirror mapping for the demo editor</strong> — <code>examples/demo/src/editor/pm-schema.ts</code>
+(<code>documentSchema</code>, <code>treeToPmDoc</code>, <code>pmDocToTree</code>), DOM- and TipTap-free, mapping title/paragraph to
+mark-free text blocks, <code>richText</code> to marked paragraphs, articles to an optional heading plus body with
+the level <strong>derived from nesting depth</strong>, lists to a kind-attributed node, and the four data blocks to
+atoms holding their data verbatim. A fast-check property proves <code>pmDocToTree(treeToPmDoc(t))</code> equals
+<code>normalizeTree(t)</code> over generated trees covering every node kind, and it runs under the root <code>verify</code>.
+The editor libraries stay demo devDependencies — nothing under <code>src/</code> imports prosemirror or tiptap.</li>
+<li><strong>A WYSIWYG editor in the demo</strong> (<a href="https://github.com/petrpus/legal-docs/issues/159" target="_blank" rel="noopener">#159</a>, ADR-0014) —
+the Edit tab&#39;s new <strong>Write</strong> view is a TipTap editor over that ProseMirror schema, bound to the same
+<code>EditSession</code> from the outside. <code>examples/demo/src/editor/doc-ops.ts</code> maps what the editor holds onto
+the session&#39;s tree — <code>opsBetween(before, after)</code> aligns the two documents and emits the Edit ops that
+reconcile them, debounced so one pause in typing is one op; <code>treePathAt</code> answers which block the caret
+is in. Undo/redo are delegated to the session (ProseMirror&#39;s <code>history</code> is deliberately absent, so there
+is one history), the atoms are React node views with a small form, a <code>custom</code> block is read-only and an
+article&#39;s number is a CSS decoration. A reorder reads as a removal plus an insertion — <code>moveNode</code> is
+reserved for an explicit move command, since two positional documents cannot prove a block moved.</li>
+<li><strong><code>lcsAlign</code> / <code>pairAligned</code> are public</strong> — on the root entry and the <code>./edit</code> subpath, alongside
+<code>diffWords</code>. They are the alignment the redline is built from, and an editor shell needs the same
+notion of &quot;the same node&quot; as the redline or the two would disagree about what changed.</li>
+<li><strong><code>renderRedlineToDocx(redline, options?)</code></strong> (<a href="https://github.com/petrpus/legal-docs/issues/160" target="_blank" rel="noopener">#160</a>,
+ADR-0014) — the <strong>Word compare document</strong>: the edited document as a .docx with Word&#39;s own Track
+Changes and comments. Changed words, whole inserted/deleted blocks and rewritten rich text become
+<code>w:ins</code>/<code>w:del</code> runs carrying <code>author</code> and <code>date</code>; a wholly inserted or deleted block also carries a
+tracked paragraph mark, so accepting or rejecting it leaves no empty paragraph behind. Comments are
+emitted as <code>w:comment</code> entries with a comment range and reference, anchored on the first text their
+path overlaps, and <code>resolved</code> travels with them. A <code>custom</code> block that was added or removed is
+reported by a tracked marker paragraph (its DOCX is code-side, ADR-0005), and changed page-header /
+footer slots as a trailing section (Word has no section-level tracked change, ADR-0011); a comment
+the edit orphaned is dropped, because a Word comment is a range and there is nothing to hang it on.
+Like the inline HTML redline it is a second, additional Renderer — no exporter routes through it.</li>
+<li><strong>The demo exports a compare DOCX</strong> — the Edit tab&#39;s new <strong>DOCX (compare)</strong> button posts the same
+Edit set to <code>/api/edit/export</code> with <code>review: true</code>. The edited Snapshot is frozen either way, so the
+compare document is a second rendering of the audit record, never a shortcut around it.</li>
+</ul>
+<h3 id="changed">Changed</h3>
+<ul>
+<li><strong>The documentation covers the editing layer</strong>
+(<a href="https://github.com/petrpus/legal-docs/issues/161" target="_blank" rel="noopener">#161</a>) — README gained an <strong>Edit before export</strong>
+section (session → Edit set → edited Snapshot → redline), <code>ARCHITECTURE.md</code> the optional
+<code>applyEdits</code> step in the data flow, an <code>edit</code> module row, a <em>Post-generation editing</em> section and the
+two-entry public API, and <code>CONTEXT.md</code> the terms the layer introduced: <strong>Tree path</strong>, <strong>Edit op</strong>,
+<strong>Edit set</strong>, <strong>Edit session</strong>, <strong>Base Snapshot</strong>, <strong>Edited Snapshot</strong>, <strong>Redline</strong> and <strong>Comment</strong>.
+&quot;Edit audit&quot; is now always qualified — the <em>catalog</em> edit audit (ADR-0009) changes the wording of
+every future document, the <em>document</em> edit audit (an Edit set, ADR-0014) changes exactly one — and
+README&#39;s catalog-editing section is retitled to match. A guard test keeps every public value of the
+<code>./edit</code> subpath named in the docs and the generated doc site in step with its sources.</li>
+<li><strong>The DOCX Renderer&#39;s visitor is addressable and hookable</strong>
+(<a href="https://github.com/petrpus/legal-docs/issues/160" target="_blank" rel="noopener">#160</a>) — <code>createDocxRenderContext(options)</code> and
+<code>renderNodeToDocx(node, context, path)</code> are public, the visitor threads the tree path (the same
+scheme <code>locate</code> and the HTML <code>data-path</code> use), and an optional <code>DocxTrack</code> on the context takes over
+text emission. That hook is what the compare document is built from; without it a paragraph&#39;s parts
+are joined into a single run, so every ordinary render — and its golden — is byte for byte unchanged.</li>
+<li><strong><code>Snapshot</code> gained an optional <code>derivedFrom</code></strong> (<a href="https://github.com/petrpus/legal-docs/issues/150" target="_blank" rel="noopener">#150</a>) —
+present only on an edited Snapshot, validated by <code>assertValidSnapshot</code> and refused on a <code>pins</code>-mode
+snapshot. The id digest mixes in the base Snapshot id (and only that) for a derived snapshot, so
+every existing id and <code>SNAPSHOT_SCHEMA_VERSION</code> (2) are unchanged — an optional additive field is not
+a breaking shape change.</li>
+<li><strong><code>assertValidSnapshot</code> now validates the tree of a <code>full</code>/<code>tree</code>-mode snapshot against the schema</strong>,
+so a persisted snapshot with a malformed node is rejected by path (<code>body.1.kind: …</code>) instead of
+failing deep inside a renderer. Snapshot ids, <code>SNAPSHOT_SCHEMA_VERSION</code> (2) and the existing
+&quot;no tree body array&quot; / <code>schemaVersion</code> errors are unchanged.</li>
+<li><strong>The Clause paragraph diff now shares its alignment with the tree diff</strong>
+(<a href="https://github.com/petrpus/legal-docs/issues/152" target="_blank" rel="noopener">#152</a>) — the LCS and the positional pairing moved
+into <code>src/core/text-diff.ts</code> as the generic <code>lcsAlign</code> / <code>pairAligned</code>. <code>diffRichText</code>&#39;s output is
+unchanged.</li>
+</ul>
 <h2 id="020-beta2--2026-09-19"><a href="https://github.com/petrpus/legal-docs/compare/v0.2.0-beta.1...v0.2.0-beta.2" target="_blank" rel="noopener">0.2.0-beta.2</a> — 2026-09-19</h2>
 <h3 id="fixed">Fixed</h3>
 <ul>
@@ -168,7 +363,7 @@ page requirements. PRD <a href="https://github.com/petrpus/legal-docs/issues/135
 <p>Briefly published as <code>0.1.0-beta.2</code> and renumbered the same day (a new feature bumps the minor);
 the deprecated <code>0.1.0-beta.2</code> artifact is content-identical.</p>
 </blockquote>
-<h3 id="added">Added</h3>
+<h3 id="added-1">Added</h3>
 <ul>
 <li><strong>Six named page formats</strong> — <code>theme.page.size</code> widens from <code>A4 | LETTER</code> to
 <code>A3 | A4 | A5 | LETTER | LEGAL | TABLOID</code>, and <code>theme.page</code> gains
@@ -183,7 +378,7 @@ frozen in the Snapshot (additive — the digest mixes <code>page</code> in only 
 documents keep their snapshot ids; schema stays v2), and reproduced by <code>renderFromSnapshot</code>.</li>
 <li><strong>Demo</strong> — the theme editor offers all six formats and both orientations as selects.</li>
 </ul>
-<h3 id="changed">Changed</h3>
+<h3 id="changed-1">Changed</h3>
 <ul>
 <li><strong>DOCX now emits explicit section page geometry</strong> — <code>w:pgSz</code> (size + orientation) and <code>w:pgMar</code>
 mapped from <code>theme.page.padding</code> on all four edges. Previously the section carried no page

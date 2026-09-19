@@ -22,6 +22,10 @@ export function createApiHandler({ lib, catalogDir }) {
   // The editable catalog (in-memory reference store) backing the editor tab. Persists for the
   // process's lifetime; the node:sqlite adapter (adapters/sqlite/) is the persistent alternative.
   let editing;
+  // Every Snapshot this process has issued, base and edited alike, keyed by id — the demo's stand-in
+  // for the document store a real app would persist them in. An edited Snapshot never replaces its
+  // base: both stay addressable, so `/edit/rerender` reproduces either side of an editing pass.
+  const snapshots = new Map();
 
   async function getCatalog() {
     return (catalog ??= lib.Catalog.fromDir(catalogDir));
@@ -74,9 +78,7 @@ export function createApiHandler({ lib, catalogDir }) {
           // override the default and crash; the UI always sends a full theme).
           ...(theme ? { theme } : {}),
           format,
-          ...(c.schemas ? { schemas: c.schemas } : {}),
-          ...(c.derivations ? { derivations: c.derivations } : {}),
-          ...(c.customBlocks ? { customBlocks: c.customBlocks } : {}),
+          ...codeSide(c),
         });
         // Narrow on the discriminated result (not the local `format`) so this stays correct.
         if (result.format === "html") json(res, { html: result.html });
@@ -95,6 +97,66 @@ export function createApiHandler({ lib, catalogDir }) {
         const schemas = cfg[template]?.schemas ?? {};
         json(res, { schemas: lib.exportPayloadSchemas(schemas) });
         return true;
+      }
+
+      // --- Edit before export (PRD #147 / ADR-0014): freeze → edit → export → re-render ---
+      if (pathname.startsWith("/edit/")) {
+        const b = await readBody(req);
+        if (pathname === "/edit/start") {
+          // `full` mode freezes the tree the browser will edit *and* the inputs it was assembled from,
+          // so the edited Snapshot's provenance survives the editing pass (ADR-0003 / ADR-0014).
+          const generated = await lib.renderDocument({
+            catalog: cat,
+            template: b.template,
+            ...(b.variant ? { variant: b.variant } : {}),
+            ...(b.locale ? { locale: b.locale } : {}),
+            data: b.data ?? {},
+            format: "html",
+            snapshotMode: "full",
+            ...codeSide(cfg[b.template]),
+          });
+          snapshots.set(generated.snapshot.id, generated.snapshot);
+          json(res, { baseId: generated.snapshot.id, tree: generated.snapshot.tree, html: generated.html });
+          return true;
+        }
+        if (pathname === "/edit/export") {
+          const snapshot = requireSnapshot(snapshots, b.baseId);
+          // Guard the Edit set as it crosses the wire, so a malformed op answers with its zod issues
+          // (naming `ops/<index>`) instead of failing obscurely inside the builder.
+          lib.assertValidEditSet(b.edits);
+          const out = await lib.renderEdited({
+            snapshot,
+            edits: b.edits,
+            format: b.format ?? "html",
+            ...customBlocksOf(cfg[snapshot.template]),
+          });
+          // The edited Snapshot is stored NEXT TO its base, never over it — both stay re-renderable.
+          snapshots.set(out.snapshot.id, out.snapshot);
+          if (b.review === true) {
+            // The compare document is a SECOND rendering of the same frozen edit, never a shortcut
+            // around it: the edited Snapshot above is what proves the two trees below belong together.
+            if (out.format !== "docx") throw new Error(`A review export is a Word compare document — ask for format "docx", not "${out.format}".`);
+            const buffer = await lib.renderRedlineToDocx(lib.buildRedline(snapshot.tree, out.snapshot.tree), {
+              ...customBlocksOf(cfg[snapshot.template]),
+              ...(b.edits.author ? { author: b.edits.author } : {}),
+              ...(b.edits.at ? { date: b.edits.at } : {}),
+              ...(b.edits.comments ? { comments: b.edits.comments } : {}),
+            });
+            json(res, { baseId: snapshot.id, editedId: out.snapshot.id, format: "docx", review: true, base64: buffer.toString("base64") });
+            return true;
+          }
+          json(res, { baseId: snapshot.id, editedId: out.snapshot.id, ...rendered(out) });
+          return true;
+        }
+        if (pathname === "/edit/rerender") {
+          const snapshot = requireSnapshot(snapshots, b.id);
+          const out = await lib.renderFromSnapshot(snapshot, {
+            format: b.format ?? "html",
+            ...customBlocksOf(cfg[snapshot.template]),
+          });
+          json(res, { id: snapshot.id, ...rendered(out) });
+          return true;
+        }
       }
 
       // --- Editor (ADR-0009 runtime editing API over an in-memory editable store) ---
@@ -149,13 +211,55 @@ export function createApiHandler({ lib, catalogDir }) {
 
       return false;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      json(res, { error: message }, 400);
+      json(res, errorBody(lib, error), 400);
       return true;
     }
   }
 
   return { handle };
+}
+
+/**
+ * The 400 body. A rejected edit carries structure worth forwarding: an `EditError` names the op index,
+ * the tree path and a machine-readable reason, and an `EditSetValidationError` carries the zod issues —
+ * both let the client point at the offending field instead of showing a sentence.
+ */
+function errorBody(lib, error) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof lib.EditError) {
+    return { error: message, reason: error.reason, path: lib.formatTreePath(error.path), ...(error.opIndex !== undefined ? { opIndex: error.opIndex } : {}) };
+  }
+  if (error instanceof lib.EditSetValidationError) return { error: message, issues: error.issues };
+  return { error: message };
+}
+
+/** The code-side pieces a template needs at assembly time, keyed by template in {@link buildSamples}. */
+function codeSide(c = {}) {
+  return {
+    ...(c.schemas ? { schemas: c.schemas } : {}),
+    ...(c.derivations ? { derivations: c.derivations } : {}),
+    ...customBlocksOf(c),
+  };
+}
+
+/**
+ * A Custom block's implementation is code, not frozen data (ADR-0005), so it must be re-supplied to
+ * every render of a stored Snapshot — editing never changes that.
+ */
+function customBlocksOf(c = {}) {
+  return c.customBlocks ? { customBlocks: c.customBlocks } : {};
+}
+
+/** Look up a stored Snapshot, failing with a message that names the id the client asked for. */
+function requireSnapshot(snapshots, id) {
+  const snapshot = snapshots.get(id);
+  if (!snapshot) throw new Error(`Unknown Snapshot id "${id}" — start an editing pass first (the demo stores Snapshots in memory only).`);
+  return snapshot;
+}
+
+/** A render result as JSON: HTML inline, a binary format base64-encoded. */
+function rendered(out) {
+  return out.format === "html" ? { format: "html", html: out.html } : { format: out.format, base64: out.buffer.toString("base64") };
 }
 
 /**

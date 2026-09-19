@@ -17,6 +17,10 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # The demo's editor mapping (examples/demo/src/editor) is proved by a fast-check property that
+      # `verify` runs (see vitest.config.ts). Its `prosemirror-model` / `fast-check` devDependencies
+      # belong to the demo — the library itself must never depend on an editor — so install them too.
+      - run: npm --prefix examples/demo ci
       - run: npm run verify
       # Smoke-test the built CLI bin (shebang, bin wiring, dist chunking) — vitest exercises the
       # command logic directly via runCli(), pre-build; this covers what that can't.

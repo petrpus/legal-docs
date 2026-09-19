@@ -17,6 +17,7 @@ import {
   TextRun,
   WidthType,
 } from "docx";
+import type { IParagraphOptions, IParagraphRunOptions, ParagraphChild } from "docx";
 import { PAGE_NUMBER_SENTINEL, PAGE_TOTAL_SENTINEL } from "../core/document-tree";
 import type { PageFurniture } from "../core/document-tree";
 import type {
@@ -29,7 +30,8 @@ import type {
   SignaturePlace,
 } from "../core/document-tree";
 import { asDocumentTree } from "../core/document-tree";
-import type { RichParagraph, RichRun } from "../core/rich-text";
+import type { TreePath } from "../core/edit/tree-path";
+import type { RichRun } from "../core/rich-text";
 import { MAX_LEVEL } from "../core/engine";
 import { mergeTheme, type Theme } from "../theme";
 import { effectivePage, PAGE_SIZES, type PageSetup } from "../core/page";
@@ -37,13 +39,57 @@ import { dispatchCustomBlock } from "../custom-block";
 import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../custom-block";
 import { eighths, halfPoints, twips } from "./theme-docx";
 
-interface DocxCtx {
+/** How a run of document text is styled. `size` is in points — the Renderer converts to half-points. */
+export interface DocxRunStyle {
+  size: number;
+  bold?: boolean;
+  italics?: boolean;
+  color?: string;
+}
+
+/**
+ * One piece of a paragraph's text. `path` addresses the editable leaf the piece came from, when it has
+ * one — non-editable glue (a list marker, an article number, a separator) carries none. The plain
+ * Renderer joins the pieces into a single run and ignores the addresses; the redline Renderer
+ * (`redline-docx.ts`) uses them to turn just the pieces that changed into tracked runs.
+ */
+export interface DocxTextPart {
+  text: string;
+  path?: TreePath;
+}
+
+/** One paragraph a {@link DocxTrack} contributes, with an optional tracked paragraph mark. */
+export interface DocxTrackedParagraph {
+  children: ParagraphChild[];
+  mark?: IParagraphRunOptions;
+}
+
+/**
+ * The hook the redline Renderer installs on the context to take over text emission. It is absent in
+ * every ordinary render, and every method is answered from one {@link RedlineDoc} — so a compare
+ * document is this same visitor, not a second one that could drift from it.
+ */
+export interface DocxTrack {
+  /** The children one paragraph's text contributes: plain runs, or `w:ins`/`w:del` where it changed. */
+  text(parts: readonly DocxTextPart[], style: DocxRunStyle): ParagraphChild[];
+  /** One entry per paragraph a `richText` node contributes — a diff can add or drop paragraphs. */
+  richText(node: Extract<DocumentNode, { kind: "richText" }>, path: TreePath): readonly DocxTrackedParagraph[];
+  /** Whether a leaf that is absent from the node nonetheless has a change to show (a deleted heading). */
+  has(path: TreePath): boolean;
+}
+
+/** Everything the DOCX visitor carries down the tree. Created by {@link createDocxRenderContext}. */
+export interface DocxRenderContext {
   theme: Theme;
   blocks: CustomBlockRegistry;
   degradation: DegradationMode;
   onDegrade?: OnDegrade;
   /** Nesting depth — Word is flat, so nesting becomes a left indent on the paragraph. */
   depth: number;
+  /** Redline only: takes over text emission (see {@link DocxTrack}). */
+  track?: DocxTrack;
+  /** Redline only: a tracked paragraph mark (`w:rPr/w:ins|w:del` in `w:pPr`) for every paragraph. */
+  paragraphMark?: IParagraphRunOptions;
 }
 
 /**
@@ -55,22 +101,40 @@ export async function renderTreeToDocx(input: DocumentTree | DocumentBody, optio
   // `async` so a synchronous build error (unregistered component, throw-mode degradation) surfaces as
   // a rejected promise rather than a sync throw.
   const tree = asDocumentTree(input);
-  const theme = mergeTheme(options.theme);
-  const ctx: DocxCtx = { theme, blocks: options.customBlocks ?? {}, degradation: options.degradation ?? "placeholder", onDegrade: options.onDegrade, depth: 0 };
-  const children = tree.body.flatMap((node) => nodeToDocx(node, ctx));
-  // Set the document-default run font (the reader's app substitutes if it lacks the family).
-  const doc = new Document({
+  const ctx = createDocxRenderContext(options);
+  const children = tree.body.flatMap((node, index) => renderNodeToDocx(node, ctx, ["body", index]));
+  return Packer.toBuffer(new Document(docxDocumentOptions(tree, ctx, children)));
+}
+
+/** The visitor's context for a set of render options. The redline Renderer adds its own hooks to it. */
+export function createDocxRenderContext(options: RenderTreeOptions = {}): DocxRenderContext {
+  return {
+    theme: mergeTheme(options.theme),
+    blocks: options.customBlocks ?? {},
+    degradation: options.degradation ?? "placeholder",
+    onDegrade: options.onDegrade,
+    depth: 0,
+  };
+}
+
+/**
+ * The `Document` options a rendered body turns into: the document-default run font (the reader's app
+ * substitutes if it lacks the family), the section's page geometry and the page furniture. Shared with
+ * the redline Renderer so a compare document has the same geometry as the document it compares.
+ */
+export function docxDocumentOptions(tree: DocumentTree, ctx: DocxRenderContext, children: readonly (Paragraph | Table)[]) {
+  const theme = ctx.theme;
+  return {
     styles: { default: { document: { run: { font: theme.font.family } } } },
     sections: [
       {
         properties: { page: pageProperties(theme, tree.page) },
         ...(tree.header ? { headers: { default: new Header({ children: [furnitureParagraph(tree.header, "header", theme)] }) } } : {}),
         ...(tree.footer ? { footers: { default: new Footer({ children: [furnitureParagraph(tree.footer, "footer", theme)] }) } } : {}),
-        children,
+        children: [...children],
       },
     ],
-  });
-  return Packer.toBuffer(doc);
+  };
 }
 
 /**
@@ -93,12 +157,17 @@ function pageProperties(theme: Theme, override?: PageSetup) {
   };
 }
 
-function nodeToDocx(node: DocumentNode, ctx: DocxCtx): (Paragraph | Table)[] {
+/**
+ * Render one node at `path`. `path` addresses the node in the DocumentTree (the same scheme `locate`
+ * and the HTML Renderer's `data-path` use) and is only consulted through {@link DocxTrack} — an
+ * ordinary render neither reads nor emits it.
+ */
+export function renderNodeToDocx(node: DocumentNode, ctx: DocxRenderContext, path: TreePath): (Paragraph | Table)[] {
   switch (node.kind) {
     case "title":
       return [
-        new Paragraph({
-          children: [run(node.text, ctx.theme.fontSize.title, { bold: true })],
+        para(ctx, {
+          children: runs(ctx, [{ text: node.text, path: [...path, "text"] }], ctx.theme.fontSize.title, { bold: true }),
           spacing: { after: twips(ctx.theme.spacing.title) },
           ...alignment(node.align ?? ctx.theme.align.title),
           // Titles have no Theme indent default (0); only a per-block override indents them.
@@ -107,29 +176,30 @@ function nodeToDocx(node: DocumentNode, ctx: DocxCtx): (Paragraph | Table)[] {
       ];
     case "paragraph":
       return [
-        new Paragraph({
-          children: [run(node.text, ctx.theme.fontSize.paragraph)],
+        para(ctx, {
+          children: runs(ctx, [{ text: node.text, path: [...path, "text"] }], ctx.theme.fontSize.paragraph),
           spacing: { after: twips(ctx.theme.spacing.paragraph) },
           ...alignment(node.align ?? ctx.theme.align.paragraph),
           ...blockIndent(ctx, node.indent?.firstLine ?? ctx.theme.indent.firstLine, node.indent?.left ?? ctx.theme.indent.block),
         }),
       ];
     case "richText":
-      return node.value.blocks.map((block) => richParagraph(block, ctx));
+      if (ctx.track) {
+        return ctx.track.richText(node, path).map((entry) => richTextParagraph(entry.children, ctx, entry.mark));
+      }
+      return node.value.blocks.map((block) => richTextParagraph(block.runs.map((r) => richRun(r, ctx)), ctx));
     case "article":
-      return articleDocx(node, ctx);
+      return articleDocx(node, ctx, path);
     case "numberedList":
-      return listDocx(node.items, ctx, (i) => `${i + 1}. `);
     case "bulletList":
-      return listDocx(node.items, ctx, () => "• ");
     case "alphaList":
-      return listDocx(node.items, ctx, (i) => `${String.fromCharCode(97 + i)}. `);
+      return node.items.flatMap((item, index) => renderListItemToDocx(node.kind, item, index, ctx, [...path, "items", index]));
     case "partyHeader":
-      return partyDocx(node.party, node.roleLabel, ctx);
+      return partyDocx(node.party, node.roleLabel, ctx, path);
     case "keyValueTable":
-      return [keyValueTableDocx(node.rows, ctx)];
+      return [keyValueTableDocx(node.rows, ctx, path)];
     case "signatures":
-      return [signaturesDocx(node.places, ctx)];
+      return [signaturesDocx(node.places, ctx, path)];
     case "custom":
       return customDocx(node, ctx);
     default: {
@@ -139,8 +209,28 @@ function nodeToDocx(node: DocumentNode, ctx: DocxCtx): (Paragraph | Table)[] {
   }
 }
 
+/** A paragraph carrying the context's tracked paragraph mark, if it has one (redline only). */
+function para(ctx: DocxRenderContext, options: IParagraphOptions, mark = ctx.paragraphMark): Paragraph {
+  return new Paragraph(mark ? { ...options, run: mark } : options);
+}
+
 function run(text: string, sizePt: number, opts: { bold?: boolean; italics?: boolean; color?: string } = {}): TextRun {
   return new TextRun({ text, size: halfPoints(sizePt), ...opts });
+}
+
+/**
+ * The children one paragraph's text contributes. Without a {@link DocxTrack} the parts are joined into
+ * a single run, exactly as if they had been one string — so installing the hook is the only thing that
+ * changes the output.
+ */
+function runs(
+  ctx: DocxRenderContext,
+  parts: readonly DocxTextPart[],
+  sizePt: number,
+  opts: { bold?: boolean; italics?: boolean; color?: string } = {},
+): ParagraphChild[] {
+  if (ctx.track) return ctx.track.text(parts, { size: sizePt, ...opts });
+  return [run(parts.map((part) => part.text).join(""), sizePt, opts)];
 }
 
 /**
@@ -148,7 +238,7 @@ function run(text: string, sizePt: number, opts: { bold?: boolean; italics?: boo
  * slot's page-number sentinels are split into `PageNumber` field runs (which Word fills per page); the
  * text between them becomes plain runs. `theme.header`/`footer` drives size and colour.
  */
-function furnitureParagraph(furniture: PageFurniture, kind: "header" | "footer", theme: Theme): Paragraph {
+export function furnitureParagraph(furniture: PageFurniture, kind: "header" | "footer", theme: Theme): Paragraph {
   const style = kind === "header" ? theme.header : theme.footer;
   const runOpts = { size: halfPoints(style.fontSize), color: hex(style.color) };
   // Fresh tab run per position — a docx node should not be shared across two slots in the graph.
@@ -182,7 +272,7 @@ function slotRuns(slot: string | undefined, runOpts: { size: number; color: stri
  * (`list.indent`, `partyHeader.gap`, `signatures.columnGap`, …) are not all honoured; that is the
  * documented ADR-0007 approximation.
  */
-function indent(ctx: DocxCtx): { indent?: { left: number } } {
+export function docxIndent(ctx: DocxRenderContext): { indent?: { left: number } } {
   return ctx.depth > 0 ? { indent: { left: twips(ctx.theme.article.indentPerLevel * ctx.depth) } } : {};
 }
 
@@ -190,7 +280,7 @@ function indent(ctx: DocxCtx): { indent?: { left: number } } {
  * Title/paragraph indent (twips): the nesting depth's left indent plus the effective block-left and
  * first-line indents (ADR-0008). Emitted only when non-zero, so the all-default case adds no XML.
  */
-function blockIndent(ctx: DocxCtx, firstLinePt: number, leftPt: number): { indent?: { left?: number; firstLine?: number } } {
+function blockIndent(ctx: DocxRenderContext, firstLinePt: number, leftPt: number): { indent?: { left?: number; firstLine?: number } } {
   const depthLeft = ctx.depth > 0 ? twips(ctx.theme.article.indentPerLevel * ctx.depth) : 0;
   const left = depthLeft + twips(leftPt);
   const firstLine = twips(firstLinePt);
@@ -222,68 +312,112 @@ function alignment(a: Align): { alignment?: (typeof AlignmentType)[keyof typeof 
  * must not leak into them. The genuine `paragraph` node passes `node.align ?? theme.align.paragraph`
  * explicitly, so real paragraphs are unaffected.
  */
-function textParagraph(text: string, ctx: DocxCtx, align: Align = "left"): Paragraph {
-  return new Paragraph({
-    children: [run(text, ctx.theme.fontSize.paragraph)],
+function textParagraph(parts: readonly DocxTextPart[], ctx: DocxRenderContext, align: Align = "left"): Paragraph {
+  return para(ctx, {
+    children: runs(ctx, parts, ctx.theme.fontSize.paragraph),
     spacing: { after: twips(ctx.theme.spacing.paragraph) },
     ...alignment(align),
-    ...indent(ctx),
+    ...docxIndent(ctx),
   });
 }
 
-function richParagraph(block: RichParagraph, ctx: DocxCtx): Paragraph {
-  return new Paragraph({
-    children: block.runs.map((r) => richRun(r, ctx)),
-    spacing: { after: twips(ctx.theme.spacing.paragraph) },
-    ...indent(ctx),
-  });
+function richTextParagraph(children: ParagraphChild[], ctx: DocxRenderContext, mark?: IParagraphRunOptions): Paragraph {
+  return para(
+    ctx,
+    {
+      children,
+      spacing: { after: twips(ctx.theme.spacing.paragraph) },
+      ...docxIndent(ctx),
+    },
+    mark ?? ctx.paragraphMark,
+  );
 }
 
-function richRun(r: RichRun, ctx: DocxCtx): TextRun {
-  return run(r.text, ctx.theme.fontSize.paragraph, {
-    bold: r.marks?.includes("bold") ?? false,
-    italics: r.marks?.includes("italic") ?? false,
-  });
+/** A rich-text run as a plain `TextRun`; the redline builds its tracked counterpart the same way. */
+export function docxRichRun(r: RichRun, sizePt: number): TextRun {
+  return run(r.text, sizePt, { bold: r.marks?.includes("bold") ?? false, italics: r.marks?.includes("italic") ?? false });
 }
 
-function articleDocx(node: Extract<DocumentNode, { kind: "article" }>, ctx: DocxCtx): (Paragraph | Table)[] {
-  const headingText = node.heading === undefined ? node.no : `${node.no} ${node.heading}`;
+function richRun(r: RichRun, ctx: DocxRenderContext): TextRun {
+  return docxRichRun(r, ctx.theme.fontSize.paragraph);
+}
+
+/** An article's heading line — the number, then the heading, which is the only editable half. */
+export function articleHeadingDocx(node: Extract<DocumentNode, { kind: "article" }>, ctx: DocxRenderContext, path: TreePath): Paragraph {
   const level = Math.min(Math.max(node.level, 1), MAX_LEVEL);
   const headingSize = ctx.theme.article.headingFontSize[level - 1] ?? ctx.theme.article.headingFontSize[0];
-  const heading = new Paragraph({
-    children: [run(headingText, headingSize, { bold: true })],
+  // A heading the edit deleted is gone from the node but still has a change to show, so both are asked.
+  const headingPath = [...path, "heading"];
+  const hasHeading = node.heading !== undefined || (ctx.track?.has(headingPath) ?? false);
+  const parts: DocxTextPart[] = hasHeading
+    ? [{ text: `${node.no} ` }, { text: node.heading ?? "", path: headingPath }]
+    : [{ text: node.no }];
+  return para(ctx, {
+    children: runs(ctx, parts, headingSize, { bold: true }),
     spacing: { after: twips(ctx.theme.spacing.paragraph) },
-    ...indent(ctx),
+    ...docxIndent(ctx),
   });
-  // Word is flat: the body is indented one level deeper than its heading (ADR-0007), unlike the PDF/
-  // HTML renderers where a heading and its body share the article's indent.
-  const body = node.body.flatMap((child) => nodeToDocx(child, { ...ctx, depth: ctx.depth + 1 }));
-  return [heading, ...body];
 }
 
-function listDocx(items: DocumentNode[][], ctx: DocxCtx, marker: (i: number) => string): (Paragraph | Table)[] {
-  const itemCtx: DocxCtx = { ...ctx, depth: ctx.depth + 1 };
-  return items.flatMap((item, i) => {
-    if (item.every(isTextNode)) {
-      // Common case: a plain-text item → one paragraph with the manual marker prefix (ADR-0007
-      // flat-model approximation; inline formatting within the item is flattened to text). Known
-      // limitation: a per-block `align` on a list-item paragraph is not carried here (lists are
-      // out of ADR-0008 scope); PDF/HTML do honour it. Item-level alignment can be added later.
-      return [
-        new Paragraph({
-          children: [run(`${marker(i)}${plainText(item)}`, ctx.theme.fontSize.paragraph)],
-          spacing: { after: twips(ctx.theme.list.gap) },
-          ...indent(itemCtx),
-        }),
-      ];
-    }
-    // An item with non-text content (e.g. a Custom block) is rendered in full so nothing is silently
-    // dropped and the Degradation contract still fires; the marker leads as its own paragraph.
-    const lead = new Paragraph({
-      children: [run(marker(i).trim(), ctx.theme.fontSize.paragraph)],
-      ...indent(itemCtx),
+function articleDocx(node: Extract<DocumentNode, { kind: "article" }>, ctx: DocxRenderContext, path: TreePath): (Paragraph | Table)[] {
+  // Word is flat: the body is indented one level deeper than its heading (ADR-0007), unlike the PDF/
+  // HTML renderers where a heading and its body share the article's indent.
+  const inner: DocxRenderContext = { ...ctx, depth: ctx.depth + 1 };
+  const body = node.body.flatMap((child, index) => renderNodeToDocx(child, inner, [...path, "body", index]));
+  return [articleHeadingDocx(node, ctx, path), ...body];
+}
+
+/** The marker text a list kind puts in front of its `index`-th item. */
+export function docxListMarker(kind: "numberedList" | "bulletList" | "alphaList", index: number): string {
+  if (kind === "bulletList") return "• ";
+  return kind === "alphaList" ? `${String.fromCharCode(97 + index)}. ` : `${index + 1}. `;
+}
+
+/**
+ * One list item at `path`. A plain-text item becomes a single paragraph with the manual marker prefix
+ * (ADR-0007 flat-model approximation; inline formatting within the item is flattened to text). Known
+ * limitation: a per-block `align` on a list-item paragraph is not carried here (lists are out of
+ * ADR-0008 scope); PDF/HTML do honour it. Item-level alignment can be added later.
+ */
+export function renderListItemToDocx(
+  kind: "numberedList" | "bulletList" | "alphaList",
+  item: readonly DocumentNode[],
+  index: number,
+  ctx: DocxRenderContext,
+  path: TreePath,
+): (Paragraph | Table)[] {
+  const itemCtx: DocxRenderContext = { ...ctx, depth: ctx.depth + 1 };
+  const marker = docxListMarker(kind, index);
+  if (item.every(isTextNode)) {
+    // The marker carries the item's own path so a comment on the item still has something to anchor to;
+    // each text node contributes its own part, so a reworded item is tracked word by word.
+    const parts: DocxTextPart[] = [{ text: marker, path }];
+    let wrote = false;
+    item.forEach((node, at) => {
+      const text = textOf(node);
+      if (text.length === 0) return;
+      if (wrote) parts.push({ text: " " });
+      parts.push(node.kind === "richText" ? { text } : { text, path: [...path, at, "text"] });
+      wrote = true;
     });
-    return [lead, ...item.flatMap((node) => nodeToDocx(node, itemCtx))];
+    return [
+      para(ctx, {
+        children: runs(ctx, parts, ctx.theme.fontSize.paragraph),
+        spacing: { after: twips(ctx.theme.list.gap) },
+        ...docxIndent(itemCtx),
+      }),
+    ];
+  }
+  // An item with non-text content (e.g. a Custom block) is rendered in full so nothing is silently
+  // dropped and the Degradation contract still fires; the marker leads as its own paragraph.
+  return [docxListLead(kind, index, ctx), ...item.flatMap((node, at) => renderNodeToDocx(node, itemCtx, [...path, at]))];
+}
+
+/** The marker on a line of its own, for an item whose content is not one run of text. */
+export function docxListLead(kind: "numberedList" | "bulletList" | "alphaList", index: number, ctx: DocxRenderContext): Paragraph {
+  return para(ctx, {
+    children: runs(ctx, [{ text: docxListMarker(kind, index).trim() }], ctx.theme.fontSize.paragraph),
+    ...docxIndent({ ...ctx, depth: ctx.depth + 1 }),
   });
 }
 
@@ -291,34 +425,40 @@ function isTextNode(node: DocumentNode): boolean {
   return node.kind === "title" || node.kind === "paragraph" || node.kind === "richText";
 }
 
-function partyDocx(party: PartyIdentification, roleLabel: string, ctx: DocxCtx): Paragraph[] {
+function partyDocx(party: PartyIdentification, roleLabel: string, ctx: DocxRenderContext, path: TreePath): Paragraph[] {
   const out = [
-    new Paragraph({
-      children: [run(roleLabel, ctx.theme.partyHeader.roleFontSize, { bold: true })],
-      ...indent(ctx),
+    para(ctx, {
+      children: runs(ctx, [{ text: roleLabel, path: [...path, "roleLabel"] }], ctx.theme.partyHeader.roleFontSize, { bold: true }),
+      ...docxIndent(ctx),
     }),
-    textParagraph(party.name, ctx),
+    textParagraph([{ text: party.name, path: [...path, "party", "name"] }], ctx),
   ];
-  if (party.idNumber !== undefined) out.push(textParagraph(party.idNumber, ctx));
-  if (party.address !== undefined) out.push(textParagraph(party.address, ctx));
+  // An optional line the edit deleted is gone from the party but still has a change to show.
+  for (const key of ["idNumber", "address"] as const) {
+    const leaf = [...path, "party", key];
+    if (party[key] === undefined && !(ctx.track?.has(leaf) ?? false)) continue;
+    out.push(textParagraph([{ text: party[key] ?? "", path: leaf }], ctx));
+  }
   return out;
 }
 
-function keyValueTableDocx(rows: KeyValueRow[], ctx: DocxCtx): Table {
+function keyValueTableDocx(rows: KeyValueRow[], ctx: DocxRenderContext, path: TreePath): Table {
   const border = { style: BorderStyle.SINGLE, size: eighths(0.75), color: hex(ctx.theme.table.borderColor) };
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: { top: border, bottom: border, left: border, right: border, insideHorizontal: border, insideVertical: border },
     rows: rows.map(
-      (row) =>
+      (row, at) =>
         new TableRow({
           children: [
             new TableCell({
               width: { size: twips(ctx.theme.table.labelWidth), type: WidthType.DXA },
-              children: [new Paragraph({ children: [run(row.label, ctx.theme.table.fontSize, { bold: true })] })],
+              children: [
+                para(ctx, { children: runs(ctx, [{ text: row.label, path: [...path, "rows", at, "label"] }], ctx.theme.table.fontSize, { bold: true }) }),
+              ],
             }),
             new TableCell({
-              children: [new Paragraph({ children: [run(row.value, ctx.theme.table.fontSize)] })],
+              children: [para(ctx, { children: runs(ctx, [{ text: row.value, path: [...path, "rows", at, "value"] }], ctx.theme.table.fontSize) })],
             }),
           ],
         }),
@@ -326,7 +466,7 @@ function keyValueTableDocx(rows: KeyValueRow[], ctx: DocxCtx): Table {
   });
 }
 
-function signaturesDocx(places: SignaturePlace[], ctx: DocxCtx): Table {
+function signaturesDocx(places: SignaturePlace[], ctx: DocxRenderContext, path: TreePath): Table {
   const line = {
     top: { style: BorderStyle.SINGLE, size: eighths(ctx.theme.signatures.lineWidth), color: hex(ctx.theme.signatures.lineColor) },
   };
@@ -335,15 +475,18 @@ function signaturesDocx(places: SignaturePlace[], ctx: DocxCtx): Table {
     borders: noTableBorders(),
     rows: [
       new TableRow({
-        children: places.map((place) => {
+        children: places.map((place, at) => {
           const cells = [
-            new Paragraph({ border: line, spacing: { before: twips(ctx.theme.signatures.lineSpace) } }),
-            new Paragraph({ children: [run(place.name, ctx.theme.signatures.fontSize)] }),
+            para(ctx, { border: line, spacing: { before: twips(ctx.theme.signatures.lineSpace) } }),
+            para(ctx, { children: runs(ctx, [{ text: place.name, path: [...path, "places", at, "name"] }], ctx.theme.signatures.fontSize) }),
           ];
-          if (place.role !== undefined) {
+          const rolePath = [...path, "places", at, "role"];
+          if (place.role !== undefined || (ctx.track?.has(rolePath) ?? false)) {
             cells.push(
-              new Paragraph({
-                children: [run(place.role, ctx.theme.signatures.fontSize, { color: hex(ctx.theme.signatures.roleColor) })],
+              para(ctx, {
+                children: runs(ctx, [{ text: place.role ?? "", path: rolePath }], ctx.theme.signatures.fontSize, {
+                  color: hex(ctx.theme.signatures.roleColor),
+                }),
               }),
             );
           }
@@ -354,22 +497,17 @@ function signaturesDocx(places: SignaturePlace[], ctx: DocxCtx): Table {
   });
 }
 
-function customDocx(node: Extract<DocumentNode, { kind: "custom" }>, ctx: DocxCtx): (Paragraph | Table)[] {
+function customDocx(node: Extract<DocumentNode, { kind: "custom" }>, ctx: DocxRenderContext): (Paragraph | Table)[] {
   const result = dispatchCustomBlock(node, "docx", ctx);
   // Degradation marker policy (see dispatchCustomBlock): plain body text in the default paragraph style.
   if ("marker" in result) {
     return [
-      new Paragraph({
+      para(ctx, {
         children: [new TextRun({ text: result.marker, color: hex(ctx.theme.color.text) })],
       }),
     ];
   }
   return result.rendered;
-}
-
-/** Concatenated plain text of an all-text list item (title / paragraph / richText only). */
-function plainText(nodes: DocumentNode[]): string {
-  return nodes.map(textOf).filter((t) => t.length > 0).join(" ");
 }
 
 function textOf(node: DocumentNode): string {
@@ -380,7 +518,7 @@ function textOf(node: DocumentNode): string {
     case "richText":
       return node.value.blocks.map((b) => b.runs.map((r) => r.text).join("")).join(" ");
     default:
-      // Unreachable: plainText only runs over text nodes; non-text items take the full-render branch.
+      // Unreachable: only reached for text nodes; non-text items take the full-render branch.
       return "";
   }
 }

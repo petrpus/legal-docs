@@ -66,6 +66,46 @@ export type DocumentNode =
 export type DocumentBody = DocumentNode[];
 
 /**
+ * The closed set of Core node kinds, as a runtime list. The {@link DocumentNode} union stays the
+ * authority on each kind's *shape*; this array exists so a validator, a JSON Schema export or a UI
+ * can enumerate the kinds without reflecting over types. {@link DocumentNodeKindsAreExhaustive} keeps
+ * the two in lockstep at compile time.
+ */
+export const DOCUMENT_NODE_KINDS = [
+  "title",
+  "paragraph",
+  "richText",
+  "article",
+  "numberedList",
+  "bulletList",
+  "alphaList",
+  "partyHeader",
+  "keyValueTable",
+  "signatures",
+  "custom",
+] as const;
+
+export type DocumentNodeKind = (typeof DOCUMENT_NODE_KINDS)[number];
+
+/** `true` only when `A` and `B` are mutually assignable. Wrapped in {@link Assert} to fail the build. */
+export type Mutual<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+
+/** Resolves to `T` when it is `true`, and is a type error otherwise — a compile-time assertion. */
+export type Assert<T extends true> = T;
+
+/**
+ * Compile-time lockstep: adding a kind to {@link DocumentNode} without listing it in
+ * {@link DOCUMENT_NODE_KINDS} (or the reverse) makes this alias a type error. Exported so it is part
+ * of the module's checked surface rather than dead code.
+ */
+export type DocumentNodeKindsAreExhaustive = Assert<Mutual<DocumentNodeKind, DocumentNode["kind"]>>;
+
+/** Runtime guard for {@link DocumentNodeKind} — the counterpart of `isAlign` for node kinds. */
+export function isDocumentNodeKind(value: unknown): value is DocumentNodeKind {
+  return typeof value === "string" && (DOCUMENT_NODE_KINDS as readonly string[]).includes(value);
+}
+
+/**
  * A resolved page header or footer (paged output only). Each slot is a fully-interpolated string; a
  * page-number token survives as a {@link PAGE_NUMBER_SENTINEL}/{@link PAGE_TOTAL_SENTINEL} marker that
  * a paged renderer substitutes per page (PDF/DOCX). HTML — a page-less fragment — ignores furniture.

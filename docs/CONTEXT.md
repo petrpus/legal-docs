@@ -13,7 +13,10 @@ This file is a **glossary, not a spec**. It records what each term *is*, not how
 **DocumentNode**:
 An instance node in the assembled, renderer-agnostic document tree — the seam between a template
 and the renderers. Already evaluated and ready for a renderer (a *visitor*) to emit PDF/HTML/DOCX.
-Has no `id` and no schema; it is pure output data, not a catalog entry.
+Has no `id` and no catalog identity; it is pure output data, not a catalog entry. It *does* have a
+runtime schema (`documentNodeSchema`, `assertValidTree`) validating its shape. Because it carries no
+id, everything that points *at* a node — an **Edit op**, a **Comment**, a `data-path` attribute in
+rendered HTML — addresses it by its **Tree path**, its position in the tree.
 _Avoid_: Block (that is the catalog type, not the tree instance), node, element.
 
 **DocumentTree**:
@@ -195,10 +198,14 @@ styling assets. "Registry" is never used bare — always qualified.
 ### Snapshot & audit
 
 **Content audit** vs **Edit audit**:
-Two orthogonal trails. The **content audit** (the **Snapshot**'s `ClausePin`s) freezes *which element
-versions went into a rendered document* — "what was in this document". The **edit audit**
-(`AuditEntry`, written by an **EditableCatalogStore**) records *who changed the catalog, when, and
-through which status transition* — "who changed the content". Never conflate the two.
+Three orthogonal trails, and the word "edit" is qualified in two of them. The **content audit** (the
+**Snapshot**'s `ClausePin`s) freezes *which element versions went into a rendered document* — "what
+was in this document". The **catalog edit audit** (`AuditEntry`, written by an
+**EditableCatalogStore**, ADR-0009) records *who changed the catalog, when, and through which status
+transition* — "who changed the wording, for every future document". The **document edit audit** (an
+**Edit set** on an **Edited Snapshot**, ADR-0014) records *who changed this one assembled document
+after generation* — it never touches the catalog, and the next document is unaffected. Never conflate
+the three; say "catalog edit audit" or "Edit set", never a bare "edit audit".
 
 **Snapshot**:
 The immutable, serializable record a generation produces for audit and deterministic re-render. Its
@@ -218,6 +225,75 @@ freezes. Default **`full`**.
   lighter audit.
 - **`pins`**: inputs + version pins only, **no tree**. Smallest, but re-render re-runs the engine
   over the pins — depends on engine stability *and* on the catalog still holding those versions.
+
+### Post-generation editing
+
+A human changes an **assembled** document before export — a word, a struck sentence, an added
+paragraph the catalog does not have. The catalog is untouched; the next document is unaffected. This
+is a different activity from catalog editing (ADR-0009), and it borrows none of its vocabulary. See
+ADR-0014.
+
+**Tree path**:
+Where an edit points. An array of keys and indices mirroring the **DocumentTree**'s own JSON shape
+(`["body", 2, "heading"]`), written canonically as `/body/2/heading`. The addressing scheme for
+everything that points at a node: an **Edit op**'s target, a **Comment**'s anchor, and the optional
+`data-path` attribute the HTML Renderer emits. A path is only meaningful against one tree state, so a
+path held across a structural edit must be *rebased* (`transformPath`) — and it may rebase to nothing
+if the node it named was removed.
+_Avoid_: "node id" (a **DocumentNode** has none), "selector", "pointer".
+
+**Edit op**:
+One typed change to a **DocumentTree** (`setText`, `setRichText`, `setStyle`, `replaceNode`,
+`insertNode`, `removeNode`, `moveNode`, `insertListItem`, `removeListItem`, `setFurniture`). Ops apply
+**in order**, each against the tree as the previous one left it. What an op may touch is defined once,
+by `locate`: article numbering, a **Custom block**'s `props`, the **Page setup** and any node's `kind`
+are not editable.
+_Avoid_: "change", "patch", "command" for the single operation.
+
+**Edit set**:
+The artifact — an ordered list of **Edit op**s against one **Base Snapshot**, plus any **Comment**s
+and the authorship metadata (`{ schemaVersion, baseSnapshotId, ops, comments?, author?, at?, note? }`).
+Plain JSON, validated at every boundary, versioned independently of the **Snapshot**. It is the
+*document edit audit*: the only route from a generated document to the edited one, so it travels on
+the wire in place of an edited document.
+_Avoid_: **revision** (reserved for catalog drafts, ADR-0009), "patch set", "changeset", "diff" (a
+diff *describes* a change already made; an Edit set *is* the change).
+
+**Edit session**:
+The in-memory editing state an editor UI drives: the op log plus a cursor (undo/redo), the current
+tree, the live **Comment**s, and `toEditSet()`. Framework-agnostic and browser-safe
+(`createEditSession`, the `@petrpus/legal-docs/edit` subpath); a WYSIWYG shell binds to it from the
+outside. An op that does not fit the tree is a typed result, not an exception.
+
+**Base Snapshot**:
+The **Snapshot** an **Edit set** is written against, identified by `baseSnapshotId`. Must carry a
+frozen tree (`full` or `tree` mode — a `pins` snapshot cannot be a base), and is never mutated by
+editing.
+
+**Edited Snapshot**:
+The result of applying an **Edit set** to its **Base Snapshot**: a first-class `tree`-mode
+**Snapshot** with its own deterministic id, carrying `derivedFrom: EditSet` and inheriting the base's
+template/version/variant/locale and provenance. It re-renders through the ordinary
+`renderFromSnapshot`, and `verifyEditedSnapshot` re-applies the ops to prove the record is intact.
+Editing an Edited Snapshot again chains. See ADR-0014, ADR-0003.
+_Avoid_: "edited document" for the record (that is the output), "version 2 of the Snapshot".
+
+**Redline**:
+The renderer-agnostic description of what an **Edit set** did (`RedlineDoc`, from `buildRedline`): the
+edited document mirrored block by block, deletions kept in place, changed strings carrying word-level
+segments. One model, several views — the inline HTML redline, the Word **compare document** (tracked
+changes), and `diffTree`, its flat path-addressed summary. Never an export route: a final PDF/DOCX/HTML
+goes through the ordinary Renderers.
+_Avoid_: "diff view" for the model (the model is the Redline; a view renders it), "track changes" for
+anything but the DOCX projection.
+
+**Comment**:
+A note anchored to a **Tree path** in an edited document, with the quoted text captured at anchoring
+time. Review-only: it rebases through structural ops, *orphans* when its node is removed (and returns
+when that removal is undone), goes stale when the quoted text changes, and travels in the **Edit set**
+— but no exporter renders it, so a comment can never leak into a PDF, DOCX or plain HTML.
+_Avoid_: "annotation", "note" unqualified; a Word comment in the compare document is this term's
+projection, not a separate concept.
 
 ### Resolution & derivation
 
@@ -282,6 +358,12 @@ The catalog looking up a **Block** or **Clause reference** to a concrete element
 - **Clause** bodies and text-node `text` are **InlineRich** / **RichTextV1**.
 - A **DocumentTree** is the **DocumentNode** body plus optional **Page furniture** and **Page
   setup**; only PDF/DOCX render them, and the **Snapshot** freezes both for deterministic re-render.
+- An **Edit op** addresses a **DocumentNode** by **Tree path**; an ordered list of them against one
+  **Base Snapshot** is an **Edit set**, which an **Edit session** produces and which
+  `buildEditedSnapshot` turns into an **Edited Snapshot** — itself re-rendered by the same Renderers.
+- Comparing a **Base Snapshot**'s tree with its **Edited Snapshot**'s yields a **Redline**, rendered
+  inline as HTML or as a Word compare document; **Comment**s ride in the **Edit set** and are never
+  rendered by an exporter.
 
 ## Example dialogue
 
@@ -303,6 +385,11 @@ The catalog looking up a **Block** or **Clause reference** to a concrete element
 - "template" named both a standalone Template and a Template family (the `renderDocument` param) —
   resolved: the `template` param accepts either; `variant` selects a family member. A **Variant** is
   authoring-only and resolves to a **Template**; only a Template is renderable.
+- "edit" named both changing the catalog and changing one generated document — resolved: catalog
+  editing produces a **Draft** revision through the `draft → in-review → published` workflow
+  (ADR-0009) and changes every future document; document editing produces an **Edit set** applied to a
+  **Base Snapshot** (ADR-0014) and changes exactly one. "Revision" belongs to the first, "Edit set" to
+  the second, and an "edit audit" is always qualified as *catalog* or *document*.
 - "registry" named both file-based authored content and code-side registration — resolved:
   authored content is the **Catalog**; code-side things are qualified registries
   (**Helper** / **Custom-block** / **Theme** / **Font**).

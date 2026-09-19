@@ -3,8 +3,11 @@ import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { PDFParse } from "pdf-parse";
+import JSZip from "jszip";
 import { createApiHandler } from "../examples/demo/server/api.mjs";
 import * as lib from "../src/index";
+import { EDIT_SET_SCHEMA_VERSION, type EditSet } from "../src/core/edit";
 
 const catalogDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "legal-docs");
 
@@ -125,5 +128,206 @@ describe("demo API handler (examples/demo/server/api.mjs)", () => {
     const state = await fetch(`${base}/editing/state`).then((r) => r.json());
     const welcome = state.clauses.find((c: { id: string }) => c.id === "welcome");
     expect(welcome.latestVersion).toBe(version);
+  });
+});
+
+const ORIGINAL_TITLE = "DECLARATION AND CONFIRMATION";
+const EDITED_TITLE = "AMENDED DECLARATION";
+
+/**
+ * The "Edit before export" flow (#157): `/edit/start` freezes a base Snapshot server-side, the browser
+ * builds an Edit set against its tree, and `/edit/export` turns that into an edited Snapshot + output.
+ * Both Snapshots stay stored, so `/edit/rerender` reproduces either one.
+ */
+describe("demo edit API (/api/edit/*)", () => {
+  let server: Server;
+  let base: string;
+
+  beforeAll(async () => {
+    ({ server, base } = await startServer());
+  });
+
+  afterAll(() => {
+    server.close();
+  });
+
+  async function start() {
+    const body = await postJson(base, "/edit/start", { template: "hello" });
+    expect(body.error).toBeUndefined();
+    return body as { baseId: string; tree: lib.DocumentTree; html: string };
+  }
+
+  function editSet(baseId: string, ops: EditSet["ops"]): EditSet {
+    return { schemaVersion: EDIT_SET_SCHEMA_VERSION, baseSnapshotId: baseId, ops, author: "demo", at: "2026-09-11T10:00:00.000Z" };
+  }
+
+  const retitle: EditSet["ops"] = [{ op: "setText", path: ["body", 0, "text"], value: EDITED_TITLE }];
+
+  it("starts an editing pass: a stored base Snapshot, its frozen tree and the base HTML", async () => {
+    const started = await start();
+
+    expect(started.baseId).toMatch(/^[0-9a-f]{16}$/);
+    expect(started.tree.body[0]).toMatchObject({ kind: "title", text: ORIGINAL_TITLE });
+    expect(started.html).toContain(ORIGINAL_TITLE);
+  });
+
+  it("exports an Edit set as an edited Snapshot whose re-render is byte-identical", async () => {
+    const started = await start();
+
+    const exported = await postJson(base, "/edit/export", {
+      baseId: started.baseId,
+      edits: editSet(started.baseId, retitle),
+      format: "html",
+    });
+    expect(exported.error).toBeUndefined();
+    expect(exported.baseId).toBe(started.baseId);
+    expect(exported.editedId).not.toBe(started.baseId);
+    expect(exported.html).toContain(EDITED_TITLE);
+    expect(exported.html).not.toContain(ORIGINAL_TITLE);
+
+    // The exported document is the edited Snapshot's rendering — not a second, parallel render path.
+    const again = await postJson(base, "/edit/rerender", { id: exported.editedId, format: "html" });
+    expect(again.html).toBe(exported.html);
+  });
+
+  it("exports what a browser session produces: start → ops → Edit set → edited Snapshot", async () => {
+    const started = await start();
+
+    // What the Edit tab does client-side, minus the DOM: the session owns the ops and the views, and
+    // the only thing that crosses back to the server is the Edit set it exports.
+    const session = lib.createEditSession({ base: { id: started.baseId, tree: started.tree }, author: "Demo Editor" });
+    expect(session.apply({ op: "setText", path: ["body", 0, "text"], value: EDITED_TITLE }).ok).toBe(true);
+    expect(session.apply({ op: "insertNode", path: ["body", 2], node: { kind: "paragraph", text: "Added by hand." } }).ok).toBe(true);
+    session.addComment({ path: ["body", 0], text: "Retitled on the client." });
+    expect(session.redlineHtml()).toContain("<ins");
+
+    const exported = await postJson(base, "/edit/export", { baseId: started.baseId, edits: session.toEditSet(), format: "html" });
+
+    expect(exported.html).toContain(EDITED_TITLE);
+    expect(exported.html).toContain("Added by hand.");
+    // The review view is not an export path — a comment can never reach a rendered document.
+    expect(exported.html).not.toContain("Retitled on the client.");
+    const again = await postJson(base, "/edit/rerender", { id: exported.editedId, format: "html" });
+    expect(again.html).toBe(exported.html);
+  });
+
+  it("keeps the base Snapshot stored, re-rendering the original document", async () => {
+    const started = await start();
+    await postJson(base, "/edit/export", { baseId: started.baseId, edits: editSet(started.baseId, retitle), format: "html" });
+
+    const original = await postJson(base, "/edit/rerender", { id: started.baseId, format: "html" });
+
+    expect(original.html).toBe(started.html);
+    expect(original.html).toContain(ORIGINAL_TITLE);
+  });
+
+  it("carries the edit into the PDF and DOCX exports", async () => {
+    const started = await start();
+    const edits = editSet(started.baseId, retitle);
+
+    const pdf = await postJson(base, "/edit/export", { baseId: started.baseId, edits, format: "pdf" });
+    const parser = new PDFParse({ data: Buffer.from(pdf.base64, "base64") });
+    try {
+      expect((await parser.getText()).text).toContain(EDITED_TITLE);
+    } finally {
+      await parser.destroy();
+    }
+
+    const docx = await postJson(base, "/edit/export", { baseId: started.baseId, edits, format: "docx" });
+    const zip = await JSZip.loadAsync(Buffer.from(docx.base64, "base64"));
+    expect(await zip.file("word/document.xml")!.async("string")).toContain(EDITED_TITLE);
+  });
+
+  it("exports a review DOCX: the same edit as a Word compare document with comments", async () => {
+    const started = await start();
+    const session = lib.createEditSession({ base: { id: started.baseId, tree: started.tree }, author: "Demo Editor" });
+    expect(session.apply({ op: "setText", path: ["body", 0, "text"], value: EDITED_TITLE }).ok).toBe(true);
+    session.addComment({ path: ["body", 0, "text"], text: "Agreed with counsel." });
+
+    const review = await postJson(base, "/edit/export", {
+      baseId: started.baseId,
+      edits: session.toEditSet(),
+      format: "docx",
+      review: true,
+    });
+
+    expect(review.review).toBe(true);
+    // A review export still freezes the edit: the edited Snapshot is stored and re-renders on its own.
+    expect(review.editedId).not.toBe(started.baseId);
+    const zip = await JSZip.loadAsync(Buffer.from(review.base64, "base64"));
+    const xml = await zip.file("word/document.xml")!.async("string");
+    expect(xml).toContain("<w:ins ");
+    expect(xml).toContain("<w:delText");
+    expect(xml).toContain("w:commentReference");
+    expect(await zip.file("word/comments.xml")!.async("string")).toContain("Agreed with counsel.");
+    // The plain DOCX export of the same Edit set carries no tracked changes at all.
+    const plain = await postJson(base, "/edit/export", { baseId: started.baseId, edits: session.toEditSet(), format: "docx" });
+    expect(await (await JSZip.loadAsync(Buffer.from(plain.base64, "base64"))).file("word/document.xml")!.async("string")).not.toContain("<w:ins ");
+  });
+
+  it("rejects a review export in a format that cannot carry tracked changes", async () => {
+    const started = await start();
+    const res = await fetch(`${base}/edit/export`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ baseId: started.baseId, edits: editSet(started.baseId, retitle), format: "html", review: true }),
+    });
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/compare document/);
+  });
+
+  it("rejects an unknown base Snapshot id with a 400 naming it", async () => {
+    const res = await fetch(`${base}/edit/export`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ baseId: "0000000000000000", edits: editSet("0000000000000000", retitle), format: "html" }),
+    });
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("0000000000000000");
+  });
+
+  it("rejects an op that does not apply with a 400 naming the op index", async () => {
+    const started = await start();
+    const edits = editSet(started.baseId, [...retitle, { op: "setText", path: ["body", 99, "text"], value: "nowhere" }]);
+
+    const res = await fetch(`${base}/edit/export`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ baseId: started.baseId, edits, format: "html" }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.opIndex).toBe(1);
+    expect(body.error).toMatch(/op 1 \(setText\)/);
+    expect(body.path).toBe("/body/99/text");
+  });
+
+  it("rejects a malformed op with a 400 whose issues name the op", async () => {
+    const started = await start();
+    const edits = { ...editSet(started.baseId, []), ops: [{ op: "setText", path: ["body", 0, "text"] }] };
+
+    const res = await fetch(`${base}/edit/export`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ baseId: started.baseId, edits, format: "html" }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.issues[0].path.slice(0, 2)).toEqual(["ops", 0]);
+  });
+
+  it("rejects a re-render of an unknown Snapshot id", async () => {
+    const res = await fetch(`${base}/edit/rerender`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "ffffffffffffffff", format: "html" }),
+    });
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("ffffffffffffffff");
   });
 });

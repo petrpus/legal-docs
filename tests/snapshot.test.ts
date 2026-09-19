@@ -108,6 +108,35 @@ describe("snapshot schema-version guard", () => {
     expect(() => assertValidSnapshot({ ...valid, tree: [{ kind: "paragraph", text: "hi" }] })).toThrow(/no tree body array/);
   });
 
+  /**
+   * The guard validates a tree-bearing snapshot against the DocumentTree schema, so a persisted
+   * snapshot carrying a malformed node is rejected here (with the node's path) instead of failing
+   * deep inside a renderer — the whole point of the guard.
+   */
+  it("rejects a tree-bearing snapshot whose tree contains an invalid node, naming its path", () => {
+    const badNode = { ...valid, tree: { body: [{ kind: "paragraph", text: "ok" }, { kind: "footnote", text: "?" }] } };
+    expect(() => assertValidSnapshot(badNode)).toThrow(SnapshotError);
+    expect(() => assertValidSnapshot(badNode)).toThrow(/body\.1\.kind/);
+
+    // Deep inside an article body, and in a `full`-mode snapshot too.
+    const deep = {
+      ...valid,
+      mode: "full",
+      tree: { body: [{ kind: "article", no: "1", level: 1, body: [{ kind: "paragraph", text: 7 }] }] },
+    };
+    expect(() => assertValidSnapshot(deep)).toThrow(/body\.0\.body\.0\.text/);
+  });
+
+  it("still accepts a tree carrying an unknown additive field (forward compatibility)", () => {
+    const future = { ...valid, tree: { body: [{ kind: "paragraph", text: "hi", futureField: true }] } };
+    expect(() => assertValidSnapshot(future)).not.toThrow();
+  });
+
+  it("leaves a pins-mode snapshot (no tree) alone", () => {
+    const pins = buildSnapshot(gen, "pins");
+    expect(() => assertValidSnapshot(pins)).not.toThrow();
+  });
+
   it("blocks renderFromSnapshot on an unknown-version snapshot", async () => {
     const stale = { ...valid, schemaVersion: 999 } as unknown as Snapshot;
     await expect(renderFromSnapshot(stale, { format: "html" })).rejects.toThrow(SnapshotError);
