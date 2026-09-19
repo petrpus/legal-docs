@@ -147,8 +147,20 @@ hr { border: none; border-top: 1px solid var(--line); margin: 2.2rem 0; }
 <p>All notable changes to <code>@petrpus/legal-docs</code> are recorded here. The format follows
 <a href="https://keepachangelog.com/" target="_blank" rel="noopener">Keep a Changelog</a>, and the project aims to follow
 <a href="https://semver.org/" target="_blank" rel="noopener">Semantic Versioning</a> once published.</p>
-<h2 id="unreleased"><a href="https://github.com/petrpus/legal-docs/compare/v0.2.0-beta.1...HEAD" target="_blank" rel="noopener">Unreleased</a></h2>
+<h2 id="unreleased"><a href="https://github.com/petrpus/legal-docs/compare/v0.2.0-beta.2...HEAD" target="_blank" rel="noopener">Unreleased</a></h2>
 <p>Nothing yet.</p>
+<h2 id="020-beta2--2026-09-19"><a href="https://github.com/petrpus/legal-docs/compare/v0.2.0-beta.1...v0.2.0-beta.2" target="_blank" rel="noopener">0.2.0-beta.2</a> — 2026-09-19</h2>
+<h3 id="fixed">Fixed</h3>
+<ul>
+<li><strong>Characters silently dropped from PDF output across renders in one process.</strong> fontkit memoises
+<code>Glyph</code> objects on each loaded font and pdfkit writes subset state into them while embedding, while
+react-pdf keeps loaded fonts as process-wide singletons — so a glyph first cached by one document
+reached the next document needing the same character carrying a stale subset id, and that
+document&#39;s subset mapped it one slot off. Reliably seeded by a capital with an acute accent
+(<code>Í</code>, <code>Ý</code>); affected every embedded TrueType family, this library&#39;s output and the host&#39;s alike.
+<code>renderTreeToPdf</code> now clears the glyph cache on every registered font before and after rendering
+(new public <code>clearGlyphCaches</code>). <a href="https://github.com/petrpus/legal-docs/issues/163" target="_blank" rel="noopener">#163</a></li>
+</ul>
 <h2 id="020-beta1--2026-07-12"><a href="https://github.com/petrpus/legal-docs/compare/v0.1.0-beta.1...v0.2.0-beta.1" target="_blank" rel="noopener">0.2.0-beta.1</a> — 2026-07-12</h2>
 <p>Page geometry across the paged renderers (ADR-0013): named formats, orientation, and template-level
 page requirements. PRD <a href="https://github.com/petrpus/legal-docs/issues/135" target="_blank" rel="noopener">#135</a>, PRs #140–#144.</p>

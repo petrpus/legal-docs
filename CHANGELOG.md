@@ -8,6 +8,18 @@ All notable changes to `@petrpus/legal-docs` are recorded here. The format follo
 
 Nothing yet.
 
+## [0.2.0-beta.2] — 2026-09-19
+
+### Fixed
+- **Characters silently dropped from PDF output across renders in one process.** fontkit memoises
+  `Glyph` objects on each loaded font and pdfkit writes subset state into them while embedding, while
+  react-pdf keeps loaded fonts as process-wide singletons — so a glyph first cached by one document
+  reached the next document needing the same character carrying a stale subset id, and that
+  document's subset mapped it one slot off. Reliably seeded by a capital with an acute accent
+  (`Í`, `Ý`); affected every embedded TrueType family, this library's output and the host's alike.
+  `renderTreeToPdf` now clears the glyph cache on every registered font before and after rendering
+  (new public `clearGlyphCaches`). [#163](https://github.com/petrpus/legal-docs/issues/163)
+
 ## [0.2.0-beta.1] — 2026-07-12
 
 Page geometry across the paged renderers (ADR-0013): named formats, orientation, and template-level
@@ -260,6 +272,7 @@ phase by phase from the approved design plan ([`docs/PLAN.md`](docs/PLAN.md)) an
   all three renderers); `Font` (react-pdf) and `registerBundledFonts` re-exported so consumers can
   register their own. See docs/THEMING.md.
 
-[Unreleased]: https://github.com/petrpus/legal-docs/compare/v0.2.0-beta.1...HEAD
+[Unreleased]: https://github.com/petrpus/legal-docs/compare/v0.2.0-beta.2...HEAD
+[0.2.0-beta.2]: https://github.com/petrpus/legal-docs/compare/v0.2.0-beta.1...v0.2.0-beta.2
 [0.2.0-beta.1]: https://github.com/petrpus/legal-docs/compare/v0.1.0-beta.1...v0.2.0-beta.1
 [0.1.0-beta.1]: https://github.com/petrpus/legal-docs/releases/tag/v0.1.0-beta.1
