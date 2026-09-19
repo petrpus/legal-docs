@@ -46,3 +46,27 @@ export function registerBundledFonts(): void {
   });
   registered = true; // set only after a successful register, so a throw stays retry-able
 }
+
+/** The shape of a loaded font source as react-pdf's `Font` registry exposes it. */
+type RegisteredFontSource = { data?: { _glyphs?: Record<number, unknown> } | null };
+
+/**
+ * Drop fontkit's per-font glyph cache on every registered font.
+ *
+ * fontkit memoises `Glyph` objects on the loaded font, and pdfkit writes subset state into those
+ * objects while embedding a document's font subset. react-pdf keeps each loaded font as a
+ * process-wide singleton, so a `Glyph` first cached by one document is handed, subset id and all, to
+ * the next document that needs the same character — whose own subset then maps it one slot off and
+ * the character silently disappears from the page (a capital carrying an acute accent, `Í`/`Ý`,
+ * reliably seeds it). Clearing the cache around a render keeps every document's subset
+ * self-contained. The cache is a private field, hence the loose typing; if it is absent there is
+ * nothing to clear.
+ */
+export function clearGlyphCaches(): void {
+  const families = Font.getRegisteredFonts() as Record<string, { sources?: RegisteredFontSource[] }>;
+  for (const family of Object.values(families)) {
+    for (const source of family?.sources ?? []) {
+      if (source.data?._glyphs) source.data._glyphs = {};
+    }
+  }
+}

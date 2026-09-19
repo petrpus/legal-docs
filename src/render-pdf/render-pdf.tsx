@@ -7,7 +7,7 @@ import type { RichRun } from "../core/rich-text";
 import { MAX_LEVEL } from "../core/engine";
 import { defaultTheme, mergeTheme, type Theme } from "../theme";
 import { effectivePage } from "../core/page";
-import { registerBundledFonts } from "./fonts";
+import { clearGlyphCaches, registerBundledFonts } from "./fonts";
 import { dispatchCustomBlock } from "../custom-block";
 import type { CustomBlockRegistry, DegradationMode, OnDegrade, RenderTreeOptions } from "../custom-block";
 
@@ -314,10 +314,17 @@ function furnitureElement(furniture: PageFurniture, kind: "header" | "footer", t
   );
 }
 
-export function renderTreeToPdf(input: DocumentTree | DocumentBody, options: RenderTreeOptions = {}): Promise<Buffer> {
+export async function renderTreeToPdf(input: DocumentTree | DocumentBody, options: RenderTreeOptions = {}): Promise<Buffer> {
   // Register the bundled diacritics-safe font before rendering (idempotent). A consumer who sets a
   // different `theme.font.family` registers that family themselves via the re-exported `Font`.
   registerBundledFonts();
   const theme = mergeTheme(options.theme);
-  return renderToBuffer(documentElement(asDocumentTree(input), theme, options.customBlocks, options.degradation, options.onDegrade));
+  // Each document must build its font subset from a clean glyph cache — and leave one behind for
+  // whoever renders next in this process, this library or not. See `clearGlyphCaches`.
+  clearGlyphCaches();
+  try {
+    return await renderToBuffer(documentElement(asDocumentTree(input), theme, options.customBlocks, options.degradation, options.onDegrade));
+  } finally {
+    clearGlyphCaches();
+  }
 }

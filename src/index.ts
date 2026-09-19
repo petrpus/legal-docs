@@ -107,7 +107,7 @@ export type { PageSizeName, PageOrientation, PageSetup } from "./core/page";
 // Re-export react-pdf's Font so consumers can register their own PDF fonts (e.g. a branded family), plus
 // the bundled diacritics-safe default registration. See docs/THEMING.md.
 export { Font } from "@react-pdf/renderer";
-export { registerBundledFonts } from "./render-pdf/fonts";
+export { clearGlyphCaches, registerBundledFonts } from "./render-pdf/fonts";
 export type {
   CustomBlock,
   CustomBlockRegistry,
